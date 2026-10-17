@@ -1,0 +1,142 @@
+name: Build unsigned tvOS IPA
+
+on:
+  workflow_dispatch:
+    inputs:
+      deployment_target:
+        description: "tvOS deployment target (Xcode 26.x supports 15 and above)"
+        required: false
+        default: "15.6"
+      release_tag:
+        description: "Release tag to publish (leave blank to use build-<run number>)"
+        required: false
+        default: ""
+  push:
+    tags:
+      - "v*"
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    runs-on: macos-latest
+
+    steps:
+      - name: Check out source
+        uses: actions/checkout@v4
+
+      - name: Select the newest installed Xcode
+        run: |
+          set -euo pipefail
+          ls -d /Applications/Xcode*.app
+          XC=$(ls -d /Applications/Xcode*.app | sort -V | tail -1)
+          echo "Using $XC"
+          sudo xcode-select -s "$XC"
+          xcodebuild -version
+          echo "--- available tvOS SDKs ---"
+          xcodebuild -showsdks | grep -i appletv
+
+      - name: Build Browser.app (unsigned, device arm64)
+        run: |
+          set -euo pipefail
+          TARGET="${{ github.event.inputs.deployment_target || '15.6' }}"
+          echo "Building with TVOS_DEPLOYMENT_TARGET=$TARGET"
+          xcodebuild \
+            -project _Project/Browser.xcodeproj \
+            -scheme Browser \
+            -configuration Release \
+            -sdk appletvos \
+            -derivedDataPath build \
+            TVOS_DEPLOYMENT_TARGET="$TARGET" \
+            ONLY_ACTIVE_ARCH=NO \
+            CODE_SIGN_IDENTITY="" \
+            CODE_SIGNING_REQUIRED=NO \
+            CODE_SIGNING_ALLOWED=NO \
+            CODE_SIGN_ENTITLEMENTS="" \
+            DEVELOPMENT_TEAM="" \
+            PROVISIONING_PROFILE_SPECIFIER="" \
+            clean build
+
+      - name: Package into an unsigned .ipa
+        id: package
+        run: |
+          set -euo pipefail
+          APP=$(find build/Build/Products/Release-appletvos -maxdepth 1 -name '*.app' | head -1)
+          if [ -z "$APP" ]; then
+            echo "::error::No .app produced by the build"
+            find build/Build/Products -maxdepth 3 || true
+            exit 1
+          fi
+          echo "Found app bundle: $APP"
+
+          # An unsigned build should carry no signature or provisioning profile.
+          rm -rf "$APP/_CodeSignature" "$APP/embedded.mobileprovision"
+
+          echo "--- binary architectures ---"
+          BIN="$APP/$(/usr/libexec/PlistBuddy -c 'Print :CFBundleExecutable' "$APP/Info.plist")"
+          lipo -info "$BIN"
+          echo "--- minimum OS recorded in the bundle ---"
+          /usr/libexec/PlistBuddy -c 'Print :MinimumOSVersion' "$APP/Info.plist" || true
+
+          VERSION=$(/usr/libexec/PlistBuddy -c 'Print :CFBundleShortVersionString' "$APP/Info.plist")
+          IPA="tvOSBrowser-${VERSION}-unsigned.ipa"
+
+          rm -rf Payload
+          mkdir -p Payload
+          cp -R "$APP" Payload/
+          zip -qry "$IPA" Payload
+          rm -rf Payload
+
+          ls -lh "$IPA"
+          echo "ipa=$IPA" >> "$GITHUB_OUTPUT"
+          echo "version=$VERSION" >> "$GITHUB_OUTPUT"
+          echo "sha256=$(shasum -a 256 "$IPA" | cut -d' ' -f1)" >> "$GITHUB_OUTPUT"
+
+      - name: Upload the IPA as a workflow artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: tvOSBrowser-unsigned-ipa
+          path: ${{ steps.package.outputs.ipa }}
+          if-no-files-found: error
+
+      - name: Publish a release with the IPA
+        env:
+          GH_TOKEN: ${{ github.token }}
+          IPA: ${{ steps.package.outputs.ipa }}
+          VERSION: ${{ steps.package.outputs.version }}
+          SHA256: ${{ steps.package.outputs.sha256 }}
+        run: |
+          set -euo pipefail
+
+          TAG="${{ github.event.inputs.release_tag }}"
+          if [ -z "$TAG" ]; then
+            if [ "${GITHUB_REF_TYPE:-}" = "tag" ]; then
+              TAG="${GITHUB_REF_NAME}"
+            else
+              TAG="build-${GITHUB_RUN_NUMBER}"
+            fi
+          fi
+          echo "Publishing release $TAG"
+
+          cat > notes.md <<NOTES
+          Unsigned tvOS build of \`jvanakker/tvOSBrowser\`, produced by GitHub Actions.
+
+          | | |
+          |---|---|
+          | App version | $VERSION |
+          | Xcode | $(xcodebuild -version | head -1) |
+          | tvOS deployment target | ${{ github.event.inputs.deployment_target || '15.6' }} |
+          | SHA-256 | \`$SHA256\` |
+
+          **This .ipa is unsigned.** It will not install as-is. Sign it with your own
+          Apple ID or developer certificate before installing — see the repository README.
+          NOTES
+
+          if gh release view "$TAG" >/dev/null 2>&1; then
+            gh release upload "$TAG" "$IPA" --clobber
+          else
+            gh release create "$TAG" "$IPA" \
+              --title "tvOS Browser $VERSION ($TAG)" \
+              --notes-file notes.md
+          fi
