@@ -64,6 +64,13 @@ static NSString *BrowserPressPhaseString(UIPressPhase phase) {
 @property (nonatomic) CFTimeInterval lastSelectPressTimestamp;
 @property (nonatomic) BOOL awaitingSecondSelectPress;
 
+@property (nonatomic) BOOL trackingTouchForTap;
+@property (nonatomic) CFTimeInterval currentTouchStartTime;
+@property (nonatomic) CGPoint currentTouchStartCursorOrigin;
+@property (nonatomic) CGFloat currentTouchMaxCursorDistance;
+@property (nonatomic) BOOL selectPressDuringCurrentTouch;
+@property (nonatomic) CFTimeInterval lastSelectPressActivityTimestamp;
+
 @property (nonatomic, nullable) CADisplayLink *dpadPageScrollDisplayLink;
 @property (nonatomic) CFTimeInterval dpadPageScrollStartTime;
 @property (nonatomic) CFTimeInterval dpadPageScrollDuration;
@@ -156,6 +163,7 @@ static NSString *BrowserPressPhaseString(UIPressPhase phase) {
     BOOL wasCursorModeEnabled = self.cursorModeEnabled;
     _cursorModeEnabled = cursorModeEnabled;
     self.lastTouchLocation = CGPointMake(-1, -1);
+    self.trackingTouchForTap = NO;
     [self stopManualScrollInertia];
     if (!cursorModeEnabled) {
         [self stopEdgeAutoScroll];
@@ -505,7 +513,18 @@ static NSString *BrowserPressPhaseString(UIPressPhase phase) {
 
 #pragma mark - Actions & Gestures
 
+// A physical click also produces a touch sequence. The per-touch flag normally
+// catches that, but UIKit delivers presses and touches on separate paths and
+// does not guarantee their relative order, so a press reported before
+// touchesBegan: would have its flag cleared and fire the tap action as well as
+// the click. The timestamp closes that window.
+- (void)noteSelectPressActivity {
+    self.selectPressDuringCurrentTouch = YES;
+    self.lastSelectPressActivityTimestamp = CACurrentMediaTime();
+}
+
 - (void)handleGlobalSelectPressEndedNotification {
+    [self noteSelectPressActivity];
     if ([self.host browserRemoteInputControllerPresentedViewController] != nil) {
         return;
     }
@@ -538,10 +557,11 @@ static NSString *BrowserPressPhaseString(UIPressPhase phase) {
         return;
     }
 
-    [self.host browserRemoteInputControllerHandlePrimaryAction];
+    [self.host browserRemoteInputControllerHandlePrimaryActionWithSource:BrowserPageActivationSourceClick];
 }
 
 - (void)handleSelectPressEnded {
+    [self noteSelectPressActivity];
     CFTimeInterval now = CACurrentMediaTime();
     if (self.awaitingSecondSelectPress && (now - self.lastSelectPressTimestamp) < 0.35) {
         self.awaitingSecondSelectPress = NO;
@@ -609,6 +629,12 @@ static NSString *BrowserPressPhaseString(UIPressPhase phase) {
 
 - (void)handlePressesBegan:(NSSet<UIPress *> *)presses withEvent:(UIPressesEvent *)event {
     (void)event;
+    for (UIPress *p in presses) {
+        if (p.type == UIPressTypeSelect) {
+            [self noteSelectPressActivity];
+        }
+    }
+
     UIPress *press = presses.anyObject;
     if (press == nil) {
         return;
@@ -643,6 +669,9 @@ static NSString *BrowserPressPhaseString(UIPressPhase phase) {
 - (void)handlePressesCancelled:(NSSet<UIPress *> *)presses withEvent:(UIPressesEvent *)event {
     (void)event;
     for (UIPress *press in presses) {
+        if (press.type == UIPressTypeSelect) {
+            [self noteSelectPressActivity];
+        }
         if (press.type == UIPressTypeUpArrow || press.type == UIPressTypeDownArrow) {
             [self stopDpadHoldAndContinuousScroll];
         }
@@ -651,6 +680,12 @@ static NSString *BrowserPressPhaseString(UIPressPhase phase) {
 
 - (BOOL)handlePressesEnded:(NSSet<UIPress *> *)presses withEvent:(UIPressesEvent *)event {
     (void)event;
+    for (UIPress *p in presses) {
+        if (p.type == UIPressTypeSelect) {
+            [self noteSelectPressActivity];
+        }
+    }
+
     UIPress *press = presses.anyObject;
     if (press == nil) {
         return NO;
@@ -780,6 +815,11 @@ static NSString *BrowserPressPhaseString(UIPressPhase phase) {
         return NO;
     }
     self.lastTouchLocation = CGPointMake(-1, -1);
+    self.trackingTouchForTap = YES;
+    self.currentTouchStartTime = CACurrentMediaTime();
+    self.currentTouchStartCursorOrigin = self.cursorView.frame.origin;
+    self.currentTouchMaxCursorDistance = 0.0;
+    self.selectPressDuringCurrentTouch = NO;
     return YES;
 }
 
@@ -817,6 +857,16 @@ static NSString *BrowserPressPhaseString(UIPressPhase phase) {
             }
             self.cursorView.frame = rect;
             self.lastTouchLocation = location;
+
+            if (self.trackingTouchForTap) {
+                CGFloat dx = rect.origin.x - self.currentTouchStartCursorOrigin.x;
+                CGFloat dy = rect.origin.y - self.currentTouchStartCursorOrigin.y;
+                CGFloat distance = hypot(dx, dy);
+                if (distance > self.currentTouchMaxCursorDistance) {
+                    self.currentTouchMaxCursorDistance = distance;
+                }
+            }
+
             [self updateEdgeAutoScrollForCursorPosition];
         }
 
@@ -844,6 +894,39 @@ static NSString *BrowserPressPhaseString(UIPressPhase phase) {
     // The cursor only moves while a finger is on the touch surface, so a cursor
     // parked inside the edge zone would otherwise auto-scroll to the end of the
     // page after the finger is lifted. Auto-scroll lasts as long as the touch.
+    [self stopEdgeAutoScroll];
+
+    BOOL wasTrackingTouch = self.trackingTouchForTap;
+    self.trackingTouchForTap = NO;
+
+    if (!wasTrackingTouch) {
+        return;
+    }
+
+    CFTimeInterval touchDuration = CACurrentMediaTime() - self.currentTouchStartTime;
+    CGFloat maxDistance = self.currentTouchMaxCursorDistance;
+    BOOL selectOccurred = self.selectPressDuringCurrentTouch ||
+        self.awaitingSecondSelectPress ||
+        ((CACurrentMediaTime() - self.lastSelectPressActivityTimestamp) < 0.4);
+
+    if (self.cursorModeEnabled &&
+        ![self.host browserRemoteInputControllerTabOverviewVisible] &&
+        ![self.host browserRemoteInputControllerTopBarFocusActive] &&
+        [self.host browserRemoteInputControllerPresentedViewController] == nil &&
+        [self.host browserRemoteInputControllerTapToClickEnabled] &&
+        touchDuration > 0.0 &&
+        touchDuration < 0.25 &&
+        maxDistance < 20.0 &&
+        !selectOccurred) {
+        NSLog(@"[InputTrace][TapToClick] Triggered tap action duration=%.3f maxDistance=%.1f", touchDuration, maxDistance);
+        [self.host browserRemoteInputControllerHandlePrimaryActionWithSource:BrowserPageActivationSourceTap];
+    }
+}
+
+- (void)handleTouchesCancelled {
+    self.lastTouchLocation = CGPointMake(-1, -1);
+    self.trackingTouchForTap = NO;
+    self.selectPressDuringCurrentTouch = NO;
     [self stopEdgeAutoScroll];
 }
 

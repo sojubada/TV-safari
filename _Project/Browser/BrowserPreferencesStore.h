@@ -18,6 +18,8 @@ NS_ASSUME_NONNULL_BEGIN
 @property (nonatomic) BOOL jsScrollFallbackEnabled;
 @property (nonatomic) BOOL dpadScrollEnabled;
 @property (nonatomic) BOOL edgeAutoScrollEnabled;
+@property (nonatomic) BOOL tapToClickEnabled;
+@property (nonatomic) BOOL openLinksInNewTabOnClick;
 
 - (void)ensureUserAgentConsistency;
 

@@ -1,6 +1,11 @@
 #import <Foundation/Foundation.h>
 #import <UIKit/UIKit.h>
 
+typedef NS_ENUM(NSInteger, BrowserPageActivationSource) {
+    BrowserPageActivationSourceTap = 0,
+    BrowserPageActivationSourceClick,
+};
+
 NS_ASSUME_NONNULL_BEGIN
 
 @protocol BrowserRemoteInputControllerHost <NSObject>
@@ -16,7 +21,7 @@ NS_ASSUME_NONNULL_BEGIN
 - (BOOL)browserRemoteInputControllerHandleTabOverviewSelectionAtPoint:(CGPoint)point;
 - (void)browserRemoteInputControllerDismissTabOverview;
 - (void)browserRemoteInputControllerHandleTabOverviewAlternateAction;
-- (void)browserRemoteInputControllerHandlePrimaryAction;
+- (void)browserRemoteInputControllerHandlePrimaryActionWithSource:(BrowserPageActivationSource)source;
 - (void)browserRemoteInputControllerHandleMenuPress;
 - (void)browserRemoteInputControllerHandlePlayPausePress;
 - (void)browserRemoteInputControllerHandleAdvancedMenuPress;
@@ -27,6 +32,7 @@ NS_ASSUME_NONNULL_BEGIN
 - (BOOL)browserRemoteInputControllerJSScrollFallbackEnabled;
 - (BOOL)browserRemoteInputControllerDpadScrollEnabled;
 - (BOOL)browserRemoteInputControllerEdgeAutoScrollEnabled;
+- (BOOL)browserRemoteInputControllerTapToClickEnabled;
 
 @end
 
@@ -49,6 +55,7 @@ NS_ASSUME_NONNULL_BEGIN
 - (BOOL)handleTouchesBegan:(NSSet<UITouch *> *)touches withEvent:(UIEvent *)event;
 - (BOOL)handleTouchesMoved:(NSSet<UITouch *> *)touches withEvent:(UIEvent *)event;
 - (void)handleTouchesEnded;
+- (void)handleTouchesCancelled;
 - (void)setCursorModeEnabled:(BOOL)cursorModeEnabled;
 - (void)refreshInteractionState;
 

@@ -2,6 +2,7 @@
 
 #import "BrowserDOMInteractionService.h"
 #import "BrowserNavigationService.h"
+#import "BrowserPreferencesStore.h"
 #import "BrowserVideoPlaybackCoordinator.h"
 #import "BrowserWebView.h"
 
@@ -19,6 +20,7 @@ static UIColor *BrowserPageActionTextColor(void) {
 @property (nonatomic) BrowserDOMInteractionService *domInteractionService;
 @property (nonatomic) BrowserNavigationService *navigationService;
 @property (nonatomic) BrowserVideoPlaybackCoordinator *videoPlaybackCoordinator;
+@property (nonatomic) BrowserPreferencesStore *preferencesStore;
 
 @end
 
@@ -27,13 +29,15 @@ static UIColor *BrowserPageActionTextColor(void) {
 - (instancetype)initWithHost:(id<BrowserPageActionCoordinatorHost>)host
        domInteractionService:(BrowserDOMInteractionService *)domInteractionService
            navigationService:(BrowserNavigationService *)navigationService
-    videoPlaybackCoordinator:(BrowserVideoPlaybackCoordinator *)videoPlaybackCoordinator {
+    videoPlaybackCoordinator:(BrowserVideoPlaybackCoordinator *)videoPlaybackCoordinator
+            preferencesStore:(BrowserPreferencesStore *)preferencesStore {
     self = [super init];
     if (self) {
         _host = host;
         _domInteractionService = domInteractionService;
         _navigationService = navigationService;
         _videoPlaybackCoordinator = videoPlaybackCoordinator;
+        _preferencesStore = preferencesStore;
     }
     return self;
 }
@@ -57,6 +61,70 @@ static UIColor *BrowserPageActionTextColor(void) {
     }
 
     return [self.host browserPageActionCoordinatorCreateNewTabWithRequest:request];
+}
+
+- (NSString *)URLStringByRemovingFragment:(NSString *)URLString {
+    if (URLString.length == 0) {
+        return @"";
+    }
+    NSRange hashRange = [URLString rangeOfString:@"#"];
+    if (hashRange.location == NSNotFound) {
+        return URLString;
+    }
+    return [URLString substringToIndex:hashRange.location];
+}
+
+- (BOOL)isSamePageFragmentLinkForHref:(NSString *)href webView:(BrowserWebView *)webView {
+    if ([href hasPrefix:@"#"]) {
+        return YES;
+    }
+    NSRange hashRange = [href rangeOfString:@"#"];
+    if (hashRange.location == NSNotFound) {
+        return NO;
+    }
+    NSString *currentURLString = webView.request.URL.absoluteString ?: @"";
+    if (currentURLString.length == 0) {
+        currentURLString = [webView stringByEvaluatingJavaScriptFromString:@"window.location.href"] ?: @"";
+    }
+    if (currentURLString.length == 0) {
+        return NO;
+    }
+    NSString *baseHref = [self URLStringByRemovingFragment:href];
+    NSString *baseCurrent = [self URLStringByRemovingFragment:currentURLString];
+    return baseHref.length > 0 && [baseHref isEqualToString:baseCurrent];
+}
+
+- (BOOL)handleNewTabLinkOnClickAtDOMPoint:(CGPoint)point webView:(BrowserWebView *)webView {
+    NSDictionary *linkInfo = [self.domInteractionService linkInfoAtDOMPoint:point webView:webView];
+    NSString *rawHref = [linkInfo[@"href"] isKindOfClass:[NSString class]] ? linkInfo[@"href"] : @"";
+    NSString *href = [rawHref stringByTrimmingCharactersInSet:[NSCharacterSet whitespaceAndNewlineCharacterSet]];
+    if (href.length == 0) {
+        return NO;
+    }
+
+    NSString *lowercaseHref = href.lowercaseString;
+    if ([lowercaseHref hasPrefix:@"javascript:"] ||
+        [lowercaseHref hasPrefix:@"mailto:"] ||
+        [lowercaseHref hasPrefix:@"tel:"] ||
+        [lowercaseHref hasPrefix:@"#"]) {
+        return NO;
+    }
+
+    if ([self isSamePageFragmentLinkForHref:href webView:webView]) {
+        return NO;
+    }
+
+    NSURLRequest *request = [self.navigationService requestForURLString:href];
+    if (request == nil) {
+        return NO;
+    }
+
+    NSLog(@"[InputTrace][NewTabLink] Opening link in new tab on physical click href=%@", href);
+    // If the tab limit (5 tabs) is reached, createNewTabWithRequest: presents the
+    // "Maximum Tabs Reached" alert and returns NO. We still return YES so the
+    // page does not navigate underneath the alert.
+    [self.host browserPageActionCoordinatorCreateNewTabWithRequest:request];
+    return YES;
 }
 
 - (void)presentEditableFieldPromptForFieldType:(NSString *)fieldType
@@ -163,12 +231,21 @@ static UIColor *BrowserPageActionTextColor(void) {
     }
 }
 
-- (BOOL)handlePageSelectionAtDOMPoint:(CGPoint)point webView:(BrowserWebView *)webView {
+- (BOOL)handlePageSelectionAtDOMPoint:(CGPoint)point
+                              webView:(BrowserWebView *)webView
+                               source:(BrowserPageActivationSource)source {
     if ([self.videoPlaybackCoordinator handleSelectPressForVideoAtCursor]) {
         return YES;
     }
     if ([self handleTargetBlankLinkAtDOMPoint:point webView:webView]) {
         return YES;
+    }
+    if (source == BrowserPageActivationSourceClick &&
+        self.preferencesStore.tapToClickEnabled &&
+        self.preferencesStore.openLinksInNewTabOnClick) {
+        if ([self handleNewTabLinkOnClickAtDOMPoint:point webView:webView]) {
+            return YES;
+        }
     }
 
     NSString *fieldType = [self.domInteractionService evaluateResolvedElementJavaScriptAtPoint:point

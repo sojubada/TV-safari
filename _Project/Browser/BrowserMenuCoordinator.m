@@ -974,6 +974,26 @@ withAnimationCoordinator:(UIFocusAnimationCoordinator *)coordinator {
     [self.host browserPresentViewController:alertController];
 }
 
+- (BrowserAdvancedMenuItem *)tapToClickToggleMenuItem {
+    BOOL enabled = self.preferencesStore.tapToClickEnabled;
+    NSString *title = enabled ? @"Tap to Click: On" : @"Tap to Click: Off";
+    return [self advancedMenuItemWithTitle:title
+                                     style:UIAlertActionStyleDefault
+                                   handler:^{
+        self.preferencesStore.tapToClickEnabled = !enabled;
+    }];
+}
+
+- (BrowserAdvancedMenuItem *)openLinksInNewTabToggleMenuItem {
+    BOOL enabled = self.preferencesStore.openLinksInNewTabOnClick;
+    NSString *title = enabled ? @"Open Links in New Tab: On" : @"Open Links in New Tab: Off";
+    return [self advancedMenuItemWithTitle:title
+                                     style:UIAlertActionStyleDefault
+                                   handler:^{
+        self.preferencesStore.openLinksInNewTabOnClick = !enabled;
+    }];
+}
+
 - (BrowserAdvancedMenuItem *)jsScrollFallbackToggleMenuItem {
     BOOL enabled = self.preferencesStore.jsScrollFallbackEnabled;
     NSString *title = enabled ? @"JS Scroll Fallback: On" : @"JS Scroll Fallback: Off";
@@ -1205,6 +1225,8 @@ withAnimationCoordinator:(UIFocusAnimationCoordinator *)coordinator {
         ]],
         [BrowserAdvancedMenuSection sectionWithTitle:@"Scrolling & Input"
                                                items:@[
+            [self tapToClickToggleMenuItem],
+            [self openLinksInNewTabToggleMenuItem],
             [self dpadScrollToggleMenuItem],
             [self edgeAutoScrollToggleMenuItem],
             [self jsScrollFallbackToggleMenuItem],

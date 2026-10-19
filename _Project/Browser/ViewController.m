@@ -94,7 +94,8 @@ static UIColor *kTextColor(void) {
     self.pageActionCoordinator = [[BrowserPageActionCoordinator alloc] initWithHost:self
                                                                domInteractionService:self.domInteractionService
                                                                    navigationService:self.navigationService
-                                                            videoPlaybackCoordinator:self.videoPlaybackCoordinator];
+                                                            videoPlaybackCoordinator:self.videoPlaybackCoordinator
+                                                                    preferencesStore:self.preferencesStore];
 
     self.topMenuView.delegate = self;
     self.topMenuView.loadingSpinner.hidesWhenStopped = YES;
@@ -388,7 +389,7 @@ static UIColor *kTextColor(void) {
 
 - (void)showHintsAlert {
     UIAlertController *alertController = [UIAlertController alertControllerWithTitle:@"Usage Guide"
-                                                                             message:@"Double press the touch area to switch between cursor & scroll mode.\nPress the touch area while in cursor mode to click.\nSingle tap to Menu button to Go Back, or Exit on root page.\nSingle tap the Play/Pause button to: Go Forward, Enter URL or Reload Page.\nDouble tap the Play/Pause to show the Advanced Menu with more options.\nUse the tabs icon in the top bar to open the tab overview."
+                                                                             message:@"Double press the touch area to switch between cursor & scroll mode.\nLightly tap the touch area while in cursor mode to click or open links in the current tab.\nPress and click the touch area on a link to open it in a new tab.\nSingle tap to Menu button to Go Back, or Exit on root page.\nSingle tap the Play/Pause button to: Go Forward, Enter URL or Reload Page.\nDouble tap the Play/Pause to show the Advanced Menu with more options.\nUse the tabs icon in the top bar to open the tab overview."
                                                                       preferredStyle:UIAlertControllerStyleAlert];
 
     __weak typeof(self) weakSelf = self;
@@ -411,7 +412,7 @@ static UIColor *kTextColor(void) {
     [self presentViewController:alertController animated:YES completion:nil];
 }
 
-- (void)browserHandlePrimaryAction {
+- (void)browserHandlePrimaryActionWithSource:(BrowserPageActivationSource)source {
     if (!self.remoteInputController.cursorModeEnabled || self.webview == nil) {
         return;
     }
@@ -423,7 +424,7 @@ static UIColor *kTextColor(void) {
     }
 
     CGPoint domPoint = [self browserDOMPointForCursor];
-    [self.pageActionCoordinator handlePageSelectionAtDOMPoint:domPoint webView:self.webview];
+    [self.pageActionCoordinator handlePageSelectionAtDOMPoint:domPoint webView:self.webview source:source];
 }
 
 - (NSArray<id<UIFocusEnvironment>> *)preferredFocusEnvironments {
@@ -652,8 +653,8 @@ static UIColor *kTextColor(void) {
     [self.tabOverviewController handleAlternateAction];
 }
 
-- (void)browserRemoteInputControllerHandlePrimaryAction {
-    [self browserHandlePrimaryAction];
+- (void)browserRemoteInputControllerHandlePrimaryActionWithSource:(BrowserPageActivationSource)source {
+    [self browserHandlePrimaryActionWithSource:source];
 }
 
 - (void)browserRemoteInputControllerHandleMenuPress {
@@ -733,6 +734,10 @@ static UIColor *kTextColor(void) {
 
 - (BOOL)browserRemoteInputControllerEdgeAutoScrollEnabled {
     return self.preferencesStore.edgeAutoScrollEnabled;
+}
+
+- (BOOL)browserRemoteInputControllerTapToClickEnabled {
+    return self.preferencesStore.tapToClickEnabled;
 }
 
 #pragma mark - BrowserWebViewDelegate
@@ -871,7 +876,7 @@ static UIColor *kTextColor(void) {
 - (void)touchesCancelled:(NSSet<UITouch *> *)touches withEvent:(UIEvent *)event {
     (void)touches;
     (void)event;
-    [self.remoteInputController handleTouchesEnded];
+    [self.remoteInputController handleTouchesCancelled];
     [super touchesCancelled:touches withEvent:event];
 }
 

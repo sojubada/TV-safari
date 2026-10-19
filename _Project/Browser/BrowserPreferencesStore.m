@@ -11,6 +11,8 @@ static NSString * const kHomepageDefaultsKey = @"homepage";
 static NSString * const kJSScrollFallbackEnabledDefaultsKey = @"JSScrollFallbackEnabled";
 static NSString * const kDpadScrollEnabledDefaultsKey = @"DpadScrollEnabled";
 static NSString * const kEdgeAutoScrollEnabledDefaultsKey = @"EdgeAutoScrollEnabled";
+static NSString * const kTapToClickEnabledDefaultsKey = @"TapToClickEnabled";
+static NSString * const kOpenLinksInNewTabOnClickDefaultsKey = @"OpenLinksInNewTabOnClick";
 
 static NSUInteger const kDefaultTextFontSize = 100;
 static NSUInteger const kMinimumTextFontSize = 50;
@@ -148,6 +150,26 @@ static NSUInteger const kMaximumTextFontSize = 200;
 
 - (void)setEdgeAutoScrollEnabled:(BOOL)edgeAutoScrollEnabled {
     [[self defaults] setObject:@(edgeAutoScrollEnabled) forKey:kEdgeAutoScrollEnabledDefaultsKey];
+    [[self defaults] synchronize];
+}
+
+- (BOOL)tapToClickEnabled {
+    NSNumber *value = [[self defaults] objectForKey:kTapToClickEnabledDefaultsKey];
+    return value ? value.boolValue : YES;
+}
+
+- (void)setTapToClickEnabled:(BOOL)tapToClickEnabled {
+    [[self defaults] setObject:@(tapToClickEnabled) forKey:kTapToClickEnabledDefaultsKey];
+    [[self defaults] synchronize];
+}
+
+- (BOOL)openLinksInNewTabOnClick {
+    NSNumber *value = [[self defaults] objectForKey:kOpenLinksInNewTabOnClickDefaultsKey];
+    return value ? value.boolValue : YES;
+}
+
+- (void)setOpenLinksInNewTabOnClick:(BOOL)openLinksInNewTabOnClick {
+    [[self defaults] setObject:@(openLinksInNewTabOnClick) forKey:kOpenLinksInNewTabOnClickDefaultsKey];
     [[self defaults] synchronize];
 }
 
