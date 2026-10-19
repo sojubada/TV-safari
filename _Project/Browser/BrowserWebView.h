@@ -36,6 +36,8 @@ NS_ASSUME_NONNULL_BEGIN
 - (void)setUserAgent:(NSString * _Nullable)userAgent;
 - (void)pauseAllMediaPlayback;
 
++ (void)installRuleListToConfiguration:(id)configuration;
+
 + (nullable NSData *)cookieDataRepresentation;
 + (NSArray<NSHTTPCookie *> * _Nonnull)allCookies;
 + (void)restoreCookiesFromData:(NSData * _Nullable)cookieData;

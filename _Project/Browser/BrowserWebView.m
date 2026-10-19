@@ -1,4 +1,5 @@
 #import "BrowserWebView.h"
+#import "BrowserContentBlockerController.h"
 
 #import <dlfcn.h>
 #import <objc/message.h>
@@ -495,6 +496,28 @@ static void BrowserInstallYouTubeCaptureUserScript(id configuration) {
 
 @implementation BrowserWebView
 
++ (void)installRuleListToConfiguration:(id)configuration {
+    if (configuration == nil) {
+        return;
+    }
+
+    id ruleList = [[BrowserContentBlockerController sharedController] compiledRuleList];
+    if (ruleList == nil) {
+        return;
+    }
+
+    SEL userContentControllerGetter = NSSelectorFromString(@"userContentController");
+    if (![configuration respondsToSelector:userContentControllerGetter]) {
+        return;
+    }
+
+    id userContentController = ((id (*)(id, SEL))objc_msgSend)(configuration, userContentControllerGetter);
+    SEL addContentRuleListSelector = NSSelectorFromString(@"addContentRuleList:");
+    if (userContentController != nil && [userContentController respondsToSelector:addContentRuleListSelector]) {
+        ((void (*)(id, SEL, id))objc_msgSend)(userContentController, addContentRuleListSelector, ruleList);
+    }
+}
+
 - (instancetype)initWithFrame:(CGRect)frame {
     return [self initWithUserAgent:nil allowsInlineMediaPlayback:YES];
 }
@@ -535,6 +558,7 @@ static void BrowserInstallYouTubeCaptureUserScript(id configuration) {
     }
     BrowserConfigurePrivateMediaPreferences(configuration);
     BrowserInstallYouTubeCaptureUserScript(configuration);
+    [BrowserWebView installRuleListToConfiguration:configuration];
 
     id webViewObject = ((id (*)(id, SEL))objc_msgSend)((id)webViewClass, @selector(alloc));
     SEL initializer = NSSelectorFromString(@"initWithFrame:configuration:");
@@ -643,14 +667,14 @@ static void BrowserInstallYouTubeCaptureUserScript(id configuration) {
 - (void)goBack {
     SEL selector = NSSelectorFromString(@"goBack");
     if (self.runtimeWebView != nil && [self.runtimeWebView respondsToSelector:selector]) {
-        ((id (*)(id, SEL))objc_msgSend)(self.runtimeWebView, selector);
+        ((void (*)(id, SEL))objc_msgSend)(self.runtimeWebView, selector);
     }
 }
 
 - (void)goForward {
     SEL selector = NSSelectorFromString(@"goForward");
     if (self.runtimeWebView != nil && [self.runtimeWebView respondsToSelector:selector]) {
-        ((id (*)(id, SEL))objc_msgSend)(self.runtimeWebView, selector);
+        ((void (*)(id, SEL))objc_msgSend)(self.runtimeWebView, selector);
     }
 }
 

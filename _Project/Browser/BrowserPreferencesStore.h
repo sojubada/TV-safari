@@ -21,6 +21,7 @@ NS_ASSUME_NONNULL_BEGIN
 @property (nonatomic) BOOL tapToClickEnabled;
 @property (nonatomic) BOOL openLinksInNewTabOnClick;
 @property (nonatomic) BOOL forcedDarkModeEnabled;
+@property (nonatomic) BOOL contentBlockingEnabled;
 
 - (void)ensureUserAgentConsistency;
 

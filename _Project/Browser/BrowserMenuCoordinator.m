@@ -1,5 +1,6 @@
 #import "BrowserMenuCoordinator.h"
 #import "BrowserPreferencesStore.h"
+#import "BrowserContentBlockerController.h"
 #import "BrowserWebView.h"
 
 static UIColor *MenuTextColor(void) {
@@ -974,6 +975,24 @@ withAnimationCoordinator:(UIFocusAnimationCoordinator *)coordinator {
     [self.host browserPresentViewController:alertController];
 }
 
+- (void)presentContentBlockerDiagnostics {
+    NSString *report = [[BrowserContentBlockerController sharedController] diagnosticsReport];
+    UIAlertController *alertController = [self browserAlertControllerWithTitle:@"Content Blocker Diagnostics"
+                                                                       message:report];
+    [alertController addAction:[self browserCancelAction]];
+    [self.host browserPresentViewController:alertController];
+}
+
+- (BrowserAdvancedMenuItem *)contentBlockingToggleMenuItem {
+    BOOL enabled = self.preferencesStore.contentBlockingEnabled;
+    NSString *title = enabled ? @"Content Blocking: On" : @"Content Blocking: Off";
+    return [self advancedMenuItemWithTitle:title
+                                     style:UIAlertActionStyleDefault
+                                   handler:^{
+        self.preferencesStore.contentBlockingEnabled = !enabled;
+    }];
+}
+
 - (BrowserAdvancedMenuItem *)forcedDarkModeToggleMenuItem {
     BOOL enabled = self.preferencesStore.forcedDarkModeEnabled;
     NSString *title = enabled ? @"Force Dark Mode: On" : @"Force Dark Mode: Off";
@@ -1199,6 +1218,11 @@ withAnimationCoordinator:(UIFocusAnimationCoordinator *)coordinator {
         self.host.browserTextFontSize = 100;
         [self.host browserUpdateTextFontSize];
     }];
+    BrowserAdvancedMenuItem *contentBlockerDiagnosticsItem = [self advancedMenuItemWithTitle:@"Content Blocker Diagnostics"
+                                                                                       style:UIAlertActionStyleDefault
+                                                                                     handler:^{
+        [self presentContentBlockerDiagnostics];
+    }];
     BrowserAdvancedMenuItem *pageScrollDiagnosticsItem = [self advancedMenuItemWithTitle:@"Page Scroll Diagnostics"
                                                                                    style:UIAlertActionStyleDefault
                                                                                  handler:^{
@@ -1252,6 +1276,10 @@ withAnimationCoordinator:(UIFocusAnimationCoordinator *)coordinator {
             decreaseFontSizeItem,
             resetFontSizeItem,
         ]],
+        [BrowserAdvancedMenuSection sectionWithTitle:@"Privacy & Blocking"
+                                               items:@[
+            [self contentBlockingToggleMenuItem],
+        ]],
         [BrowserAdvancedMenuSection sectionWithTitle:@"Video Playback"
                                                items:@[
             [self fullscreenVideoPlaybackToggleMenuItem],
@@ -1262,6 +1290,7 @@ withAnimationCoordinator:(UIFocusAnimationCoordinator *)coordinator {
         ]],
         [BrowserAdvancedMenuSection sectionWithTitle:@"Diagnostics"
                                                items:@[
+            contentBlockerDiagnosticsItem,
             pageScrollDiagnosticsItem,
             mediaDiagnosticsItem,
             webkitMediaPrefsItem,

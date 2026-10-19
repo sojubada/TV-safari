@@ -14,6 +14,7 @@ static NSString * const kEdgeAutoScrollEnabledDefaultsKey = @"EdgeAutoScrollEnab
 static NSString * const kTapToClickEnabledDefaultsKey = @"TapToClickEnabled";
 static NSString * const kOpenLinksInNewTabOnClickDefaultsKey = @"OpenLinksInNewTabOnClick";
 static NSString * const kForcedDarkModeEnabledDefaultsKey = @"ForcedDarkModeEnabled";
+static NSString * const kContentBlockingEnabledDefaultsKey = @"ContentBlockingEnabled";
 
 static NSUInteger const kDefaultTextFontSize = 100;
 static NSUInteger const kMinimumTextFontSize = 50;
@@ -181,6 +182,16 @@ static NSUInteger const kMaximumTextFontSize = 200;
 
 - (void)setForcedDarkModeEnabled:(BOOL)forcedDarkModeEnabled {
     [[self defaults] setObject:@(forcedDarkModeEnabled) forKey:kForcedDarkModeEnabledDefaultsKey];
+    [[self defaults] synchronize];
+}
+
+- (BOOL)contentBlockingEnabled {
+    NSNumber *value = [[self defaults] objectForKey:kContentBlockingEnabledDefaultsKey];
+    return value ? value.boolValue : YES;
+}
+
+- (void)setContentBlockingEnabled:(BOOL)contentBlockingEnabled {
+    [[self defaults] setObject:@(contentBlockingEnabled) forKey:kContentBlockingEnabledDefaultsKey];
     [[self defaults] synchronize];
 }
 

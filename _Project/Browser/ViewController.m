@@ -6,6 +6,7 @@
 //  Improved by Jip van Akker on 14/10/2015 through 10/01/2019
 //
 
+#import "BrowserContentBlockerController.h"
 #import "BrowserDarkModeController.h"
 #import "BrowserMenuCoordinator.h"
 #import "BrowserDOMInteractionService.h"
@@ -33,6 +34,7 @@ static UIColor *kTextColor(void) {
 
 @interface ViewController () <BrowserMenuCoordinatorHost, BrowserPageActionCoordinatorHost, BrowserRemoteInputControllerHost, BrowserTabCoordinatorHost, BrowserTabOverviewControllerHost, BrowserTopBarViewDelegate, BrowserVideoPlaybackCoordinatorHost>
 
+@property (nonatomic) BrowserContentBlockerController *contentBlockerController;
 @property (nonatomic) BrowserDarkModeController *darkModeController;
 @property (nonatomic) BrowserDOMInteractionService *domInteractionService;
 @property (nonatomic) BrowserMenuCoordinator *menuCoordinator;
@@ -67,6 +69,9 @@ static UIColor *kTextColor(void) {
     self.viewModel.topNavigationBarVisible = self.preferencesStore.topNavigationBarVisible;
     self.viewModel.textFontSize = self.preferencesStore.textFontSize;
     self.viewModel.fullscreenVideoPlaybackEnabled = self.preferencesStore.fullscreenVideoPlaybackEnabled;
+
+    self.contentBlockerController = [BrowserContentBlockerController sharedController];
+    [self.contentBlockerController prepareRuleListIfNeeded];
 
     self.darkModeController = [BrowserDarkModeController new];
     self.domInteractionService = [BrowserDOMInteractionService new];
@@ -770,12 +775,17 @@ static UIColor *kTextColor(void) {
 
 - (void)webViewDidFinishLoad:(id)webView {
     [self.tabCoordinator webViewDidFinishLoad:webView];
-    // Only apply here. A freshly loaded document never carries the injected
-    // style, so calling the removal path on every load would just spend a
-    // synchronous JavaScript evaluation — which pumps the run loop — to find
-    // nothing. Removal happens on the toggle instead.
-    if (self.preferencesStore.forcedDarkModeEnabled && [webView isKindOfClass:[BrowserWebView class]]) {
-        [self.darkModeController syncDarkModeState:YES forWebView:(BrowserWebView *)webView];
+    if ([webView isKindOfClass:[BrowserWebView class]]) {
+        if (self.preferencesStore.forcedDarkModeEnabled) {
+            [self.darkModeController syncDarkModeState:YES forWebView:(BrowserWebView *)webView];
+        }
+        if (self.preferencesStore.contentBlockingEnabled) {
+            BrowserWebView *targetWebView = (BrowserWebView *)webView;
+            [[BrowserContentBlockerController sharedController] applyContentBlockingToWebView:targetWebView enabled:YES];
+            dispatch_after(dispatch_time(DISPATCH_TIME_NOW, (int64_t)(1.0 * NSEC_PER_SEC)), dispatch_get_main_queue(), ^{
+                [[BrowserContentBlockerController sharedController] applyContentBlockingToWebView:targetWebView enabled:YES];
+            });
+        }
     }
     if (self.tabOverviewController.visible) {
         BrowserTabViewModel *tab = [self.tabCoordinator tabForWebView:webView];
