@@ -24,6 +24,8 @@
 - (void)browserRecreateActiveWebViewPreservingCurrentURL;
 - (void)browserBringCursorToFront;
 - (void)browserPlayVideoUnderCursorIfAvailable;
+- (void)browserToggleReaderMode;
+- (BOOL)browserIsReaderModeActive;
 
 @end
 

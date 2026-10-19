@@ -8,6 +8,7 @@
 
 #import "BrowserContentBlockerController.h"
 #import "BrowserDarkModeController.h"
+#import "BrowserReaderModeController.h"
 #import "BrowserMenuCoordinator.h"
 #import "BrowserDOMInteractionService.h"
 #import "BrowserNavigationService.h"
@@ -36,6 +37,7 @@ static UIColor *kTextColor(void) {
 
 @property (nonatomic) BrowserContentBlockerController *contentBlockerController;
 @property (nonatomic) BrowserDarkModeController *darkModeController;
+@property (nonatomic) BrowserReaderModeController *readerModeController;
 @property (nonatomic) BrowserDOMInteractionService *domInteractionService;
 @property (nonatomic) BrowserMenuCoordinator *menuCoordinator;
 @property (nonatomic) BrowserNavigationService *navigationService;
@@ -74,6 +76,7 @@ static UIColor *kTextColor(void) {
     [self.contentBlockerController prepareRuleListIfNeeded];
 
     self.darkModeController = [BrowserDarkModeController new];
+    self.readerModeController = [BrowserReaderModeController new];
     self.domInteractionService = [BrowserDOMInteractionService new];
     self.navigationService = [[BrowserNavigationService alloc] initWithPreferencesStore:self.preferencesStore];
     self.sessionStore = [BrowserSessionStore new];
@@ -546,6 +549,25 @@ static UIColor *kTextColor(void) {
 
 - (void)browserPlayVideoUnderCursorIfAvailable {
     [self.videoPlaybackCoordinator playVideoUnderCursorIfAvailable];
+}
+
+- (BOOL)browserIsReaderModeActive {
+    return [self.readerModeController isReaderModeActiveForWebView:self.webview];
+}
+
+- (void)browserToggleReaderMode {
+    if ([self.readerModeController isReaderModeActiveForWebView:self.webview]) {
+        [self.readerModeController disableReaderModeForWebView:self.webview];
+    } else {
+        NSString *result = [self.readerModeController enableReaderModeForWebView:self.webview];
+        if (![result isEqualToString:@"success"]) {
+            UIAlertController *alert = [UIAlertController alertControllerWithTitle:@"Reader Mode"
+                                                                           message:@"Could not find enough readable content on this page."
+                                                                    preferredStyle:UIAlertControllerStyleAlert];
+            [alert addAction:[UIAlertAction actionWithTitle:@"Dismiss" style:UIAlertActionStyleCancel handler:nil]];
+            [self presentViewController:alert animated:YES completion:nil];
+        }
+    }
 }
 
 #pragma mark - BrowserVideoPlaybackCoordinatorHost

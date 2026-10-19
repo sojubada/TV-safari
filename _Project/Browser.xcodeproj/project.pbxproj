@@ -41,6 +41,7 @@
 		A1B49A8F2D700020001D58A1 /* BrowserTabOverviewController.m in Sources */ = {isa = PBXBuildFile; fileRef = A1B49A8E2D700020001D58A1 /* BrowserTabOverviewController.m */; };
 		A1B49A922D700030001D58A1 /* BrowserPageActionCoordinator.m in Sources */ = {isa = PBXBuildFile; fileRef = A1B49A912D700030001D58A1 /* BrowserPageActionCoordinator.m */; };
 		A1DC0003000000000000DA01 /* BrowserDarkModeController.m in Sources */ = {isa = PBXBuildFile; fileRef = A1DC0002000000000000DA01 /* BrowserDarkModeController.m */; };
+		A1DC0203000000000000DA01 /* BrowserReaderModeController.m in Sources */ = {isa = PBXBuildFile; fileRef = A1DC0202000000000000DA01 /* BrowserReaderModeController.m */; };
 		A1DC0103000000000000DA01 /* BrowserContentBlockerController.m in Sources */ = {isa = PBXBuildFile; fileRef = A1DC0102000000000000DA01 /* BrowserContentBlockerController.m */; };
 		A1B49A952D700040001D58A1 /* BrowserRemoteInputController.m in Sources */ = {isa = PBXBuildFile; fileRef = A1B49A942D700040001D58A1 /* BrowserRemoteInputController.m */; };
 		B002B8671BAE420500C744AF /* main.m in Sources */ = {isa = PBXBuildFile; fileRef = B002B8661BAE420500C744AF /* main.m */; };
@@ -102,6 +103,8 @@
 		A1B49A912D700030001D58A1 /* BrowserPageActionCoordinator.m */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.objc; path = BrowserPageActionCoordinator.m; sourceTree = "<group>"; };
 		A1DC0001000000000000DA01 /* BrowserDarkModeController.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = BrowserDarkModeController.h; sourceTree = "<group>"; };
 		A1DC0002000000000000DA01 /* BrowserDarkModeController.m */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.objc; path = BrowserDarkModeController.m; sourceTree = "<group>"; };
+		A1DC0201000000000000DA01 /* BrowserReaderModeController.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = BrowserReaderModeController.h; sourceTree = "<group>"; };
+		A1DC0202000000000000DA01 /* BrowserReaderModeController.m */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.objc; path = BrowserReaderModeController.m; sourceTree = "<group>"; };
 		A1DC0101000000000000DA01 /* BrowserContentBlockerController.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = BrowserContentBlockerController.h; sourceTree = "<group>"; };
 		A1DC0102000000000000DA01 /* BrowserContentBlockerController.m */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.objc; path = BrowserContentBlockerController.m; sourceTree = "<group>"; };
 		A1B49A932D700040001D58A1 /* BrowserRemoteInputController.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = BrowserRemoteInputController.h; sourceTree = "<group>"; };
@@ -194,6 +197,8 @@
 				A1B49A912D700030001D58A1 /* BrowserPageActionCoordinator.m */,
 				A1DC0001000000000000DA01 /* BrowserDarkModeController.h */,
 				A1DC0002000000000000DA01 /* BrowserDarkModeController.m */,
+				A1DC0201000000000000DA01 /* BrowserReaderModeController.h */,
+				A1DC0202000000000000DA01 /* BrowserReaderModeController.m */,
 				A1DC0101000000000000DA01 /* BrowserContentBlockerController.h */,
 				A1DC0102000000000000DA01 /* BrowserContentBlockerController.m */,
 				A1B49A932D700040001D58A1 /* BrowserRemoteInputController.h */,
@@ -424,6 +429,7 @@
 				A1B49A552D68143D001D58A1 /* BrowserMenuCoordinator.m in Sources */,
 				A1B49A922D700030001D58A1 /* BrowserPageActionCoordinator.m in Sources */,
 				A1DC0003000000000000DA01 /* BrowserDarkModeController.m in Sources */,
+				A1DC0203000000000000DA01 /* BrowserReaderModeController.m in Sources */,
 				A1DC0103000000000000DA01 /* BrowserContentBlockerController.m in Sources */,
 				A1B49A952D700040001D58A1 /* BrowserRemoteInputController.m in Sources */,
 				A1B49A8C2D700010001D58A1 /* BrowserTabCoordinator.m in Sources */,

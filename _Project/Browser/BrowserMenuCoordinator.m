@@ -1005,6 +1005,17 @@ withAnimationCoordinator:(UIFocusAnimationCoordinator *)coordinator {
     }];
 }
 
+- (BrowserAdvancedMenuItem *)readerModeToggleMenuItem {
+    BOOL isActive = [self.host browserIsReaderModeActive];
+    NSString *title = isActive ? @"Exit Reader Mode" : @"Reader Mode";
+    __weak typeof(self) weakSelf = self;
+    return [self advancedMenuItemWithTitle:title
+                                     style:UIAlertActionStyleDefault
+                                   handler:^{
+        [weakSelf.host browserToggleReaderMode];
+    }];
+}
+
 - (BrowserAdvancedMenuItem *)tapToClickToggleMenuItem {
     BOOL enabled = self.preferencesStore.tapToClickEnabled;
     NSString *title = enabled ? @"Tap to Click: On" : @"Tap to Click: Off";
@@ -1269,6 +1280,7 @@ withAnimationCoordinator:(UIFocusAnimationCoordinator *)coordinator {
         ]],
         [BrowserAdvancedMenuSection sectionWithTitle:@"Appearance"
                                                items:@[
+            [self readerModeToggleMenuItem],
             [self forcedDarkModeToggleMenuItem],
             [self topNavigationVisibilityMenuItem],
             [self pageScalingMenuItem],
