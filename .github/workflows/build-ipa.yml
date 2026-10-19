@@ -11,6 +11,11 @@ on:
         description: "Release tag to publish (leave blank to use build-<run number>)"
         required: false
         default: ""
+      publish_release:
+        description: "Publish a Release. Leave false to verify the build only - the .ipa is still kept as a workflow artifact."
+        required: false
+        type: boolean
+        default: false
   push:
     tags:
       - "v*"
@@ -101,6 +106,7 @@ jobs:
           if-no-files-found: error
 
       - name: Publish a release with the IPA
+        if: github.event_name != 'workflow_dispatch' || inputs.publish_release
         env:
           GH_TOKEN: ${{ github.token }}
           IPA: ${{ steps.package.outputs.ipa }}
