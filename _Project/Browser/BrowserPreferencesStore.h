@@ -20,6 +20,7 @@ NS_ASSUME_NONNULL_BEGIN
 @property (nonatomic) BOOL edgeAutoScrollEnabled;
 @property (nonatomic) BOOL tapToClickEnabled;
 @property (nonatomic) BOOL openLinksInNewTabOnClick;
+@property (nonatomic) BOOL forcedDarkModeEnabled;
 
 - (void)ensureUserAgentConsistency;
 

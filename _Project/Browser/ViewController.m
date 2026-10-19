@@ -6,6 +6,7 @@
 //  Improved by Jip van Akker on 14/10/2015 through 10/01/2019
 //
 
+#import "BrowserDarkModeController.h"
 #import "BrowserMenuCoordinator.h"
 #import "BrowserDOMInteractionService.h"
 #import "BrowserNavigationService.h"
@@ -32,6 +33,7 @@ static UIColor *kTextColor(void) {
 
 @interface ViewController () <BrowserMenuCoordinatorHost, BrowserPageActionCoordinatorHost, BrowserRemoteInputControllerHost, BrowserTabCoordinatorHost, BrowserTabOverviewControllerHost, BrowserTopBarViewDelegate, BrowserVideoPlaybackCoordinatorHost>
 
+@property (nonatomic) BrowserDarkModeController *darkModeController;
 @property (nonatomic) BrowserDOMInteractionService *domInteractionService;
 @property (nonatomic) BrowserMenuCoordinator *menuCoordinator;
 @property (nonatomic) BrowserNavigationService *navigationService;
@@ -66,6 +68,7 @@ static UIColor *kTextColor(void) {
     self.viewModel.textFontSize = self.preferencesStore.textFontSize;
     self.viewModel.fullscreenVideoPlaybackEnabled = self.preferencesStore.fullscreenVideoPlaybackEnabled;
 
+    self.darkModeController = [BrowserDarkModeController new];
     self.domInteractionService = [BrowserDOMInteractionService new];
     self.navigationService = [[BrowserNavigationService alloc] initWithPreferencesStore:self.preferencesStore];
     self.sessionStore = [BrowserSessionStore new];
@@ -519,6 +522,11 @@ static UIColor *kTextColor(void) {
     [self updateTextFontSize];
 }
 
+- (void)browserUpdateForcedDarkMode {
+    BOOL enabled = self.preferencesStore.forcedDarkModeEnabled;
+    [self.darkModeController syncDarkModeState:enabled forWebView:self.webview];
+}
+
 - (void)browserCaptureSnapshotForCurrentTab {
     [self.tabCoordinator captureSnapshotForCurrentTab];
 }
@@ -591,6 +599,8 @@ static UIColor *kTextColor(void) {
 
 - (void)browserTabOverviewControllerSwitchToTabAtIndex:(NSInteger)tabIndex {
     [self.tabCoordinator switchToTabAtIndex:tabIndex];
+    [self.darkModeController syncDarkModeState:self.preferencesStore.forcedDarkModeEnabled
+                                    forWebView:self.webview];
 }
 
 - (void)browserTabOverviewControllerCloseTabAtIndex:(NSInteger)tabIndex {
@@ -760,6 +770,13 @@ static UIColor *kTextColor(void) {
 
 - (void)webViewDidFinishLoad:(id)webView {
     [self.tabCoordinator webViewDidFinishLoad:webView];
+    // Only apply here. A freshly loaded document never carries the injected
+    // style, so calling the removal path on every load would just spend a
+    // synchronous JavaScript evaluation — which pumps the run loop — to find
+    // nothing. Removal happens on the toggle instead.
+    if (self.preferencesStore.forcedDarkModeEnabled && [webView isKindOfClass:[BrowserWebView class]]) {
+        [self.darkModeController syncDarkModeState:YES forWebView:(BrowserWebView *)webView];
+    }
     if (self.tabOverviewController.visible) {
         BrowserTabViewModel *tab = [self.tabCoordinator tabForWebView:webView];
         NSInteger tabIndex = tab != nil ? [self.viewModel.tabs indexOfObject:tab] : NSNotFound;

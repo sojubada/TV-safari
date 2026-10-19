@@ -974,6 +974,18 @@ withAnimationCoordinator:(UIFocusAnimationCoordinator *)coordinator {
     [self.host browserPresentViewController:alertController];
 }
 
+- (BrowserAdvancedMenuItem *)forcedDarkModeToggleMenuItem {
+    BOOL enabled = self.preferencesStore.forcedDarkModeEnabled;
+    NSString *title = enabled ? @"Force Dark Mode: On" : @"Force Dark Mode: Off";
+    __weak typeof(self) weakSelf = self;
+    return [self advancedMenuItemWithTitle:title
+                                     style:UIAlertActionStyleDefault
+                                   handler:^{
+        weakSelf.preferencesStore.forcedDarkModeEnabled = !enabled;
+        [weakSelf.host browserUpdateForcedDarkMode];
+    }];
+}
+
 - (BrowserAdvancedMenuItem *)tapToClickToggleMenuItem {
     BOOL enabled = self.preferencesStore.tapToClickEnabled;
     NSString *title = enabled ? @"Tap to Click: On" : @"Tap to Click: Off";
@@ -1233,6 +1245,7 @@ withAnimationCoordinator:(UIFocusAnimationCoordinator *)coordinator {
         ]],
         [BrowserAdvancedMenuSection sectionWithTitle:@"Appearance"
                                                items:@[
+            [self forcedDarkModeToggleMenuItem],
             [self topNavigationVisibilityMenuItem],
             [self pageScalingMenuItem],
             increaseFontSizeItem,

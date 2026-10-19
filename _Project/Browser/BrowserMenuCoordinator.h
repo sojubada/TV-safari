@@ -19,6 +19,7 @@
 - (void)browserHideTopNav;
 - (void)browserShowTopNav;
 - (void)browserUpdateTextFontSize;
+- (void)browserUpdateForcedDarkMode;
 - (void)browserCaptureSnapshotForCurrentTab;
 - (void)browserRecreateActiveWebViewPreservingCurrentURL;
 - (void)browserBringCursorToFront;
