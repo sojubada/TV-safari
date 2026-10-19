@@ -1,5 +1,10 @@
 #import "BrowserRemoteInputController.h"
 
+// The JavaScript scroll fallback runs synchronously (it pumps the run loop until
+// WebKit answers), so it must never be driven at display-link rate. Deltas are
+// accumulated and flushed at most this often.
+static const CFTimeInterval kBrowserJSScrollMinimumInterval = 0.05;
+
 static UIImage *BrowserDefaultCursor(void) {
     static UIImage *image;
     static dispatch_once_t onceToken;
@@ -59,6 +64,27 @@ static NSString *BrowserPressPhaseString(UIPressPhase phase) {
 @property (nonatomic) CFTimeInterval lastSelectPressTimestamp;
 @property (nonatomic) BOOL awaitingSecondSelectPress;
 
+@property (nonatomic, nullable) CADisplayLink *dpadPageScrollDisplayLink;
+@property (nonatomic) CFTimeInterval dpadPageScrollStartTime;
+@property (nonatomic) CFTimeInterval dpadPageScrollDuration;
+@property (nonatomic) CGFloat dpadPageScrollTargetTotalY;
+@property (nonatomic) CGFloat dpadPageScrollAppliedY;
+
+@property (nonatomic, nullable) NSTimer *dpadHoldTimer;
+@property (nonatomic, nullable) CADisplayLink *dpadContinuousScrollDisplayLink;
+@property (nonatomic) CFTimeInterval dpadContinuousLastTimestamp;
+@property (nonatomic) NSInteger activeDpadDirection;
+@property (nonatomic) BOOL dpadContinuousScrollActive;
+
+@property (nonatomic, nullable) CADisplayLink *edgeAutoScrollDisplayLink;
+@property (nonatomic) CFTimeInterval edgeAutoScrollLastTimestamp;
+@property (nonatomic) CGFloat edgeAutoScrollVelocityY;
+
+@property (nonatomic) BOOL jsScrollInFlight;
+@property (nonatomic) BOOL lastJSScrollDidMove;
+@property (nonatomic) CFTimeInterval lastJSScrollTimestamp;
+@property (nonatomic) CGPoint pendingJSScrollDelta;
+
 @end
 
 @implementation BrowserRemoteInputController
@@ -71,6 +97,8 @@ static NSString *BrowserPressPhaseString(UIPressPhase phase) {
         _rootView = rootView;
         _lastTouchLocation = CGPointMake(-1, -1);
         _cursorModeEnabled = YES;
+        _lastJSScrollDidMove = YES;
+        _pendingJSScrollDelta = CGPointZero;
 
         _cursorView = [[UIImageView alloc] initWithFrame:CGRectMake(0, 0, 64, 64)];
         _cursorView.center = CGPointMake(CGRectGetMidX([UIScreen mainScreen].bounds), CGRectGetMidY([UIScreen mainScreen].bounds));
@@ -90,11 +118,48 @@ static NSString *BrowserPressPhaseString(UIPressPhase phase) {
     return self;
 }
 
+- (void)dealloc {
+    [self stopManualScrollInertia];
+    [self stopDpadPageScrollAnimation];
+    [self stopDpadHoldAndContinuousScroll];
+    [self stopEdgeAutoScroll];
+}
+
+- (CGFloat)viewportHeight {
+    CGFloat height = CGRectGetHeight(self.rootView.bounds);
+    if (height <= 0.0) {
+        height = CGRectGetHeight([UIScreen mainScreen].bounds);
+    }
+    return height > 0.0 ? height : 1080.0;
+}
+
+- (CGFloat)viewportWidth {
+    CGFloat width = CGRectGetWidth(self.rootView.bounds);
+    if (width <= 0.0) {
+        width = CGRectGetWidth([UIScreen mainScreen].bounds);
+    }
+    return width > 0.0 ? width : 1920.0;
+}
+
+- (BOOL)isCursorInTopBarActivationZone {
+    CGFloat screenHeight = [self viewportHeight];
+    return self.cursorView.center.y < (screenHeight * 0.12);
+}
+
+- (BOOL)canPerformCustomScroll {
+    return [self.host browserRemoteInputControllerPresentedViewController] == nil &&
+        ![self.host browserRemoteInputControllerTabOverviewVisible] &&
+        ![self.host browserRemoteInputControllerTopBarFocusActive];
+}
+
 - (void)setCursorModeEnabled:(BOOL)cursorModeEnabled {
     BOOL wasCursorModeEnabled = self.cursorModeEnabled;
     _cursorModeEnabled = cursorModeEnabled;
     self.lastTouchLocation = CGPointMake(-1, -1);
     [self stopManualScrollInertia];
+    if (!cursorModeEnabled) {
+        [self stopEdgeAutoScroll];
+    }
     [self refreshInteractionState];
     if (!wasCursorModeEnabled && cursorModeEnabled) {
         [self.host browserRemoteInputControllerPersistSession];
@@ -104,31 +169,104 @@ static NSString *BrowserPressPhaseString(UIPressPhase phase) {
 - (void)refreshInteractionState {
     UIScrollView *scrollView = [self.host browserRemoteInputControllerActiveScrollView];
     BOOL topBarFocusActive = [self.host browserRemoteInputControllerTopBarFocusActive];
+    BOOL tabOverviewVisible = [self.host browserRemoteInputControllerTabOverviewVisible];
+    BOOL presentedActive = ([self.host browserRemoteInputControllerPresentedViewController] != nil);
+
+    if (topBarFocusActive || tabOverviewVisible || presentedActive) {
+        [self stopEdgeAutoScroll];
+        [self stopDpadPageScrollAnimation];
+        [self stopDpadHoldAndContinuousScroll];
+    } else if (!self.cursorModeEnabled) {
+        [self stopEdgeAutoScroll];
+    }
+
     BOOL shouldAllowWebInteraction = !self.cursorModeEnabled &&
-        ![self.host browserRemoteInputControllerTabOverviewVisible] &&
+        !tabOverviewVisible &&
         !topBarFocusActive;
     scrollView.scrollEnabled = shouldAllowWebInteraction;
     self.manualScrollPanRecognizer.enabled = shouldAllowWebInteraction;
     [self.host browserRemoteInputControllerSetWebInteractionEnabled:shouldAllowWebInteraction];
     self.cursorView.hidden = !self.cursorModeEnabled ||
-        [self.host browserRemoteInputControllerTabOverviewVisible] ||
+        tabOverviewVisible ||
         topBarFocusActive;
 }
 
 - (BOOL)applyManualScrollDelta:(CGPoint)delta {
     UIScrollView *scrollView = [self.host browserRemoteInputControllerActiveScrollView];
-    if (scrollView == nil) {
+    if (scrollView != nil) {
+        CGPoint contentOffset = scrollView.contentOffset;
+        CGFloat maxOffsetX = MAX(0.0, scrollView.contentSize.width - CGRectGetWidth(scrollView.bounds));
+        CGFloat maxOffsetY = MAX(0.0, scrollView.contentSize.height - CGRectGetHeight(scrollView.bounds));
+        CGFloat nextOffsetX = MIN(MAX(contentOffset.x + delta.x, 0.0), maxOffsetX);
+        CGFloat nextOffsetY = MIN(MAX(contentOffset.y + delta.y, 0.0), maxOffsetY);
+        CGPoint nextOffset = CGPointMake(nextOffsetX, nextOffsetY);
+        if (!CGPointEqualToPoint(contentOffset, nextOffset)) {
+            [scrollView setContentOffset:nextOffset animated:NO];
+            return YES;
+        }
+    }
+
+    if (![self.host browserRemoteInputControllerJSScrollFallbackEnabled]) {
         return NO;
     }
 
-    CGPoint contentOffset = scrollView.contentOffset;
-    CGFloat maxOffsetX = MAX(0.0, scrollView.contentSize.width - CGRectGetWidth(scrollView.bounds));
-    CGFloat maxOffsetY = MAX(0.0, scrollView.contentSize.height - CGRectGetHeight(scrollView.bounds));
-    CGFloat nextOffsetX = MIN(MAX(contentOffset.x + delta.x, 0.0), maxOffsetX);
-    CGFloat nextOffsetY = MIN(MAX(contentOffset.y + delta.y, 0.0), maxOffsetY);
-    CGPoint nextOffset = CGPointMake(nextOffsetX, nextOffsetY);
-    [scrollView setContentOffset:nextOffset animated:NO];
-    return !CGPointEqualToPoint(contentOffset, nextOffset);
+    return [self enqueueJavaScriptScrollDelta:delta];
+}
+
+// The fallback evaluates JavaScript synchronously, which pumps the run loop.
+// Calling it from a CADisplayLink on every frame both stutters badly and risks
+// re-entering the link callback, so deltas are accumulated and flushed on a
+// fixed interval. While throttled the last known result is reported so the
+// in-flight scroll animations do not treat the pause as "hit the end".
+- (BOOL)enqueueJavaScriptScrollDelta:(CGPoint)delta {
+    self.pendingJSScrollDelta = CGPointMake(self.pendingJSScrollDelta.x + delta.x,
+                                            self.pendingJSScrollDelta.y + delta.y);
+
+    if (self.jsScrollInFlight) {
+        return self.lastJSScrollDidMove;
+    }
+
+    if ((CACurrentMediaTime() - self.lastJSScrollTimestamp) < kBrowserJSScrollMinimumInterval) {
+        return self.lastJSScrollDidMove;
+    }
+
+    CGPoint flushedDelta = self.pendingJSScrollDelta;
+    self.pendingJSScrollDelta = CGPointZero;
+    if (fabs(flushedDelta.x) < 0.01 && fabs(flushedDelta.y) < 0.01) {
+        return self.lastJSScrollDidMove;
+    }
+
+    self.jsScrollInFlight = YES;
+    BOOL didMove = [self.host browserRemoteInputControllerScrollActiveContainerByDelta:flushedDelta
+                                                                         atCursorPoint:self.cursorView.frame.origin];
+    self.jsScrollInFlight = NO;
+    self.lastJSScrollTimestamp = CACurrentMediaTime();
+    self.lastJSScrollDidMove = didMove;
+    return didMove;
+}
+
+// Applies whatever is left in the accumulator regardless of the throttle, so a
+// finishing animation does not drop its last few points of travel.
+- (void)flushPendingJavaScriptScroll {
+    CGPoint pendingDelta = self.pendingJSScrollDelta;
+    self.pendingJSScrollDelta = CGPointZero;
+
+    if (self.jsScrollInFlight ||
+        (fabs(pendingDelta.x) < 0.01 && fabs(pendingDelta.y) < 0.01) ||
+        ![self.host browserRemoteInputControllerJSScrollFallbackEnabled]) {
+        return;
+    }
+
+    self.jsScrollInFlight = YES;
+    self.lastJSScrollDidMove = [self.host browserRemoteInputControllerScrollActiveContainerByDelta:pendingDelta
+                                                                                     atCursorPoint:self.cursorView.frame.origin];
+    self.jsScrollInFlight = NO;
+    self.lastJSScrollTimestamp = CACurrentMediaTime();
+}
+
+- (void)resetPendingJavaScriptScroll {
+    self.pendingJSScrollDelta = CGPointZero;
+    self.lastJSScrollDidMove = YES;
 }
 
 - (void)stopManualScrollInertia {
@@ -137,9 +275,12 @@ static NSString *BrowserPressPhaseString(UIPressPhase phase) {
     self.manualScrollVelocity = CGPointZero;
     self.manualScrollLastTimestamp = 0;
     self.manualScrollLastMovementTimestamp = 0;
+    [self resetPendingJavaScriptScroll];
 }
 
 - (void)startManualScrollInertiaWithVelocity:(CGPoint)velocity {
+    [self stopEdgeAutoScroll];
+    [self stopDpadPageScrollAnimation];
     [self stopManualScrollInertia];
     if (fabs(velocity.x) < 25.0 && fabs(velocity.y) < 25.0) {
         return;
@@ -179,6 +320,190 @@ static NSString *BrowserPressPhaseString(UIPressPhase phase) {
         [self.host browserRemoteInputControllerPersistSession];
     }
 }
+
+#pragma mark - D-Pad Page Scroll & Hold Scroll
+
+- (void)stopDpadPageScrollAnimation {
+    [self.dpadPageScrollDisplayLink invalidate];
+    self.dpadPageScrollDisplayLink = nil;
+    self.dpadPageScrollStartTime = 0;
+    self.dpadPageScrollDuration = 0;
+    self.dpadPageScrollTargetTotalY = 0;
+    self.dpadPageScrollAppliedY = 0;
+    [self resetPendingJavaScriptScroll];
+}
+
+- (void)startDpadPageScrollWithDeltaY:(CGFloat)deltaY {
+    [self stopManualScrollInertia];
+    [self stopEdgeAutoScroll];
+    [self stopDpadPageScrollAnimation];
+
+    self.dpadPageScrollDuration = 0.25;
+    self.dpadPageScrollTargetTotalY = deltaY;
+    self.dpadPageScrollAppliedY = 0.0;
+    self.dpadPageScrollStartTime = 0.0;
+    self.dpadPageScrollDisplayLink = [CADisplayLink displayLinkWithTarget:self selector:@selector(handleDpadPageScrollDisplayLink:)];
+    [self.dpadPageScrollDisplayLink addToRunLoop:[NSRunLoop mainRunLoop] forMode:NSRunLoopCommonModes];
+}
+
+- (void)handleDpadPageScrollDisplayLink:(CADisplayLink *)displayLink {
+    if (![self canPerformCustomScroll]) {
+        [self stopDpadPageScrollAnimation];
+        return;
+    }
+
+    if (self.dpadPageScrollStartTime <= 0.0) {
+        self.dpadPageScrollStartTime = displayLink.timestamp;
+    }
+
+    CFTimeInterval elapsed = displayLink.timestamp - self.dpadPageScrollStartTime;
+    CGFloat progress = (self.dpadPageScrollDuration > 0.0) ? MIN(1.0, MAX(0.0, elapsed / self.dpadPageScrollDuration)) : 1.0;
+    CGFloat inv = 1.0 - progress;
+    CGFloat easeOutProgress = 1.0 - (inv * inv * inv);
+
+    CGFloat desiredAppliedY = self.dpadPageScrollTargetTotalY * easeOutProgress;
+    CGFloat stepY = desiredAppliedY - self.dpadPageScrollAppliedY;
+    self.dpadPageScrollAppliedY = desiredAppliedY;
+
+    if (fabs(stepY) >= 0.1) {
+        BOOL moved = [self applyManualScrollDelta:CGPointMake(0.0, stepY)];
+        if (!moved && progress > 0.15) {
+            [self stopDpadPageScrollAnimation];
+            [self.host browserRemoteInputControllerPersistSession];
+            return;
+        }
+    }
+
+    if (progress >= 1.0) {
+        [self flushPendingJavaScriptScroll];
+        [self stopDpadPageScrollAnimation];
+        [self.host browserRemoteInputControllerPersistSession];
+    }
+}
+
+- (void)stopDpadHoldAndContinuousScroll {
+    [self.dpadHoldTimer invalidate];
+    self.dpadHoldTimer = nil;
+    [self.dpadContinuousScrollDisplayLink invalidate];
+    self.dpadContinuousScrollDisplayLink = nil;
+    self.dpadContinuousLastTimestamp = 0.0;
+    BOOL wasActive = self.dpadContinuousScrollActive;
+    self.dpadContinuousScrollActive = NO;
+    self.activeDpadDirection = 0;
+    [self resetPendingJavaScriptScroll];
+    if (wasActive) {
+        [self.host browserRemoteInputControllerPersistSession];
+    }
+}
+
+- (void)handleDpadHoldTimerFired:(__unused NSTimer *)timer {
+    self.dpadHoldTimer = nil;
+    if (self.activeDpadDirection == 0 || ![self canPerformCustomScroll]) {
+        [self stopDpadHoldAndContinuousScroll];
+        return;
+    }
+
+    [self stopManualScrollInertia];
+    [self stopEdgeAutoScroll];
+    [self stopDpadPageScrollAnimation];
+
+    self.dpadContinuousScrollActive = YES;
+    self.dpadContinuousLastTimestamp = 0.0;
+    self.dpadContinuousScrollDisplayLink = [CADisplayLink displayLinkWithTarget:self selector:@selector(handleDpadContinuousScrollDisplayLink:)];
+    [self.dpadContinuousScrollDisplayLink addToRunLoop:[NSRunLoop mainRunLoop] forMode:NSRunLoopCommonModes];
+    NSLog(@"[InputTrace][Scroll] Dpad continuous scroll started direction=%ld", (long)self.activeDpadDirection);
+}
+
+- (void)handleDpadContinuousScrollDisplayLink:(CADisplayLink *)displayLink {
+    if (self.activeDpadDirection == 0 || ![self canPerformCustomScroll]) {
+        [self stopDpadHoldAndContinuousScroll];
+        return;
+    }
+
+    if (self.dpadContinuousLastTimestamp <= 0.0) {
+        self.dpadContinuousLastTimestamp = displayLink.timestamp;
+        return;
+    }
+
+    CFTimeInterval dt = displayLink.timestamp - self.dpadContinuousLastTimestamp;
+    self.dpadContinuousLastTimestamp = displayLink.timestamp;
+
+    CGFloat stepY = (CGFloat)self.activeDpadDirection * 900.0 * dt;
+    [self applyManualScrollDelta:CGPointMake(0.0, stepY)];
+}
+
+#pragma mark - Edge Auto Scroll
+
+- (void)stopEdgeAutoScroll {
+    [self.edgeAutoScrollDisplayLink invalidate];
+    self.edgeAutoScrollDisplayLink = nil;
+    self.edgeAutoScrollLastTimestamp = 0.0;
+    self.edgeAutoScrollVelocityY = 0.0;
+    [self resetPendingJavaScriptScroll];
+}
+
+- (void)updateEdgeAutoScrollForCursorPosition {
+    if (!self.cursorModeEnabled ||
+        ![self.host browserRemoteInputControllerEdgeAutoScrollEnabled] ||
+        ![self canPerformCustomScroll]) {
+        [self stopEdgeAutoScroll];
+        return;
+    }
+
+    CGFloat screenHeight = [self viewportHeight];
+    CGFloat edgeZoneHeight = screenHeight * 0.08;
+    if (edgeZoneHeight <= 1.0) {
+        [self stopEdgeAutoScroll];
+        return;
+    }
+
+    CGFloat cursorY = self.cursorView.center.y;
+    CGFloat velocityY = 0.0;
+
+    if (cursorY < edgeZoneHeight) {
+        CGFloat ratio = (edgeZoneHeight - MAX(0.0, cursorY)) / edgeZoneHeight;
+        velocityY = -1200.0 * MIN(1.0, MAX(0.0, ratio));
+    } else if (cursorY > (screenHeight - edgeZoneHeight)) {
+        CGFloat ratio = (MIN(screenHeight, cursorY) - (screenHeight - edgeZoneHeight)) / edgeZoneHeight;
+        velocityY = 1200.0 * MIN(1.0, MAX(0.0, ratio));
+    }
+
+    if (fabs(velocityY) < 1.0) {
+        [self stopEdgeAutoScroll];
+        return;
+    }
+
+    [self stopManualScrollInertia];
+    self.edgeAutoScrollVelocityY = velocityY;
+    if (self.edgeAutoScrollDisplayLink == nil) {
+        self.edgeAutoScrollLastTimestamp = 0.0;
+        self.edgeAutoScrollDisplayLink = [CADisplayLink displayLinkWithTarget:self selector:@selector(handleEdgeAutoScrollDisplayLink:)];
+        [self.edgeAutoScrollDisplayLink addToRunLoop:[NSRunLoop mainRunLoop] forMode:NSRunLoopCommonModes];
+    }
+}
+
+- (void)handleEdgeAutoScrollDisplayLink:(CADisplayLink *)displayLink {
+    if (!self.cursorModeEnabled ||
+        ![self.host browserRemoteInputControllerEdgeAutoScrollEnabled] ||
+        ![self canPerformCustomScroll] ||
+        fabs(self.edgeAutoScrollVelocityY) < 1.0) {
+        [self stopEdgeAutoScroll];
+        return;
+    }
+
+    if (self.edgeAutoScrollLastTimestamp <= 0.0) {
+        self.edgeAutoScrollLastTimestamp = displayLink.timestamp;
+        return;
+    }
+
+    CFTimeInterval dt = displayLink.timestamp - self.edgeAutoScrollLastTimestamp;
+    self.edgeAutoScrollLastTimestamp = displayLink.timestamp;
+
+    CGFloat stepY = self.edgeAutoScrollVelocityY * dt;
+    [self applyManualScrollDelta:CGPointMake(0.0, stepY)];
+}
+
+#pragma mark - Actions & Gestures
 
 - (void)handleGlobalSelectPressEndedNotification {
     if ([self.host browserRemoteInputControllerPresentedViewController] != nil) {
@@ -283,14 +608,45 @@ static NSString *BrowserPressPhaseString(UIPressPhase phase) {
 }
 
 - (void)handlePressesBegan:(NSSet<UIPress *> *)presses withEvent:(UIPressesEvent *)event {
+    (void)event;
     UIPress *press = presses.anyObject;
-    if (press != nil && (press.type == UIPressTypeMenu || press.type == UIPressTypePlayPause || press.type == UIPressTypeSelect)) {
+    if (press == nil) {
+        return;
+    }
+
+    if (press.type == UIPressTypeMenu || press.type == UIPressTypePlayPause || press.type == UIPressTypeSelect) {
         NSLog(@"[InputTrace][Root] pressesBegan type=%@ phase=%@ presented=%@",
               BrowserPressTypeString(press.type),
               BrowserPressPhaseString(press.phase),
               [self.host browserRemoteInputControllerPresentedViewController] == nil ? @"(nil)" : NSStringFromClass([[self.host browserRemoteInputControllerPresentedViewController] class]));
     }
+
+    if ((press.type == UIPressTypeUpArrow || press.type == UIPressTypeDownArrow) &&
+        press.phase == UIPressPhaseBegan) {
+        if ([self.host browserRemoteInputControllerDpadScrollEnabled] && [self canPerformCustomScroll]) {
+            if (press.type == UIPressTypeUpArrow &&
+                [self isCursorInTopBarActivationZone] &&
+                [self.host browserRemoteInputControllerCanActivateTopBarFocus]) {
+                return;
+            }
+            [self stopDpadHoldAndContinuousScroll];
+            self.activeDpadDirection = (press.type == UIPressTypeDownArrow) ? 1 : -1;
+            self.dpadHoldTimer = [NSTimer scheduledTimerWithTimeInterval:0.4
+                                                                  target:self
+                                                                selector:@selector(handleDpadHoldTimerFired:)
+                                                                userInfo:nil
+                                                                 repeats:NO];
+        }
+    }
+}
+
+- (void)handlePressesCancelled:(NSSet<UIPress *> *)presses withEvent:(UIPressesEvent *)event {
     (void)event;
+    for (UIPress *press in presses) {
+        if (press.type == UIPressTypeUpArrow || press.type == UIPressTypeDownArrow) {
+            [self stopDpadHoldAndContinuousScroll];
+        }
+    }
 }
 
 - (BOOL)handlePressesEnded:(NSSet<UIPress *> *)presses withEvent:(UIPressesEvent *)event {
@@ -306,6 +662,14 @@ static NSString *BrowserPressPhaseString(UIPressPhase phase) {
               BrowserPressPhaseString(press.phase),
               [self.host browserRemoteInputControllerPresentedViewController] == nil ? @"(nil)" : NSStringFromClass([[self.host browserRemoteInputControllerPresentedViewController] class]),
               [self.host browserRemoteInputControllerTabOverviewVisible] ? @"YES" : @"NO");
+    }
+
+    if (press.type == UIPressTypeUpArrow || press.type == UIPressTypeDownArrow) {
+        BOOL wasContinuousScrollActive = self.dpadContinuousScrollActive;
+        [self stopDpadHoldAndContinuousScroll];
+        if (wasContinuousScrollActive) {
+            return YES;
+        }
     }
 
     if ([self.host browserRemoteInputControllerTopBarFocusActive]) {
@@ -350,10 +714,35 @@ static NSString *BrowserPressPhaseString(UIPressPhase phase) {
         return YES;
     }
 
-    if (press.type == UIPressTypeUpArrow &&
-        [self.host browserRemoteInputControllerCanActivateTopBarFocus]) {
-        [self.host browserRemoteInputControllerActivateTopBarFocus];
-        return YES;
+    if (press.type == UIPressTypeUpArrow || press.type == UIPressTypeDownArrow) {
+        if (![self canPerformCustomScroll]) {
+            return NO;
+        }
+
+        if (press.type == UIPressTypeUpArrow) {
+            BOOL dpadEnabled = [self.host browserRemoteInputControllerDpadScrollEnabled];
+            if (!dpadEnabled || [self isCursorInTopBarActivationZone]) {
+                if ([self.host browserRemoteInputControllerCanActivateTopBarFocus]) {
+                    [self.host browserRemoteInputControllerActivateTopBarFocus];
+                    return YES;
+                }
+                if (!dpadEnabled) {
+                    return NO;
+                }
+            }
+            if (dpadEnabled) {
+                CGFloat pageDelta = -([self viewportHeight] * 0.85);
+                [self startDpadPageScrollWithDeltaY:pageDelta];
+                return YES;
+            }
+        } else if (press.type == UIPressTypeDownArrow) {
+            if ([self.host browserRemoteInputControllerDpadScrollEnabled]) {
+                CGFloat pageDelta = [self viewportHeight] * 0.85;
+                [self startDpadPageScrollWithDeltaY:pageDelta];
+                return YES;
+            }
+        }
+        return NO;
     }
 
     if ([self.host browserRemoteInputControllerTabOverviewVisible]) {
@@ -418,14 +807,17 @@ static NSString *BrowserPressPhaseString(UIPressPhase phase) {
             CGFloat yDiff = location.y - self.lastTouchLocation.y;
             CGRect rect = self.cursorView.frame;
 
-            if (rect.origin.x + xDiff >= 0 && rect.origin.x + xDiff <= 1920) {
+            CGFloat maxX = [self viewportWidth];
+            CGFloat maxY = [self viewportHeight];
+            if (rect.origin.x + xDiff >= 0 && rect.origin.x + xDiff <= maxX) {
                 rect.origin.x += xDiff;
             }
-            if (rect.origin.y + yDiff >= 0 && rect.origin.y + yDiff <= 1080) {
+            if (rect.origin.y + yDiff >= 0 && rect.origin.y + yDiff <= maxY) {
                 rect.origin.y += yDiff;
             }
             self.cursorView.frame = rect;
             self.lastTouchLocation = location;
+            [self updateEdgeAutoScrollForCursorPosition];
         }
 
         self.cursorView.image = BrowserDefaultCursor();
@@ -449,6 +841,10 @@ static NSString *BrowserPressPhaseString(UIPressPhase phase) {
 
 - (void)handleTouchesEnded {
     self.lastTouchLocation = CGPointMake(-1, -1);
+    // The cursor only moves while a finger is on the touch surface, so a cursor
+    // parked inside the edge zone would otherwise auto-scroll to the end of the
+    // page after the finger is lifted. Auto-scroll lasts as long as the touch.
+    [self stopEdgeAutoScroll];
 }
 
 @end

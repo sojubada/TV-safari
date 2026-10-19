@@ -8,6 +8,9 @@ static NSString * const kEnableFullscreenVideoPlaybackDefaultsKey = @"EnableFull
 static NSString * const kScalePagesToFitDefaultsKey = @"ScalePagesToFit";
 static NSString * const kDontShowHintsOnLaunchDefaultsKey = @"DontShowHintsOnLaunch";
 static NSString * const kHomepageDefaultsKey = @"homepage";
+static NSString * const kJSScrollFallbackEnabledDefaultsKey = @"JSScrollFallbackEnabled";
+static NSString * const kDpadScrollEnabledDefaultsKey = @"DpadScrollEnabled";
+static NSString * const kEdgeAutoScrollEnabledDefaultsKey = @"EdgeAutoScrollEnabled";
 
 static NSUInteger const kDefaultTextFontSize = 100;
 static NSUInteger const kMinimumTextFontSize = 50;
@@ -115,6 +118,36 @@ static NSUInteger const kMaximumTextFontSize = 200;
 
 - (void)setHomePageURLString:(NSString *)homePageURLString {
     [[self defaults] setObject:homePageURLString ?: @"" forKey:kHomepageDefaultsKey];
+    [[self defaults] synchronize];
+}
+
+- (BOOL)jsScrollFallbackEnabled {
+    NSNumber *value = [[self defaults] objectForKey:kJSScrollFallbackEnabledDefaultsKey];
+    return value ? value.boolValue : YES;
+}
+
+- (void)setJsScrollFallbackEnabled:(BOOL)jsScrollFallbackEnabled {
+    [[self defaults] setObject:@(jsScrollFallbackEnabled) forKey:kJSScrollFallbackEnabledDefaultsKey];
+    [[self defaults] synchronize];
+}
+
+- (BOOL)dpadScrollEnabled {
+    NSNumber *value = [[self defaults] objectForKey:kDpadScrollEnabledDefaultsKey];
+    return value ? value.boolValue : YES;
+}
+
+- (void)setDpadScrollEnabled:(BOOL)dpadScrollEnabled {
+    [[self defaults] setObject:@(dpadScrollEnabled) forKey:kDpadScrollEnabledDefaultsKey];
+    [[self defaults] synchronize];
+}
+
+- (BOOL)edgeAutoScrollEnabled {
+    NSNumber *value = [[self defaults] objectForKey:kEdgeAutoScrollEnabledDefaultsKey];
+    return value ? value.boolValue : YES;
+}
+
+- (void)setEdgeAutoScrollEnabled:(BOOL)edgeAutoScrollEnabled {
+    [[self defaults] setObject:@(edgeAutoScrollEnabled) forKey:kEdgeAutoScrollEnabledDefaultsKey];
     [[self defaults] synchronize];
 }
 

@@ -12,6 +12,7 @@ static UIColor *MenuTextColor(void) {
 
 static NSString * const kBrowserMediaDiagnosticsLogPrefix = @"[MediaDiagnostics]";
 static NSString * const kBrowserWebKitMediaPrefsLogPrefix = @"[WebKitMediaPrefs]";
+static NSString * const kBrowserScrollDiagnosticsLogPrefix = @"[ScrollDiagnostics]";
 
 typedef void (^BrowserAdvancedMenuItemHandler)(void);
 
@@ -866,6 +867,143 @@ withAnimationCoordinator:(UIFocusAnimationCoordinator *)coordinator {
     [self.host browserPresentViewController:alertController];
 }
 
+- (NSString *)pageScrollDiagnosticsJavaScript {
+    return @"(function(){"
+            "var docEl = document.documentElement;"
+            "var body = document.body;"
+            "var docScrollHeight = docEl ? (docEl.scrollHeight || 0) : 0;"
+            "var bodyScrollHeight = body ? (body.scrollHeight || 0) : 0;"
+            "var winInnerHeight = window.innerHeight || 0;"
+            "var winInnerWidth = window.innerWidth || 0;"
+            "var count = 0;"
+            "var maxScrollHeight = 0;"
+            "var maxContainerDesc = 'none';"
+            "if (document.querySelectorAll && window.getComputedStyle) {"
+                "var all = document.querySelectorAll('*');"
+                "for (var i = 0; i < all.length; i++) {"
+                    "var el = all[i];"
+                    "if (el === docEl || el === body) { continue; }"
+                    "var sh = el.scrollHeight || 0;"
+                    "var ch = el.clientHeight || 0;"
+                    "if (sh > ch + 1) {"
+                        "var st = window.getComputedStyle(el);"
+                        "var oy = st ? (st.overflowY || st.overflow || '') : '';"
+                        "if (oy === 'auto' || oy === 'scroll' || oy === 'overlay') {"
+                            "count++;"
+                            "if (sh > maxScrollHeight) {"
+                                "maxScrollHeight = sh;"
+                                "var tag = el.tagName ? el.tagName.toLowerCase() : 'el';"
+                                "var idStr = el.id ? ('#' + el.id) : '';"
+                                "maxContainerDesc = tag + idStr;"
+                            "}"
+                        "}"
+                    "}"
+                "}"
+            "}"
+            "return JSON.stringify({"
+                "docScrollHeight: docScrollHeight,"
+                "bodyScrollHeight: bodyScrollHeight,"
+                "innerHeight: winInnerHeight,"
+                "innerWidth: winInnerWidth,"
+                "scrollableCount: count,"
+                "maxContainerScrollHeight: maxScrollHeight,"
+                "maxContainerDesc: maxContainerDesc"
+            "});"
+           "})()";
+}
+
+- (void)presentPageScrollDiagnostics {
+    BrowserWebView *webView = [self.host browserWebView];
+    UIScrollView *scrollView = webView.scrollView;
+    CGFloat contentSizeHeight = scrollView ? scrollView.contentSize.height : 0.0;
+    CGFloat boundsHeight = scrollView ? CGRectGetHeight(scrollView.bounds) : 0.0;
+    CGFloat offsetY = scrollView ? scrollView.contentOffset.y : 0.0;
+
+    NSString *jsResult = [webView stringByEvaluatingJavaScriptFromString:[self pageScrollDiagnosticsJavaScript]];
+    NSDictionary *dict = nil;
+    if ([self stringHasVisibleContent:jsResult]) {
+        NSData *data = [jsResult dataUsingEncoding:NSUTF8StringEncoding];
+        if (data != nil) {
+            id obj = [NSJSONSerialization JSONObjectWithData:data options:0 error:nil];
+            if ([obj isKindOfClass:[NSDictionary class]]) {
+                dict = obj;
+            }
+        }
+    }
+
+    CGFloat pageZoom = 1.0;
+    @try {
+        id zoomVal = [webView valueForKey:@"pageZoom"];
+        if ([zoomVal respondsToSelector:@selector(doubleValue)]) {
+            pageZoom = (CGFloat)[zoomVal doubleValue];
+        }
+    } @catch (__unused NSException *exception) {
+        NSInteger innerWidth = [dict[@"innerWidth"] respondsToSelector:@selector(integerValue)] ? [dict[@"innerWidth"] integerValue] : 0;
+        if (innerWidth > 0 && CGRectGetWidth(webView.frame) > 0.0) {
+            pageZoom = CGRectGetWidth(webView.frame) / (CGFloat)innerWidth;
+        }
+    }
+
+    NSString *message = [NSString stringWithFormat:
+                         @"documentElement.scrollHeight: %@\n"
+                          "body.scrollHeight: %@\n"
+                          "window.innerHeight: %@\n\n"
+                          "scrollView.contentSize.height: %.1f\n"
+                          "scrollView.bounds.size.height: %.1f\n"
+                          "scrollView.contentOffset.y: %.1f\n\n"
+                          "Scrollable Containers: %@\n"
+                          "Largest Container scrollHeight: %@ (%@)\n\n"
+                          "pageZoom: %.2f (scalesPageToFit: %@)",
+                         [self stringValueForDiagnosticsKey:@"docScrollHeight" dictionary:dict fallback:@"0"],
+                         [self stringValueForDiagnosticsKey:@"bodyScrollHeight" dictionary:dict fallback:@"0"],
+                         [self stringValueForDiagnosticsKey:@"innerHeight" dictionary:dict fallback:@"0"],
+                         contentSizeHeight,
+                         boundsHeight,
+                         offsetY,
+                         [self stringValueForDiagnosticsKey:@"scrollableCount" dictionary:dict fallback:@"0"],
+                         [self stringValueForDiagnosticsKey:@"maxContainerScrollHeight" dictionary:dict fallback:@"0"],
+                         [self stringValueForDiagnosticsKey:@"maxContainerDesc" dictionary:dict fallback:@"none"],
+                         pageZoom,
+                         webView.scalesPageToFit ? @"YES" : @"NO"];
+
+    NSLog(@"%@ %@", kBrowserScrollDiagnosticsLogPrefix, message);
+
+    UIAlertController *alertController = [self browserAlertControllerWithTitle:@"Page Scroll Diagnostics"
+                                                                       message:message];
+    [alertController addAction:[self browserCancelAction]];
+    [self.host browserPresentViewController:alertController];
+}
+
+- (BrowserAdvancedMenuItem *)jsScrollFallbackToggleMenuItem {
+    BOOL enabled = self.preferencesStore.jsScrollFallbackEnabled;
+    NSString *title = enabled ? @"JS Scroll Fallback: On" : @"JS Scroll Fallback: Off";
+    return [self advancedMenuItemWithTitle:title
+                                     style:UIAlertActionStyleDefault
+                                   handler:^{
+        self.preferencesStore.jsScrollFallbackEnabled = !enabled;
+    }];
+}
+
+- (BrowserAdvancedMenuItem *)dpadScrollToggleMenuItem {
+    BOOL enabled = self.preferencesStore.dpadScrollEnabled;
+    NSString *title = enabled ? @"D-Pad Page Scroll: On" : @"D-Pad Page Scroll: Off";
+    return [self advancedMenuItemWithTitle:title
+                                     style:UIAlertActionStyleDefault
+                                   handler:^{
+        self.preferencesStore.dpadScrollEnabled = !enabled;
+    }];
+}
+
+- (BrowserAdvancedMenuItem *)edgeAutoScrollToggleMenuItem {
+    BOOL enabled = self.preferencesStore.edgeAutoScrollEnabled;
+    NSString *title = enabled ? @"Edge Auto-Scroll: On" : @"Edge Auto-Scroll: Off";
+    return [self advancedMenuItemWithTitle:title
+                                     style:UIAlertActionStyleDefault
+                                   handler:^{
+        self.preferencesStore.edgeAutoScrollEnabled = !enabled;
+    }];
+}
+
 - (BrowserAdvancedMenuItem *)topNavigationVisibilityMenuItem {
     NSString *title = self.host.browserTopMenuShowing ? @"Hide Top Navigation bar" : @"Show Top Navigation bar";
     return [self advancedMenuItemWithTitle:title
@@ -1029,6 +1167,11 @@ withAnimationCoordinator:(UIFocusAnimationCoordinator *)coordinator {
         self.host.browserTextFontSize = 100;
         [self.host browserUpdateTextFontSize];
     }];
+    BrowserAdvancedMenuItem *pageScrollDiagnosticsItem = [self advancedMenuItemWithTitle:@"Page Scroll Diagnostics"
+                                                                                   style:UIAlertActionStyleDefault
+                                                                                 handler:^{
+        [self presentPageScrollDiagnostics];
+    }];
     BrowserAdvancedMenuItem *mediaDiagnosticsItem = [self advancedMenuItemWithTitle:@"Media Diagnostics"
                                                                                style:UIAlertActionStyleDefault
                                                                              handler:^{
@@ -1060,6 +1203,12 @@ withAnimationCoordinator:(UIFocusAnimationCoordinator *)coordinator {
             [self showTabsMenuItem],
             [self newTabMenuItem],
         ]],
+        [BrowserAdvancedMenuSection sectionWithTitle:@"Scrolling & Input"
+                                               items:@[
+            [self dpadScrollToggleMenuItem],
+            [self edgeAutoScrollToggleMenuItem],
+            [self jsScrollFallbackToggleMenuItem],
+        ]],
         [BrowserAdvancedMenuSection sectionWithTitle:@"Appearance"
                                                items:@[
             [self topNavigationVisibilityMenuItem],
@@ -1078,6 +1227,7 @@ withAnimationCoordinator:(UIFocusAnimationCoordinator *)coordinator {
         ]],
         [BrowserAdvancedMenuSection sectionWithTitle:@"Diagnostics"
                                                items:@[
+            pageScrollDiagnosticsItem,
             mediaDiagnosticsItem,
             webkitMediaPrefsItem,
         ]],

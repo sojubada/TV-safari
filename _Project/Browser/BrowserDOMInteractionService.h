@@ -19,6 +19,10 @@ NS_ASSUME_NONNULL_BEGIN
 - (NSString *)evaluateHoverStateJavaScriptAtPoint:(CGPoint)point
                                            webView:(BrowserWebView *)webView;
 - (NSString *)javaScriptEscapedString:(NSString *)string;
+- (BOOL)scrollActiveContainerByX:(CGFloat)dx
+                               y:(CGFloat)dy
+                         atPoint:(CGPoint)domPoint
+                         webView:(BrowserWebView *)webView;
 - (NSDictionary *)videoInfoAtDOMPoint:(CGPoint)point
                                webView:(BrowserWebView *)webView;
 - (NSDictionary *)linkInfoAtDOMPoint:(CGPoint)point

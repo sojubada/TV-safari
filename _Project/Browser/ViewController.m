@@ -709,6 +709,32 @@ static UIColor *kTextColor(void) {
     [self.tabCoordinator persistSession];
 }
 
+- (BOOL)browserRemoteInputControllerScrollActiveContainerByDelta:(CGPoint)delta atCursorPoint:(CGPoint)cursorPoint {
+    if (self.webview == nil) {
+        return NO;
+    }
+    CGPoint domPoint = [self.domInteractionService DOMPointForCursorOrigin:cursorPoint
+                                                                    inView:self.view
+                                                                   webView:self.webview];
+    CGPoint clampedDOMPoint = CGPointMake(MAX(0.0, domPoint.x), MAX(0.0, domPoint.y));
+    return [self.domInteractionService scrollActiveContainerByX:delta.x
+                                                              y:delta.y
+                                                        atPoint:clampedDOMPoint
+                                                        webView:self.webview];
+}
+
+- (BOOL)browserRemoteInputControllerJSScrollFallbackEnabled {
+    return self.preferencesStore.jsScrollFallbackEnabled;
+}
+
+- (BOOL)browserRemoteInputControllerDpadScrollEnabled {
+    return self.preferencesStore.dpadScrollEnabled;
+}
+
+- (BOOL)browserRemoteInputControllerEdgeAutoScrollEnabled {
+    return self.preferencesStore.edgeAutoScrollEnabled;
+}
+
 #pragma mark - BrowserWebViewDelegate
 
 - (BOOL)webView:(id)webView shouldCreateNewTabWithRequest:(NSURLRequest *)request navigationType:(NSInteger)navigationType {
@@ -814,6 +840,11 @@ static UIColor *kTextColor(void) {
         return;
     }
     [super pressesEnded:presses withEvent:event];
+}
+
+- (void)pressesCancelled:(NSSet<UIPress *> *)presses withEvent:(UIPressesEvent *)event {
+    [self.remoteInputController handlePressesCancelled:presses withEvent:event];
+    [super pressesCancelled:presses withEvent:event];
 }
 
 - (void)touchesBegan:(NSSet<UITouch *> *)touches withEvent:(UIEvent *)event {

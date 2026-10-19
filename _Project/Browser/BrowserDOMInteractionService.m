@@ -158,6 +158,81 @@ static NSString * const kEditableElementSelector = @"input, textarea, select, [c
     return escapedString;
 }
 
+- (BOOL)scrollActiveContainerByX:(CGFloat)dx
+                               y:(CGFloat)dy
+                         atPoint:(CGPoint)domPoint
+                         webView:(BrowserWebView *)webView {
+    if (webView == nil || (fabs(dx) < 0.01 && fabs(dy) < 0.01)) {
+        return NO;
+    }
+
+    NSString *body = [NSString stringWithFormat:
+                      @"var dx = %.4f;"
+                       "var dy = %.4f;"
+                       "function isOverflowScrollable(ov) {"
+                           "return ov === 'auto' || ov === 'scroll' || ov === 'overlay';"
+                       "}"
+                       "function canScrollElement(el) {"
+                           "if (!el || el === document.documentElement || el === document.body) { return false; }"
+                           "if (!window.getComputedStyle) { return false; }"
+                           "var style = window.getComputedStyle(el);"
+                           "if (!style) { return false; }"
+                           "var canY = (el.scrollHeight > el.clientHeight + 1) && isOverflowScrollable(style.overflowY || style.overflow);"
+                           "var canX = (el.scrollWidth > el.clientWidth + 1) && isOverflowScrollable(style.overflowX || style.overflow);"
+                           "return (Math.abs(dy) >= Math.abs(dx)) ? (canY || canX) : (canX || canY);"
+                       "}"
+                       "function nextParent(el) {"
+                           "if (!el) { return null; }"
+                           "if (el.parentElement) { return el.parentElement; }"
+                           "var root = el.getRootNode ? el.getRootNode() : null;"
+                           "if (root && root.host) { return root.host; }"
+                           "return null;"
+                       "}"
+                       "var startEl = resolvedElement || (document.elementFromPoint ? document.elementFromPoint(x, y) : null);"
+                       "var cur = startEl;"
+                       "while (cur) {"
+                           "if (canScrollElement(cur)) {"
+                               "var beforeTop = cur.scrollTop;"
+                               "var beforeLeft = cur.scrollLeft;"
+                               "if (typeof cur.scrollBy === 'function') {"
+                                   "cur.scrollBy(dx, dy);"
+                               "} else {"
+                                   "cur.scrollLeft += dx;"
+                                   "cur.scrollTop += dy;"
+                               "}"
+                               "if (Math.abs(cur.scrollTop - beforeTop) > 0.5 || Math.abs(cur.scrollLeft - beforeLeft) > 0.5) {"
+                                   "return 'true';"
+                               "}"
+                           "}"
+                           "cur = nextParent(cur);"
+                       "}"
+                       "var docEl = document.scrollingElement || document.documentElement || document.body;"
+                       "var winBeforeX = window.scrollX || window.pageXOffset || (docEl ? docEl.scrollLeft : 0) || 0;"
+                       "var winBeforeY = window.scrollY || window.pageYOffset || (docEl ? docEl.scrollTop : 0) || 0;"
+                       "window.scrollBy(dx, dy);"
+                       "var winAfterX = window.scrollX || window.pageXOffset || (docEl ? docEl.scrollLeft : 0) || 0;"
+                       "var winAfterY = window.scrollY || window.pageYOffset || (docEl ? docEl.scrollTop : 0) || 0;"
+                       "if (Math.abs(winAfterX - winBeforeX) > 0.5 || Math.abs(winAfterY - winBeforeY) > 0.5) {"
+                           "return 'true';"
+                       "}"
+                       "if (document.body) {"
+                           "var bodyBeforeTop = document.body.scrollTop;"
+                           "var bodyBeforeLeft = document.body.scrollLeft;"
+                           "document.body.scrollLeft += dx;"
+                           "document.body.scrollTop += dy;"
+                           "if (Math.abs(document.body.scrollTop - bodyBeforeTop) > 0.5 || Math.abs(document.body.scrollLeft - bodyBeforeLeft) > 0.5) {"
+                               "return 'true';"
+                           "}"
+                       "}"
+                       "return 'false';",
+                      dx, dy];
+
+    NSString *result = [self evaluateResolvedElementJavaScriptAtPoint:domPoint
+                                                              webView:webView
+                                                                 body:body];
+    return [result isEqualToString:@"true"];
+}
+
 - (NSDictionary *)videoInfoAtDOMPoint:(CGPoint)point
                                webView:(BrowserWebView *)webView {
     NSString *result = [self evaluateResolvedElementJavaScriptAtPoint:point
