@@ -2,6 +2,7 @@
 #import "BrowserPreferencesStore.h"
 #import "BrowserContentBlockerController.h"
 #import "BrowserWebView.h"
+#import "BrowserFavoritesStore.h"
 
 static UIColor *MenuTextColor(void) {
     if (@available(tvOS 13, *)) {
@@ -435,6 +436,7 @@ withAnimationCoordinator:(UIFocusAnimationCoordinator *)coordinator {
 
 @property (nonatomic, weak) id<BrowserMenuCoordinatorHost> host;
 @property (nonatomic) BrowserPreferencesStore *preferencesStore;
+@property (nonatomic) BrowserFavoritesStore *favoritesStore;
 
 @end
 
@@ -447,6 +449,7 @@ withAnimationCoordinator:(UIFocusAnimationCoordinator *)coordinator {
         _host = host;
         _preferencesStore = preferencesStore ?: [BrowserPreferencesStore new];
         [_preferencesStore ensureUserAgentConsistency];
+        _favoritesStore = [BrowserFavoritesStore new];
     }
     return self;
 }
@@ -512,13 +515,8 @@ withAnimationCoordinator:(UIFocusAnimationCoordinator *)coordinator {
     [[self.host browserWebView] loadRequest:request];
 }
 
-- (void)saveFavoritesArray:(NSArray *)favorites {
-    [[NSUserDefaults standardUserDefaults] setObject:favorites forKey:@"FAVORITES"];
-    [[NSUserDefaults standardUserDefaults] synchronize];
-}
-
 - (void)presentDeleteFavoriteMenu {
-    NSArray *favorites = [[NSUserDefaults standardUserDefaults] arrayForKey:@"FAVORITES"];
+    NSArray<NSArray<NSString *> *> *favorites = [self.favoritesStore favorites];
     UIAlertController *alertController = [self browserAlertControllerWithTitle:@"Delete a Favorite"
                                                                        message:@"Select a Favorite to Delete"];
     __weak typeof(self) weakSelf = self;
@@ -534,9 +532,7 @@ withAnimationCoordinator:(UIFocusAnimationCoordinator *)coordinator {
         [alertController addAction:[weakSelf browserActionWithTitle:displayTitle
                                                               style:UIAlertActionStyleDefault
                                                             handler:^(__unused UIAlertAction *action) {
-            NSMutableArray *updatedFavorites = [favorites mutableCopy];
-            [updatedFavorites removeObjectAtIndex:index];
-            [weakSelf saveFavoritesArray:updatedFavorites];
+            [weakSelf.favoritesStore removeFavoriteAtIndex:index];
         }]];
     }];
     
@@ -569,20 +565,14 @@ withAnimationCoordinator:(UIFocusAnimationCoordinator *)coordinator {
             savedTitle = currentURL;
         }
         
-        NSArray *favoriteEntry = @[currentURL, savedTitle ?: @""];
-        NSMutableArray *favorites = [[[NSUserDefaults standardUserDefaults] arrayForKey:@"FAVORITES"] mutableCopy];
-        if (favorites == nil) {
-            favorites = [NSMutableArray array];
-        }
-        [favorites addObject:favoriteEntry];
-        [weakSelf saveFavoritesArray:favorites];
+        [weakSelf.favoritesStore addFavoriteWithURLString:currentURL title:savedTitle];
     }]];
     [alertController addAction:[self browserCancelAction]];
     [self.host browserPresentViewController:alertController];
 }
 
 - (void)presentFavoritesMenu {
-    NSArray *favorites = [[NSUserDefaults standardUserDefaults] arrayForKey:@"FAVORITES"];
+    NSArray<NSArray<NSString *> *> *favorites = [self.favoritesStore favorites];
     UIAlertController *alertController = [self browserAlertControllerWithTitle:@"Favorites" message:@""];
     __weak typeof(self) weakSelf = self;
     
@@ -1210,6 +1200,30 @@ withAnimationCoordinator:(UIFocusAnimationCoordinator *)coordinator {
     }];
 }
 
+- (BrowserAdvancedMenuItem *)toggleFavoriteMenuItem {
+    NSURLRequest *request = [[self.host browserWebView] request];
+    NSString *currentURLString = request.URL.absoluteString;
+    
+    if (currentURLString.length == 0) {
+        return nil;
+    }
+    
+    BOOL isFavorite = [self.favoritesStore isFavoriteURLString:currentURLString];
+    NSString *title = isFavorite ? @"Remove from Favorites" : @"Add to Favorites";
+    
+    __weak typeof(self) weakSelf = self;
+    return [self advancedMenuItemWithTitle:title
+                                     style:UIAlertActionStyleDefault
+                                   handler:^{
+        if (isFavorite) {
+            [weakSelf.favoritesStore removeFavoriteWithURLString:currentURLString];
+        } else {
+            NSString *pageTitle = [[weakSelf.host browserWebView] title];
+            [weakSelf.favoritesStore addFavoriteWithURLString:currentURLString title:pageTitle];
+        }
+    }];
+}
+
 - (NSArray<BrowserAdvancedMenuSection *> *)advancedMenuSections {
     BrowserAdvancedMenuItem *increaseFontSizeItem = [self advancedMenuItemWithTitle:@"Increase Font Size"
                                                                                style:UIAlertActionStyleDefault
@@ -1260,16 +1274,26 @@ withAnimationCoordinator:(UIFocusAnimationCoordinator *)coordinator {
         [self clearCookiesAndReload];
     }];
 
+    NSMutableArray<BrowserAdvancedMenuItem *> *navigationItems = [NSMutableArray arrayWithArray:@[
+        [self homePageMenuItem],
+        [self setCurrentPageAsHomePageMenuItem]
+    ]];
+    
+    BrowserAdvancedMenuItem *toggleFavoriteItem = [self toggleFavoriteMenuItem];
+    if (toggleFavoriteItem != nil) {
+        [navigationItems addObject:toggleFavoriteItem];
+    }
+    
+    [navigationItems addObjectsFromArray:@[
+        [self favoritesMenuItem],
+        [self historyMenuItem],
+        [self showTabsMenuItem],
+        [self newTabMenuItem],
+    ]];
+
     return @[
         [BrowserAdvancedMenuSection sectionWithTitle:@"Navigation"
-                                               items:@[
-            [self homePageMenuItem],
-            [self setCurrentPageAsHomePageMenuItem],
-            [self favoritesMenuItem],
-            [self historyMenuItem],
-            [self showTabsMenuItem],
-            [self newTabMenuItem],
-        ]],
+                                               items:navigationItems],
         [BrowserAdvancedMenuSection sectionWithTitle:@"Scrolling & Input"
                                                items:@[
             [self tapToClickToggleMenuItem],

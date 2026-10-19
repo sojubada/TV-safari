@@ -10,7 +10,8 @@ typedef NS_ENUM(NSInteger, BrowserTopBarAction) {
     BrowserTopBarActionTabs,
     BrowserTopBarActionURL,
     BrowserTopBarActionFullscreen,
-    BrowserTopBarActionMenu
+    BrowserTopBarActionMenu,
+    BrowserTopBarActionExit
 };
 
 @class BrowserTopBarView;
@@ -24,6 +25,7 @@ typedef NS_ENUM(NSInteger, BrowserTopBarAction) {
 @interface BrowserTopBarView : UIVisualEffectView
 
 @property (nonatomic, weak, nullable) id<BrowserTopBarViewDelegate> delegate;
+@property (nonatomic, readonly) UIImageView *exitImageView;
 @property (nonatomic, readonly) UIImageView *backImageView;
 @property (nonatomic, readonly) UIImageView *refreshImageView;
 @property (nonatomic, readonly) UIImageView *forwardImageView;

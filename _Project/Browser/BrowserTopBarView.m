@@ -16,6 +16,10 @@ static CGFloat const kTopBarLabelSpacing = 28.0;
 static CGFloat const kTopBarSpinnerSpacing = 22.0;
 static CGFloat const kTopBarFocusHighlightInset = 10.0;
 static CGFloat const kTopBarUniformFocusHeight = 72.0;
+static CGFloat const kTopBarSymbolPointSize = 34.0;
+static CGFloat const kTopBarSeparatorWidth = 2.0;
+static CGFloat const kTopBarSeparatorHeight = 38.0;
+static CGFloat const kTopBarSeparatorSpacing = 20.0;
 
 @interface BrowserTopBarFocusButton : UIButton
 
@@ -39,6 +43,8 @@ static CGFloat const kTopBarUniformFocusHeight = 72.0;
 
 @property (nonatomic) UIView *chromeContainerView;
 @property (nonatomic) UIVisualEffectView *chromeEffectView;
+@property (nonatomic) UIImageView *exitImageView;
+@property (nonatomic) UIView *exitSeparatorView;
 @property (nonatomic) UIImageView *backImageView;
 @property (nonatomic) UIImageView *refreshImageView;
 @property (nonatomic) UIImageView *forwardImageView;
@@ -51,6 +57,7 @@ static CGFloat const kTopBarUniformFocusHeight = 72.0;
 @property (nonatomic) UIView *focusGlowView;
 @property (nonatomic) UIView *focusHighlightView;
 @property (nonatomic) NSArray<BrowserTopBarFocusButton *> *focusButtons;
+@property (nonatomic) BrowserTopBarFocusButton *exitFocusButton;
 @property (nonatomic) BrowserTopBarFocusButton *backFocusButton;
 @property (nonatomic) BrowserTopBarFocusButton *refreshFocusButton;
 @property (nonatomic) BrowserTopBarFocusButton *forwardFocusButton;
@@ -127,13 +134,20 @@ static CGFloat const kTopBarUniformFocusHeight = 72.0;
     self.focusHighlightView.hidden = YES;
     [self.chromeEffectView.contentView addSubview:self.focusHighlightView];
 
-    _backImageView = [self newIconViewNamed:@"go-back-left-arrow"];
-    _refreshImageView = [self newIconViewNamed:@"refresh-button"];
-    _forwardImageView = [self newIconViewNamed:@"right-arrow-forward"];
-    _homeImageView = [self newIconViewNamed:@"house-outline"];
-    _tabsImageView = [self newIconViewNamed:@"multi-tab"];
-    _fullscreenImageView = [self newIconViewNamed:@"resize-arrows"];
-    _menuImageView = [self newIconViewNamed:@"menu-2"];
+    _exitImageView = [self newIconViewWithSymbolName:@"power" fallbackImageNamed:nil];
+    _backImageView = [self newIconViewWithSymbolName:@"chevron.backward" fallbackImageNamed:@"go-back-left-arrow"];
+    _refreshImageView = [self newIconViewWithSymbolName:@"arrow.clockwise" fallbackImageNamed:@"refresh-button"];
+    _forwardImageView = [self newIconViewWithSymbolName:@"chevron.forward" fallbackImageNamed:@"right-arrow-forward"];
+    _homeImageView = [self newIconViewWithSymbolName:@"house" fallbackImageNamed:@"house-outline"];
+    _tabsImageView = [self newIconViewWithSymbolName:@"square.on.square" fallbackImageNamed:@"multi-tab"];
+    _fullscreenImageView = [self newIconViewWithSymbolName:@"arrow.up.left.and.arrow.down.right" fallbackImageNamed:@"resize-arrows"];
+    _menuImageView = [self newIconViewWithSymbolName:@"ellipsis.circle" fallbackImageNamed:@"menu-2"];
+
+    _exitSeparatorView = [[UIView alloc] initWithFrame:CGRectZero];
+    _exitSeparatorView.backgroundColor = [UIColor colorWithWhite:1.0 alpha:0.18];
+    _exitSeparatorView.layer.cornerRadius = kTopBarSeparatorWidth / 2.0;
+    _exitSeparatorView.userInteractionEnabled = NO;
+    [self.chromeEffectView.contentView addSubview:_exitSeparatorView];
 
     _URLLabel = [[UILabel alloc] initWithFrame:CGRectZero];
     _URLLabel.text = @"tvOS Browser";
@@ -151,6 +165,7 @@ static CGFloat const kTopBarUniformFocusHeight = 72.0;
     [self.chromeEffectView.contentView addSubview:_loadingSpinner];
 
     NSArray<UIImageView *> *iconViews = @[
+        _exitImageView,
         _backImageView,
         _refreshImageView,
         _forwardImageView,
@@ -163,6 +178,7 @@ static CGFloat const kTopBarUniformFocusHeight = 72.0;
         [self.chromeEffectView.contentView addSubview:imageView];
     }
 
+    _exitFocusButton = [self newFocusButtonForAction:BrowserTopBarActionExit accessibilityLabel:@"Quit Browser"];
     _backFocusButton = [self newFocusButtonForAction:BrowserTopBarActionBack accessibilityLabel:@"Back"];
     _refreshFocusButton = [self newFocusButtonForAction:BrowserTopBarActionRefresh accessibilityLabel:@"Reload"];
     _forwardFocusButton = [self newFocusButtonForAction:BrowserTopBarActionForward accessibilityLabel:@"Forward"];
@@ -172,6 +188,7 @@ static CGFloat const kTopBarUniformFocusHeight = 72.0;
     _fullscreenFocusButton = [self newFocusButtonForAction:BrowserTopBarActionFullscreen accessibilityLabel:@"Top Navigation Visibility"];
     _menuFocusButton = [self newFocusButtonForAction:BrowserTopBarActionMenu accessibilityLabel:@"Menu"];
     _focusButtons = @[
+        _exitFocusButton,
         _backFocusButton,
         _refreshFocusButton,
         _forwardFocusButton,
@@ -189,11 +206,33 @@ static CGFloat const kTopBarUniformFocusHeight = 72.0;
     [self setFocusModeActive:NO];
 }
 
-- (UIImageView *)newIconViewNamed:(NSString *)imageName {
-    UIImageView *imageView = [[UIImageView alloc] initWithImage:[UIImage imageNamed:imageName]];
+// One symbol family at one weight and one point size, so the row reads as a
+// set instead of eight separately drawn PNGs. The bundled art stays as the
+// fallback for anything the running tvOS does not have a symbol for.
+- (UIImageView *)newIconViewWithSymbolName:(NSString *)symbolName
+                        fallbackImageNamed:(NSString *)fallbackImageName {
+    UIImage *image = nil;
+    if (symbolName.length > 0) {
+        UIImageSymbolConfiguration *configuration =
+            [UIImageSymbolConfiguration configurationWithPointSize:kTopBarSymbolPointSize
+                                                            weight:UIImageSymbolWeightSemibold];
+        image = [UIImage systemImageNamed:symbolName withConfiguration:configuration];
+    }
+
+    BOOL usingSymbol = image != nil;
+    if (image == nil && fallbackImageName.length > 0) {
+        image = [UIImage imageNamed:fallbackImageName];
+    }
+
+    UIImageView *imageView = [[UIImageView alloc] initWithImage:image];
     imageView.userInteractionEnabled = NO;
     imageView.contentMode = UIViewContentModeScaleAspectFit;
-    imageView.alpha = 0.95;
+    if (usingSymbol) {
+        imageView.tintColor = [UIColor colorWithWhite:1.0 alpha:0.92];
+        imageView.alpha = 1.0;
+    } else {
+        imageView.alpha = 0.95;
+    }
     return imageView;
 }
 
@@ -259,6 +298,17 @@ static CGFloat const kTopBarUniformFocusHeight = 72.0;
 
     CGFloat iconY = floor((CGRectGetHeight(chromeFrame) - kTopBarIconSize) / 2.0);
     CGFloat leftX = kTopBarLeadingPadding;
+
+    // Quit sits at the far left, fenced off by a hairline so it is never
+    // mistaken for part of the navigation group next to it.
+    self.exitImageView.frame = CGRectMake(leftX, iconY, kTopBarIconSize, kTopBarIconSize);
+    leftX = CGRectGetMaxX(self.exitImageView.frame) + kTopBarSeparatorSpacing;
+    self.exitSeparatorView.frame = CGRectMake(leftX,
+                                              floor((CGRectGetHeight(chromeFrame) - kTopBarSeparatorHeight) / 2.0),
+                                              kTopBarSeparatorWidth,
+                                              kTopBarSeparatorHeight);
+    leftX = CGRectGetMaxX(self.exitSeparatorView.frame) + kTopBarSeparatorSpacing;
+
     NSArray<UIImageView *> *leftIcons = @[
         self.backImageView,
         self.refreshImageView,
@@ -292,6 +342,7 @@ static CGFloat const kTopBarUniformFocusHeight = 72.0;
                                      labelWidth,
                                      CGRectGetHeight(chromeFrame));
 
+    self.exitFocusButton.frame = [self focusFrameForIconView:self.exitImageView];
     self.backFocusButton.frame = [self focusFrameForIconView:self.backImageView];
     self.refreshFocusButton.frame = [self focusFrameForIconView:self.refreshImageView];
     self.forwardFocusButton.frame = [self focusFrameForIconView:self.forwardImageView];

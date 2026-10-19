@@ -226,14 +226,39 @@ static UIColor *kTextColor(void) {
     [self updateFocusIfNeeded];
 }
 
+- (void)promptExitApp {
+    UIAlertController *alert = [UIAlertController alertControllerWithTitle:@"Exit App?"
+                                                                   message:nil
+                                                            preferredStyle:UIAlertControllerStyleAlert];
+    [alert addAction:[UIAlertAction actionWithTitle:@"Exit"
+                                              style:UIAlertActionStyleDestructive
+                                            handler:^(__unused UIAlertAction *action) {
+        [self.tabCoordinator persistSession];
+        exit(EXIT_SUCCESS);
+    }]];
+    [alert addAction:[UIAlertAction actionWithTitle:@"Dismiss" style:UIAlertActionStyleCancel handler:nil]];
+    [self browserPresentViewController:alert];
+}
+
+// Back always acts on the tab that is showing. With no history left there is
+// nothing to go back to, so offer to quit rather than doing nothing.
+- (void)performBackNavigationOrPromptExit {
+    if (self.webview.canGoBack) {
+        [self.webview goBack];
+        return;
+    }
+    [self promptExitApp];
+}
+
 - (void)performTopBarAction:(BrowserTopBarAction)action {
     [self deactivateTopBarFocusMode];
 
     switch (action) {
         case BrowserTopBarActionBack:
-            if (self.webview.canGoBack) {
-                [self.webview goBack];
-            }
+            [self performBackNavigationOrPromptExit];
+            break;
+        case BrowserTopBarActionExit:
+            [self promptExitApp];
             break;
         case BrowserTopBarActionRefresh:
             [self.webview reload];
@@ -695,23 +720,11 @@ static UIColor *kTextColor(void) {
 }
 
 - (void)browserRemoteInputControllerHandleMenuPress {
-    UIAlertController *alertController = (UIAlertController *)self.presentedViewController;
-    if (alertController != nil) {
+    if (self.presentedViewController != nil) {
         [self.presentedViewController dismissViewControllerAnimated:YES completion:nil];
-    } else if (self.webview.canGoBack) {
-        [self.webview goBack];
-    } else {
-        UIAlertController *alert = [UIAlertController alertControllerWithTitle:@"Exit App?"
-                                                                       message:nil
-                                                                preferredStyle:UIAlertControllerStyleAlert];
-        [alert addAction:[UIAlertAction actionWithTitle:@"Exit"
-                                                  style:UIAlertActionStyleDestructive
-                                                handler:^(__unused UIAlertAction *action) {
-            exit(EXIT_SUCCESS);
-        }]];
-        [alert addAction:[UIAlertAction actionWithTitle:@"Dismiss" style:UIAlertActionStyleCancel handler:nil]];
-        [self presentViewController:alert animated:YES completion:nil];
+        return;
     }
+    [self performBackNavigationOrPromptExit];
 }
 
 - (void)browserRemoteInputControllerHandlePlayPausePress {

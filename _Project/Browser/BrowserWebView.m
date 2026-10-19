@@ -32,12 +32,23 @@ static void BrowserEnsureWebKitRuntimeLoaded(void) {
     });
 }
 
-static void BrowserPumpRunLoopUntil(BOOL *done) {
-    while (!*done) {
+// Pumping the run loop is how a synchronous result is squeezed out of
+// WebKit's asynchronous API. The wait has to be bounded: if the web content
+// process hangs or dies the completion handler never arrives, and an
+// unbounded loop freezes the entire app with no way out but a force quit.
+// The __block captures live on the heap, so a late callback writing to them
+// after a timeout is harmless.
+static NSTimeInterval const kBrowserScriptPumpTimeout = 2.0;
+static NSTimeInterval const kBrowserCookiePumpTimeout = 5.0;
+
+static BOOL BrowserPumpRunLoopUntil(BOOL *done, NSTimeInterval timeout) {
+    NSDate *deadline = [NSDate dateWithTimeIntervalSinceNow:timeout];
+    while (!*done && [deadline timeIntervalSinceNow] > 0.0) {
         @autoreleasepool {
             [[NSRunLoop currentRunLoop] runMode:NSDefaultRunLoopMode beforeDate:[NSDate dateWithTimeIntervalSinceNow:0.01]];
         }
     }
+    return *done;
 }
 
 static NSString *BrowserStringFromJavaScriptResult(id result) {
@@ -491,6 +502,7 @@ static void BrowserInstallYouTubeCaptureUserScript(id configuration) {
 @property (nullable, nonatomic, copy) NSString *lastTitle;
 @property (nonatomic, copy) NSString *userAgent;
 @property (nonatomic) BOOL loading;
+@property (nonatomic) BOOL evaluatingJavaScript;
 
 @end
 
@@ -688,6 +700,14 @@ static void BrowserInstallYouTubeCaptureUserScript(id configuration) {
         return nil;
     }
 
+    // Pumping the run loop below lets UIKit deliver another press or touch,
+    // which can land back here. Nesting these waits compounds the stall and
+    // interleaves two scripts, so the outer one wins and the inner one bails.
+    if (self.evaluatingJavaScript) {
+        return nil;
+    }
+    self.evaluatingJavaScript = YES;
+
     __block id evaluationResult = nil;
     __block NSError *evaluationError = nil;
     __block BOOL finished = NO;
@@ -696,9 +716,10 @@ static void BrowserInstallYouTubeCaptureUserScript(id configuration) {
         evaluationError = error;
         finished = YES;
     });
-    BrowserPumpRunLoopUntil(&finished);
+    BOOL completed = BrowserPumpRunLoopUntil(&finished, kBrowserScriptPumpTimeout);
+    self.evaluatingJavaScript = NO;
 
-    if (evaluationError != nil) {
+    if (!completed || evaluationError != nil) {
         return nil;
     }
     return BrowserStringFromJavaScriptResult(evaluationResult);
@@ -1060,7 +1081,7 @@ windowFeatures:(id)windowFeatures {
         cookies = fetchedCookies;
         finished = YES;
     });
-    BrowserPumpRunLoopUntil(&finished);
+    BrowserPumpRunLoopUntil(&finished, kBrowserCookiePumpTimeout);
     return cookies ?: @[];
 }
 
@@ -1100,7 +1121,7 @@ windowFeatures:(id)windowFeatures {
             finished = remainingCount == 0;
         });
     }
-    BrowserPumpRunLoopUntil(&finished);
+    BrowserPumpRunLoopUntil(&finished, kBrowserCookiePumpTimeout);
 }
 
 + (NSSet<NSString *> *)allWebsiteDataTypes {
