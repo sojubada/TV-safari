@@ -524,6 +524,29 @@ static UIColor *kTextColor(void) {
     [self.pageActionCoordinator handlePageSelectionAtDOMPoint:domPoint webView:self.webview source:source];
 }
 
+// Presenting or dismissing changes whether the cursor should be on screen
+// and whether the web view should take input, so both ends refresh.
+- (void)presentViewController:(UIViewController *)viewControllerToPresent
+                     animated:(BOOL)animated
+                   completion:(void (^)(void))completion {
+    [super presentViewController:viewControllerToPresent animated:animated completion:^{
+        [self.remoteInputController refreshInteractionState];
+        if (completion != nil) {
+            completion();
+        }
+    }];
+    [self.remoteInputController refreshInteractionState];
+}
+
+- (void)dismissViewControllerAnimated:(BOOL)animated completion:(void (^)(void))completion {
+    [super dismissViewControllerAnimated:animated completion:^{
+        [self.remoteInputController refreshInteractionState];
+        if (completion != nil) {
+            completion();
+        }
+    }];
+}
+
 - (NSArray<id<UIFocusEnvironment>> *)preferredFocusEnvironments {
     if (self.topBarFocusActive) {
         UIView *preferredFocusItem = [self.topMenuView preferredFocusItem];

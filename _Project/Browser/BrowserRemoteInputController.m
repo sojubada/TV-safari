@@ -204,7 +204,8 @@ static NSString *BrowserPressPhaseString(UIPressPhase phase) {
     [self.host browserRemoteInputControllerSetWebInteractionEnabled:shouldAllowWebInteraction];
     self.cursorView.hidden = !self.cursorModeEnabled ||
         tabOverviewVisible ||
-        topBarFocusActive;
+        topBarFocusActive ||
+        presentedActive;
     if (!self.cursorView.hidden) {
         [self noteCursorActivity];
     }

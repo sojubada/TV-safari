@@ -24,6 +24,9 @@ typedef void (^BrowserAdvancedMenuItemHandler)(void);
 @property (nonatomic, copy) NSString *title;
 @property (nonatomic) UIAlertActionStyle style;
 @property (nonatomic, copy) BrowserAdvancedMenuItemHandler handler;
+// A setting changes in place and the menu stays up, so several can be
+// changed without walking back to the icon in the bar for each one.
+@property (nonatomic) BOOL keepsMenuOpen;
 
 + (instancetype)itemWithTitle:(NSString *)title
                         style:(UIAlertActionStyle)style
@@ -76,6 +79,10 @@ typedef void (^BrowserAdvancedMenuItemHandler)(void);
 // reached from the bar reads as belonging to the icon that opened it.
 @property (nonatomic) CGFloat anchorCenterX;
 
+// Re-asked for after a setting changes, so row titles show the new state
+// without the menu having to close.
+@property (nonatomic, copy, nullable) NSArray<BrowserAdvancedMenuSection *> *(^sectionsProvider)(void);
+
 @end
 
 @interface BrowserAdvancedMenuViewController ()
@@ -91,11 +98,28 @@ typedef void (^BrowserAdvancedMenuItemHandler)(void);
 @property (nonatomic) CGFloat panelWidth;
 @property (nonatomic) BOOL didAnimateIn;
 @property (nonatomic) BOOL dismissalInProgress;
+@property (nonatomic, nullable) NSIndexPath *focusIndexPathAfterReload;
 @property (nonatomic) BOOL usingNativeGlassEffect;
 
 @end
 
 @implementation BrowserAdvancedMenuViewController
+
+// Focus starts in the list, so a row is lit the moment the menu opens and
+// the remote's direction pad moves between rows.
+- (NSArray<id<UIFocusEnvironment>> *)preferredFocusEnvironments {
+    NSIndexPath *target = self.focusIndexPathAfterReload;
+    if (target != nil) {
+        UITableViewCell *cell = [self.tableView cellForRowAtIndexPath:target];
+        if (cell != nil) {
+            return @[cell];
+        }
+    }
+    if (self.tableView != nil) {
+        return @[self.tableView];
+    }
+    return [super preferredFocusEnvironments];
+}
 
 - (BOOL)isAnchoredToBar {
     return self.anchorCenterX > 0.0;
@@ -417,8 +441,8 @@ typedef void (^BrowserAdvancedMenuItemHandler)(void);
         UIView *focusBackgroundView = [UIView new];
         focusBackgroundView.translatesAutoresizingMaskIntoConstraints = NO;
         focusBackgroundView.tag = kMenuFocusBackgroundTag;
-        focusBackgroundView.backgroundColor = [UIColor colorWithWhite:1.0 alpha:0.18];
-        focusBackgroundView.layer.cornerRadius = 12.0;
+        focusBackgroundView.backgroundColor = [UIColor colorWithWhite:1.0 alpha:0.95];
+        focusBackgroundView.layer.cornerRadius = 14.0;
         focusBackgroundView.alpha = 0.0;
         [cell.contentView addSubview:focusBackgroundView];
 
@@ -455,8 +479,14 @@ typedef void (^BrowserAdvancedMenuItemHandler)(void);
     } else {
         titleColor = UIColor.whiteColor;
     }
+    BOOL focused = cell.isFocused;
+    if (focused && item.style != UIAlertActionStyleDestructive) {
+        titleColor = [UIColor colorWithRed:0.07 green:0.09 blue:0.10 alpha:1.0];
+    }
     titleLabel.textColor = titleColor;
-    focusBackgroundView.alpha = cell.isFocused ? 1.0 : 0.0;
+    titleLabel.font = [UIFont systemFontOfSize:31.0
+                                        weight:focused ? UIFontWeightSemibold : UIFontWeightRegular];
+    focusBackgroundView.alpha = focused ? 1.0 : 0.0;
     return cell;
 }
 
@@ -469,12 +499,35 @@ withAnimationCoordinator:(UIFocusAnimationCoordinator *)coordinator {
     UITableViewCell *previousCell = previousIndexPath ? [tableView cellForRowAtIndexPath:previousIndexPath] : nil;
     UITableViewCell *nextCell = nextIndexPath ? [tableView cellForRowAtIndexPath:nextIndexPath] : nil;
 
-    [coordinator addCoordinatedAnimations:^{
-        UIView *previousFocusBackground = [previousCell.contentView viewWithTag:9292];
-        previousFocusBackground.alpha = 0.0;
+    // The pill is solid now, so the label flips with it or the row becomes
+    // white text on white.
+    void (^applyFocus)(UITableViewCell *, BOOL) = ^(UITableViewCell *cell, BOOL isFocused) {
+        if (cell == nil) {
+            return;
+        }
+        [cell.contentView viewWithTag:9292].alpha = isFocused ? 1.0 : 0.0;
 
-        UIView *nextFocusBackground = [nextCell.contentView viewWithTag:9292];
-        nextFocusBackground.alpha = 1.0;
+        UILabel *label = (UILabel *)[cell.contentView viewWithTag:9191];
+        if (![label isKindOfClass:[UILabel class]]) {
+            return;
+        }
+        label.font = [UIFont systemFontOfSize:31.0
+                                       weight:isFocused ? UIFontWeightSemibold : UIFontWeightRegular];
+        if ([label.textColor isEqual:UIColor.redColor]) {
+            return;
+        }
+        if (isFocused) {
+            label.textColor = [UIColor colorWithRed:0.07 green:0.09 blue:0.10 alpha:1.0];
+        } else if (@available(tvOS 13.0, *)) {
+            label.textColor = UIColor.labelColor;
+        } else {
+            label.textColor = UIColor.whiteColor;
+        }
+    };
+
+    [coordinator addCoordinatedAnimations:^{
+        applyFocus(previousCell, NO);
+        applyFocus(nextCell, YES);
     } completion:nil];
 }
 
@@ -483,15 +536,27 @@ withAnimationCoordinator:(UIFocusAnimationCoordinator *)coordinator {
     BrowserAdvancedMenuSection *section = self.sections[(NSUInteger)indexPath.section];
     BrowserAdvancedMenuItem *item = section.items[(NSUInteger)indexPath.row];
     BrowserAdvancedMenuItemHandler handler = item.handler;
+
+    if (item.keepsMenuOpen && self.sectionsProvider != nil) {
+        if (handler != nil) {
+            handler();
+        }
+        NSArray<BrowserAdvancedMenuSection *> *refreshed = self.sectionsProvider();
+        if (refreshed.count > 0) {
+            self.sections = refreshed;
+        }
+        [self.tableView reloadData];
+        self.focusIndexPathAfterReload = indexPath;
+        [self setNeedsFocusUpdate];
+        [self updateFocusIfNeeded];
+        return;
+    }
+
     [self dismissMenuWithCompletion:^{
         if (handler != nil) {
             handler();
         }
     }];
-}
-
-- (NSArray<id<UIFocusEnvironment>> *)preferredFocusEnvironments {
-    return @[self.tableView];
 }
 
 - (void)pressesEnded:(NSSet<UIPress *> *)presses withEvent:(UIPressesEvent *)event {
@@ -528,9 +593,13 @@ withAnimationCoordinator:(UIFocusAnimationCoordinator *)coordinator {
 }
 
 - (void)showAdvancedMenu {
+    __weak typeof(self) weakSelf = self;
     BrowserAdvancedMenuViewController *menuViewController = [[BrowserAdvancedMenuViewController alloc] initWithTitle:@"tvOS Browser"
                                                                                                             sections:[self advancedMenuSections]
                                                                                                           footerText:[self advancedMenuFooterText]];
+    menuViewController.sectionsProvider = ^NSArray<BrowserAdvancedMenuSection *> *{
+        return [weakSelf advancedMenuSections] ?: @[];
+    };
     [self.host browserPresentViewController:menuViewController];
 }
 
@@ -550,6 +619,20 @@ withAnimationCoordinator:(UIFocusAnimationCoordinator *)coordinator {
                                                   style:(UIAlertActionStyle)style
                                                 handler:(BrowserAdvancedMenuItemHandler)handler {
     return [BrowserAdvancedMenuItem itemWithTitle:title style:style handler:handler];
+}
+
+- (BrowserAdvancedMenuItem *)markKeepsMenuOpen:(BrowserAdvancedMenuItem *)item {
+    item.keepsMenuOpen = YES;
+    return item;
+}
+
+- (BrowserAdvancedMenuItem *)settingMenuItemWithTitle:(NSString *)title
+                                              handler:(BrowserAdvancedMenuItemHandler)handler {
+    BrowserAdvancedMenuItem *item = [self advancedMenuItemWithTitle:title
+                                                              style:UIAlertActionStyleDefault
+                                                            handler:handler];
+    item.keepsMenuOpen = YES;
+    return item;
 }
 
 - (UIAlertAction *)browserCancelAction {
@@ -1070,9 +1153,8 @@ withAnimationCoordinator:(UIFocusAnimationCoordinator *)coordinator {
 - (BrowserAdvancedMenuItem *)contentBlockingToggleMenuItem {
     BOOL enabled = self.preferencesStore.contentBlockingEnabled;
     NSString *title = enabled ? @"Content Blocking: On" : @"Content Blocking: Off";
-    return [self advancedMenuItemWithTitle:title
-                                     style:UIAlertActionStyleDefault
-                                   handler:^{
+    return [self settingMenuItemWithTitle:title
+                                 handler:^{
         self.preferencesStore.contentBlockingEnabled = !enabled;
     }];
 }
@@ -1081,9 +1163,8 @@ withAnimationCoordinator:(UIFocusAnimationCoordinator *)coordinator {
     BOOL enabled = self.preferencesStore.forcedDarkModeEnabled;
     NSString *title = enabled ? @"Force Dark Mode: On" : @"Force Dark Mode: Off";
     __weak typeof(self) weakSelf = self;
-    return [self advancedMenuItemWithTitle:title
-                                     style:UIAlertActionStyleDefault
-                                   handler:^{
+    return [self settingMenuItemWithTitle:title
+                                 handler:^{
         weakSelf.preferencesStore.forcedDarkModeEnabled = !enabled;
         [weakSelf.host browserUpdateForcedDarkMode];
     }];
@@ -1103,9 +1184,8 @@ withAnimationCoordinator:(UIFocusAnimationCoordinator *)coordinator {
 - (BrowserAdvancedMenuItem *)tapToClickToggleMenuItem {
     BOOL enabled = self.preferencesStore.tapToClickEnabled;
     NSString *title = enabled ? @"Tap to Click: On" : @"Tap to Click: Off";
-    return [self advancedMenuItemWithTitle:title
-                                     style:UIAlertActionStyleDefault
-                                   handler:^{
+    return [self settingMenuItemWithTitle:title
+                                 handler:^{
         self.preferencesStore.tapToClickEnabled = !enabled;
     }];
 }
@@ -1113,9 +1193,8 @@ withAnimationCoordinator:(UIFocusAnimationCoordinator *)coordinator {
 - (BrowserAdvancedMenuItem *)openLinksInNewTabToggleMenuItem {
     BOOL enabled = self.preferencesStore.openLinksInNewTabOnClick;
     NSString *title = enabled ? @"Open Links in New Tab: On" : @"Open Links in New Tab: Off";
-    return [self advancedMenuItemWithTitle:title
-                                     style:UIAlertActionStyleDefault
-                                   handler:^{
+    return [self settingMenuItemWithTitle:title
+                                 handler:^{
         self.preferencesStore.openLinksInNewTabOnClick = !enabled;
     }];
 }
@@ -1123,9 +1202,8 @@ withAnimationCoordinator:(UIFocusAnimationCoordinator *)coordinator {
 - (BrowserAdvancedMenuItem *)jsScrollFallbackToggleMenuItem {
     BOOL enabled = self.preferencesStore.jsScrollFallbackEnabled;
     NSString *title = enabled ? @"JS Scroll Fallback: On" : @"JS Scroll Fallback: Off";
-    return [self advancedMenuItemWithTitle:title
-                                     style:UIAlertActionStyleDefault
-                                   handler:^{
+    return [self settingMenuItemWithTitle:title
+                                 handler:^{
         self.preferencesStore.jsScrollFallbackEnabled = !enabled;
     }];
 }
@@ -1133,9 +1211,8 @@ withAnimationCoordinator:(UIFocusAnimationCoordinator *)coordinator {
 - (BrowserAdvancedMenuItem *)dpadScrollToggleMenuItem {
     BOOL enabled = self.preferencesStore.dpadScrollEnabled;
     NSString *title = enabled ? @"D-Pad Page Scroll: On" : @"D-Pad Page Scroll: Off";
-    return [self advancedMenuItemWithTitle:title
-                                     style:UIAlertActionStyleDefault
-                                   handler:^{
+    return [self settingMenuItemWithTitle:title
+                                 handler:^{
         self.preferencesStore.dpadScrollEnabled = !enabled;
     }];
 }
@@ -1143,18 +1220,16 @@ withAnimationCoordinator:(UIFocusAnimationCoordinator *)coordinator {
 - (BrowserAdvancedMenuItem *)edgeAutoScrollToggleMenuItem {
     BOOL enabled = self.preferencesStore.edgeAutoScrollEnabled;
     NSString *title = enabled ? @"Edge Auto-Scroll: On" : @"Edge Auto-Scroll: Off";
-    return [self advancedMenuItemWithTitle:title
-                                     style:UIAlertActionStyleDefault
-                                   handler:^{
+    return [self settingMenuItemWithTitle:title
+                                 handler:^{
         self.preferencesStore.edgeAutoScrollEnabled = !enabled;
     }];
 }
 
 - (BrowserAdvancedMenuItem *)topNavigationVisibilityMenuItem {
     NSString *title = self.host.browserTopMenuShowing ? @"Hide Top Navigation bar" : @"Show Top Navigation bar";
-    return [self advancedMenuItemWithTitle:title
-                                     style:UIAlertActionStyleDefault
-                                   handler:^{
+    return [self settingMenuItemWithTitle:title
+                                 handler:^{
         if (self.host.browserTopMenuShowing) {
             UIAlertController *alertController = [self browserAlertControllerWithTitle:@"Hide Top Navigation bar?"
                                                                                message:@"You can still open the side menu by double-tapping the Play/Pause button."];
@@ -1257,9 +1332,8 @@ withAnimationCoordinator:(UIFocusAnimationCoordinator *)coordinator {
     NSString *userAgent = mobileModeEnabled ? BrowserPreferencesStore.desktopUserAgent : BrowserPreferencesStore.mobileUserAgent;
     BOOL mobileMode = !mobileModeEnabled;
     
-    return [self advancedMenuItemWithTitle:title
-                                     style:UIAlertActionStyleDefault
-                                   handler:^{
+    return [self settingMenuItemWithTitle:title
+                                 handler:^{
         [self applyUserAgent:userAgent mobileMode:mobileMode];
     }];
 }
@@ -1267,9 +1341,8 @@ withAnimationCoordinator:(UIFocusAnimationCoordinator *)coordinator {
 - (BrowserAdvancedMenuItem *)pageScalingMenuItem {
     BOOL scalesPageToFit = [[self.host browserWebView] scalesPageToFit];
     NSString *title = scalesPageToFit ? @"Stop Scaling Pages to Fit" : @"Scale Pages to Fit";
-    return [self advancedMenuItemWithTitle:title
-                                     style:UIAlertActionStyleDefault
-                                   handler:^{
+    return [self settingMenuItemWithTitle:title
+                                 handler:^{
         [self setPageScalingEnabled:!scalesPageToFit];
     }];
 }
@@ -1287,9 +1360,8 @@ withAnimationCoordinator:(UIFocusAnimationCoordinator *)coordinator {
 - (BrowserAdvancedMenuItem *)fullscreenVideoPlaybackToggleMenuItem {
     BOOL enabled = self.host.browserFullscreenVideoPlaybackEnabled;
     NSString *title = enabled ? @"Disable Full Screen player" : @"Enable Full Screen player";
-    return [self advancedMenuItemWithTitle:title
-                                     style:UIAlertActionStyleDefault
-                                   handler:^{
+    return [self settingMenuItemWithTitle:title
+                                 handler:^{
         self.host.browserFullscreenVideoPlaybackEnabled = !enabled;
     }];
 }
@@ -1320,46 +1392,49 @@ withAnimationCoordinator:(UIFocusAnimationCoordinator *)coordinator {
 
 - (BrowserAdvancedMenuItem *)increaseFontSizeMenuItem {
     __weak typeof(self) weakSelf = self;
-    return [self advancedMenuItemWithTitle:@"Increase Font Size"
+    return [self markKeepsMenuOpen:[self advancedMenuItemWithTitle:@"Increase Font Size"
                                      style:UIAlertActionStyleDefault
                                    handler:^{
         weakSelf.host.browserTextFontSize += 5;
         [weakSelf.host browserUpdateTextFontSize];
-    }];
+    }]];
 }
 
 - (BrowserAdvancedMenuItem *)decreaseFontSizeMenuItem {
     __weak typeof(self) weakSelf = self;
-    return [self advancedMenuItemWithTitle:@"Decrease Font Size"
+    return [self markKeepsMenuOpen:[self advancedMenuItemWithTitle:@"Decrease Font Size"
                                      style:UIAlertActionStyleDefault
                                    handler:^{
         weakSelf.host.browserTextFontSize -= 5;
         [weakSelf.host browserUpdateTextFontSize];
-    }];
+    }]];
 }
 
 - (BrowserAdvancedMenuItem *)resetFontSizeMenuItem {
     __weak typeof(self) weakSelf = self;
-    return [self advancedMenuItemWithTitle:@"Reset Font Size"
+    return [self markKeepsMenuOpen:[self advancedMenuItemWithTitle:@"Reset Font Size"
                                      style:UIAlertActionStyleDefault
                                    handler:^{
         weakSelf.host.browserTextFontSize = 100;
         [weakSelf.host browserUpdateTextFontSize];
-    }];
+    }]];
 }
 
 // The two icons beside the menu open a slice of it. Same items, same titles,
 // reached in one click instead of scrolling the whole list from the sofa.
 - (void)presentAnchoredMenuWithTitle:(NSString *)title
-                            sections:(NSArray<BrowserAdvancedMenuSection *> *)sections
+                            provider:(NSArray<BrowserAdvancedMenuSection *> *(^)(void))provider
                             anchorAt:(CGFloat)anchorCenterX {
     BrowserAdvancedMenuViewController *menuViewController =
-        [[BrowserAdvancedMenuViewController alloc] initWithTitle:title sections:sections footerText:@""];
+        [[BrowserAdvancedMenuViewController alloc] initWithTitle:title
+                                                        sections:provider()
+                                                      footerText:@""];
     menuViewController.anchorCenterX = anchorCenterX;
+    menuViewController.sectionsProvider = provider;
     [self.host browserPresentViewController:menuViewController];
 }
 
-- (void)showBookmarksMenuAnchoredAt:(CGFloat)anchorCenterX {
+- (NSArray<BrowserAdvancedMenuSection *> *)bookmarksMenuSections {
     NSMutableArray<BrowserAdvancedMenuItem *> *items = [NSMutableArray array];
     BrowserAdvancedMenuItem *toggleFavoriteItem = [self toggleFavoriteMenuItem];
     if (toggleFavoriteItem != nil) {
@@ -1372,14 +1447,11 @@ withAnimationCoordinator:(UIFocusAnimationCoordinator *)coordinator {
         [self setCurrentPageAsHomePageMenuItem],
     ]];
 
-    [self presentAnchoredMenuWithTitle:@"Bookmarks"
-                              sections:@[[BrowserAdvancedMenuSection sectionWithTitle:@"Favorites & History" items:items]]
-                              anchorAt:anchorCenterX];
+    return @[[BrowserAdvancedMenuSection sectionWithTitle:@"Favorites & History" items:items]];
 }
 
-- (void)showReadingMenuAnchoredAt:(CGFloat)anchorCenterX {
-    [self presentAnchoredMenuWithTitle:@"Reading"
-                              sections:@[
+- (NSArray<BrowserAdvancedMenuSection *> *)readingMenuSections {
+    return @[
         [BrowserAdvancedMenuSection sectionWithTitle:@"Reading" items:@[
             [self readerModeToggleMenuItem],
             [self forcedDarkModeToggleMenuItem],
@@ -1394,17 +1466,15 @@ withAnimationCoordinator:(UIFocusAnimationCoordinator *)coordinator {
             [self resetFontSizeMenuItem],
             [self pageScalingMenuItem],
         ]],
-    ]
-                              anchorAt:anchorCenterX];
+    ];
 }
 
 - (BrowserAdvancedMenuItem *)increaseReaderFontSizeMenuItem {
     __weak typeof(self) weakSelf = self;
     NSString *title = [NSString stringWithFormat:@"Larger Reader Text (%lu)",
                        (unsigned long)self.preferencesStore.readerFontSize];
-    return [self advancedMenuItemWithTitle:title
-                                     style:UIAlertActionStyleDefault
-                                   handler:^{
+    return [self settingMenuItemWithTitle:title
+                                 handler:^{
         weakSelf.preferencesStore.readerFontSize = weakSelf.preferencesStore.readerFontSize + 6;
         [weakSelf reapplyReaderModeIfActive];
     }];
@@ -1414,9 +1484,8 @@ withAnimationCoordinator:(UIFocusAnimationCoordinator *)coordinator {
     __weak typeof(self) weakSelf = self;
     NSString *title = [NSString stringWithFormat:@"Smaller Reader Text (%lu)",
                        (unsigned long)self.preferencesStore.readerFontSize];
-    return [self advancedMenuItemWithTitle:title
-                                     style:UIAlertActionStyleDefault
-                                   handler:^{
+    return [self settingMenuItemWithTitle:title
+                                 handler:^{
         NSUInteger current = weakSelf.preferencesStore.readerFontSize;
         weakSelf.preferencesStore.readerFontSize = current > 6 ? current - 6 : current;
         [weakSelf reapplyReaderModeIfActive];
@@ -1433,9 +1502,8 @@ withAnimationCoordinator:(UIFocusAnimationCoordinator *)coordinator {
     [self.host browserToggleReaderMode];
 }
 
-- (void)showPrivacyMenuAnchoredAt:(CGFloat)anchorCenterX {
-    [self presentAnchoredMenuWithTitle:@"Privacy"
-                              sections:@[
+- (NSArray<BrowserAdvancedMenuSection *> *)privacyMenuSections {
+    return @[
         [BrowserAdvancedMenuSection sectionWithTitle:@"Blocking" items:@[
             [self contentBlockingToggleMenuItem],
         ]],
@@ -1446,13 +1514,11 @@ withAnimationCoordinator:(UIFocusAnimationCoordinator *)coordinator {
         [BrowserAdvancedMenuSection sectionWithTitle:@"Diagnostics" items:@[
             [self contentBlockerDiagnosticsMenuItem],
         ]],
-    ]
-                              anchorAt:anchorCenterX];
+    ];
 }
 
-- (void)showSettingsMenuAnchoredAt:(CGFloat)anchorCenterX {
-    [self presentAnchoredMenuWithTitle:@"Settings"
-                              sections:@[
+- (NSArray<BrowserAdvancedMenuSection *> *)settingsMenuSections {
+    return @[
         [BrowserAdvancedMenuSection sectionWithTitle:@"Remote" items:@[
             [self tapToClickToggleMenuItem],
             [self openLinksInNewTabToggleMenuItem],
@@ -1471,7 +1537,42 @@ withAnimationCoordinator:(UIFocusAnimationCoordinator *)coordinator {
         [BrowserAdvancedMenuSection sectionWithTitle:@"Help" items:@[
             [self usageGuideMenuItem],
         ]],
-    ]
+    ];
+}
+
+- (void)showBookmarksMenuAnchoredAt:(CGFloat)anchorCenterX {
+    __weak typeof(self) weakSelf = self;
+    [self presentAnchoredMenuWithTitle:@"Bookmarks"
+                              provider:^NSArray<BrowserAdvancedMenuSection *> *{
+        return [weakSelf bookmarksMenuSections] ?: @[];
+    }
+                              anchorAt:anchorCenterX];
+}
+
+- (void)showReadingMenuAnchoredAt:(CGFloat)anchorCenterX {
+    __weak typeof(self) weakSelf = self;
+    [self presentAnchoredMenuWithTitle:@"Reading"
+                              provider:^NSArray<BrowserAdvancedMenuSection *> *{
+        return [weakSelf readingMenuSections] ?: @[];
+    }
+                              anchorAt:anchorCenterX];
+}
+
+- (void)showPrivacyMenuAnchoredAt:(CGFloat)anchorCenterX {
+    __weak typeof(self) weakSelf = self;
+    [self presentAnchoredMenuWithTitle:@"Privacy"
+                              provider:^NSArray<BrowserAdvancedMenuSection *> *{
+        return [weakSelf privacyMenuSections] ?: @[];
+    }
+                              anchorAt:anchorCenterX];
+}
+
+- (void)showSettingsMenuAnchoredAt:(CGFloat)anchorCenterX {
+    __weak typeof(self) weakSelf = self;
+    [self presentAnchoredMenuWithTitle:@"Settings"
+                              provider:^NSArray<BrowserAdvancedMenuSection *> *{
+        return [weakSelf settingsMenuSections] ?: @[];
+    }
                               anchorAt:anchorCenterX];
 }
 
@@ -1479,9 +1580,8 @@ withAnimationCoordinator:(UIFocusAnimationCoordinator *)coordinator {
     BOOL enabled = self.preferencesStore.youTubeCaptureHookEnabled;
     NSString *title = enabled ? @"YouTube Capture Hook: On" : @"YouTube Capture Hook: Off";
     __weak typeof(self) weakSelf = self;
-    return [self advancedMenuItemWithTitle:title
-                                     style:UIAlertActionStyleDefault
-                                   handler:^{
+    return [self settingMenuItemWithTitle:title
+                                 handler:^{
         weakSelf.preferencesStore.youTubeCaptureHookEnabled = !enabled;
         [weakSelf.host browserRecreateActiveWebViewPreservingCurrentURL];
     }];
