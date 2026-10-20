@@ -11,6 +11,8 @@ static NSString * const kBrowserWebsiteDataStoreClassName = @"WKWebsiteDataStore
 static NSString * const kBrowserUserContentControllerClassName = @"WKUserContentController";
 static NSString * const kBrowserUserScriptClassName = @"WKUserScript";
 
+static BOOL gBrowserYouTubeCaptureHookEnabled;
+
 static void BrowserEnsureWebKitRuntimeLoaded(void) {
     static dispatch_once_t onceToken;
     dispatch_once(&onceToken, ^{
@@ -458,7 +460,7 @@ static NSString *BrowserYouTubeRequestCaptureScript(void) {
 }
 
 static void BrowserInstallYouTubeCaptureUserScript(id configuration) {
-    if (configuration == nil) {
+    if (configuration == nil || !gBrowserYouTubeCaptureHookEnabled) {
         return;
     }
 
@@ -507,6 +509,10 @@ static void BrowserInstallYouTubeCaptureUserScript(id configuration) {
 @end
 
 @implementation BrowserWebView
+
++ (void)setYouTubeCaptureHookEnabled:(BOOL)enabled {
+    gBrowserYouTubeCaptureHookEnabled = enabled;
+}
 
 + (void)installRuleListToConfiguration:(id)configuration {
     if (configuration == nil) {
@@ -886,6 +892,9 @@ static void BrowserInstallYouTubeCaptureUserScript(id configuration) {
 }
 
 - (void)installYouTubeRequestCaptureHook {
+    if (!gBrowserYouTubeCaptureHookEnabled) {
+        return;
+    }
     [self stringByEvaluatingJavaScriptFromString:BrowserYouTubeRequestCaptureScript()];
 }
 

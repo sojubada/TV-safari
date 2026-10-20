@@ -862,7 +862,6 @@ static const CFTimeInterval kBrowserCursorIdleHideDelay = 3.0;
     }
 
     if ((press.type == UIPressTypeLeftArrow || press.type == UIPressTypeRightArrow) &&
-        [self.host browserRemoteInputControllerDpadBackForwardEnabled] &&
         ![self.host browserRemoteInputControllerTabOverviewVisible] &&
         ![self.host browserRemoteInputControllerTopBarFocusActive] &&
         [self.host browserRemoteInputControllerPresentedViewController] == nil) {

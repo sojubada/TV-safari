@@ -104,6 +104,25 @@ typedef void (^BrowserAdvancedMenuItemHandler)(void);
     return 112.0;
 }
 
+// Sized from the rows it will show, clamped to what is left below the bar.
+- (CGFloat)anchoredPanelHeight {
+    CGFloat rowHeight = 68.0;
+    CGFloat sectionHeaderHeight = 54.0;
+    CGFloat chrome = 26.0 + 52.0 + 20.0 + 1.0 + 12.0 + 24.0;
+
+    CGFloat content = 0.0;
+    for (BrowserAdvancedMenuSection *section in self.sections) {
+        if (section.title.length > 0) {
+            content += sectionHeaderHeight;
+        }
+        content += rowHeight * (CGFloat)section.items.count;
+    }
+
+    CGFloat available = CGRectGetHeight(UIScreen.mainScreen.bounds)
+        - [self anchoredPanelVisibleTopConstant] - 40.0;
+    return MIN(MAX(content + chrome, 220.0), available);
+}
+
 - (CGFloat)anchoredPanelHiddenTopConstant {
     return -CGRectGetHeight(UIScreen.mainScreen.bounds);
 }
@@ -267,8 +286,12 @@ typedef void (^BrowserAdvancedMenuItemHandler)(void);
         [constraints addObject:[panelView.centerXAnchor constraintEqualToAnchor:self.view.leadingAnchor
                                                                       constant:centerX]];
         [constraints addObject:self.panelTopConstraint];
+        NSLayoutConstraint *heightConstraint =
+            [panelView.heightAnchor constraintEqualToConstant:[self anchoredPanelHeight]];
+        heightConstraint.priority = UILayoutPriorityDefaultHigh;
+        [constraints addObject:heightConstraint];
         [constraints addObject:[panelView.bottomAnchor constraintLessThanOrEqualToAnchor:self.view.bottomAnchor
-                                                                               constant:-70.0]];
+                                                                               constant:-40.0]];
     } else {
         [constraints addObject:[panelView.topAnchor constraintEqualToAnchor:self.view.topAnchor constant:16.0]];
         [constraints addObject:[panelView.bottomAnchor constraintEqualToAnchor:self.view.bottomAnchor constant:-16.0]];
@@ -1411,7 +1434,6 @@ withAnimationCoordinator:(UIFocusAnimationCoordinator *)coordinator {
         [BrowserAdvancedMenuSection sectionWithTitle:@"Remote" items:@[
             [self tapToClickToggleMenuItem],
             [self openLinksInNewTabToggleMenuItem],
-            [self dpadBackForwardToggleMenuItem],
         ]],
         [BrowserAdvancedMenuSection sectionWithTitle:@"Scrolling" items:@[
             [self dpadScrollToggleMenuItem],
@@ -1421,6 +1443,7 @@ withAnimationCoordinator:(UIFocusAnimationCoordinator *)coordinator {
         [BrowserAdvancedMenuSection sectionWithTitle:@"Page" items:@[
             [self userAgentModeMenuItem],
             [self fullscreenVideoPlaybackToggleMenuItem],
+            [self youTubeCaptureHookToggleMenuItem],
             [self topNavigationVisibilityMenuItem],
         ]],
         [BrowserAdvancedMenuSection sectionWithTitle:@"Help" items:@[
@@ -1430,14 +1453,15 @@ withAnimationCoordinator:(UIFocusAnimationCoordinator *)coordinator {
                               anchorAt:anchorCenterX];
 }
 
-- (BrowserAdvancedMenuItem *)dpadBackForwardToggleMenuItem {
-    BOOL enabled = self.preferencesStore.dpadBackForwardEnabled;
-    NSString *title = enabled ? @"Left/Right for Back & Forward: On" : @"Left/Right for Back & Forward: Off";
+- (BrowserAdvancedMenuItem *)youTubeCaptureHookToggleMenuItem {
+    BOOL enabled = self.preferencesStore.youTubeCaptureHookEnabled;
+    NSString *title = enabled ? @"YouTube Capture Hook: On" : @"YouTube Capture Hook: Off";
     __weak typeof(self) weakSelf = self;
     return [self advancedMenuItemWithTitle:title
                                      style:UIAlertActionStyleDefault
                                    handler:^{
-        weakSelf.preferencesStore.dpadBackForwardEnabled = !enabled;
+        weakSelf.preferencesStore.youTubeCaptureHookEnabled = !enabled;
+        [weakSelf.host browserRecreateActiveWebViewPreservingCurrentURL];
     }];
 }
 
@@ -1530,7 +1554,6 @@ withAnimationCoordinator:(UIFocusAnimationCoordinator *)coordinator {
             [self dpadScrollToggleMenuItem],
             [self edgeAutoScrollToggleMenuItem],
             [self jsScrollFallbackToggleMenuItem],
-            [self dpadBackForwardToggleMenuItem],
         ]],
         [BrowserAdvancedMenuSection sectionWithTitle:@"Appearance"
                                                items:@[

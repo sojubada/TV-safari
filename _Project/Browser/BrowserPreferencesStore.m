@@ -15,8 +15,8 @@ static NSString * const kTapToClickEnabledDefaultsKey = @"TapToClickEnabled";
 static NSString * const kOpenLinksInNewTabOnClickDefaultsKey = @"OpenLinksInNewTabOnClick";
 static NSString * const kForcedDarkModeEnabledDefaultsKey = @"ForcedDarkModeEnabled";
 static NSString * const kContentBlockingEnabledDefaultsKey = @"ContentBlockingEnabled";
-static NSString * const kDpadBackForwardEnabledDefaultsKey = @"DpadBackForwardEnabled";
 static NSString * const kReaderFontSizeDefaultsKey = @"ReaderFontSize";
+static NSString * const kYouTubeCaptureHookEnabledDefaultsKey = @"YouTubeCaptureHookEnabled";
 
 static NSUInteger const kDefaultTextFontSize = 100;
 static NSUInteger const kMinimumTextFontSize = 50;
@@ -195,12 +195,15 @@ static NSUInteger const kMaximumReaderFontSize = 96;
     [[self defaults] synchronize];
 }
 
-- (BOOL)dpadBackForwardEnabled {
-    NSNumber *value = [[self defaults] objectForKey:kDpadBackForwardEnabledDefaultsKey];
-    return value ? value.boolValue : YES;
+// Off by default. This installs a hook over window.fetch and XMLHttpRequest
+// on every page, and it exists only to feed the external YouTube player,
+// which is not the playback path in use. A site's own scripts run through
+// those two, so the hook is a page-wide risk for no current benefit.
+- (BOOL)youTubeCaptureHookEnabled {
+    return [[self defaults] boolForKey:kYouTubeCaptureHookEnabledDefaultsKey];
 }
-- (void)setDpadBackForwardEnabled:(BOOL)dpadBackForwardEnabled {
-    [[self defaults] setObject:@(dpadBackForwardEnabled) forKey:kDpadBackForwardEnabledDefaultsKey];
+- (void)setYouTubeCaptureHookEnabled:(BOOL)youTubeCaptureHookEnabled {
+    [[self defaults] setBool:youTubeCaptureHookEnabled forKey:kYouTubeCaptureHookEnabledDefaultsKey];
     [[self defaults] synchronize];
 }
 

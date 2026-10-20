@@ -242,8 +242,16 @@ static UIColor *BrowserPageActionTextColor(void) {
     }
     // A click opens the link in a new tab; a light tap opens it in this one.
     // Holding the click counts as a click, so the hold length does not matter.
-    // Video is handled above this, so playback is never swallowed by either.
-    if ((source == BrowserPageActivationSourceClick ||
+    //
+    // Video players are the exception. A thumbnail is usually wrapped in a
+    // link, so the new-tab rule grabbed the click before the player's own
+    // handler ran and the video opened as a blank new tab instead of playing.
+    // The click falls through to the page when the cursor is over a player,
+    // whether or not the external player is switched on.
+    BOOL overVideo = [self.domInteractionService isVideoActivationTargetAtDOMPoint:point
+                                                                           webView:webView];
+    if (!overVideo &&
+        (source == BrowserPageActivationSourceClick ||
          source == BrowserPageActivationSourceLongClick) &&
         self.preferencesStore.openLinksInNewTabOnClick) {
         if ([self handleNewTabLinkOnClickAtDOMPoint:point webView:webView]) {

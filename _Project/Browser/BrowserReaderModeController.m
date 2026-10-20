@@ -113,9 +113,8 @@
                       "'.reader-content table { width: 100%%; border-collapse: collapse; margin-bottom: 34px; font-size: ' + codeFontSize + 'px; } ' +"
                       "'.reader-content th, .reader-content td { border: 1px solid #4a4d52; padding: 18px; text-align: left; } ' +"
                       "'.reader-content th { background: #222428; }';"
-            "var html = '<head><meta name=\"viewport\" content=\"width=device-width, initial-scale=1.0\">' +"
-                       "'<style>' + css + '</style></head>' +"
-                       "'<body><div class=\"reader-container\">' +"
+            "var html = '<head><meta name=\"viewport\" content=\"width=device-width, initial-scale=1.0\"></head>' +"
+                       "'<body><div class=\"reader-container\" id=\"__browser_reader_container\">' +"
                        "'<div class=\"reader-title\">' + title + '</div>' +"
                        "'<div class=\"reader-content\">' + finalHTML + '</div>' +"
                        "'</div></body>';"
@@ -125,8 +124,46 @@
             "docEl.style.setProperty('overflow', 'visible', 'important');"
             "docEl.style.setProperty('height', 'auto', 'important');"
             "docEl.innerHTML = html;"
+            ""
+            // A <style> written as part of an innerHTML string is not reliably
+            // applied here, which left the extracted article unstyled: full
+            // width and at the document's default size. Building the element
+            // with the DOM API and appending it afterwards always applies.
+            "var styleElement = document.createElement('style');"
+            "styleElement.id = '__browser_reader_style';"
+            "styleElement.textContent = css;"
+            "(document.head || docEl).appendChild(styleElement);"
+            ""
+            // Belt and braces: the container carries the layout inline too, so
+            // the column and body size hold even if the sheet is ignored.
+            "var container = document.getElementById('__browser_reader_container');"
+            "if (container) {"
+                "container.setAttribute('style',"
+                    "'max-width: 1500px; margin: 0 auto;'"
+                    "+ ' padding: 72px 70px 140px;'"
+                    "+ ' font-size: ' + bodyFontSize + 'px;'"
+                    "+ ' line-height: 1.6;'"
+                    "+ ' color: #e8e6e3;'"
+                    "+ ' word-wrap: break-word;');"
+            "}"
+            "if (document.body) {"
+                "document.body.setAttribute('style',"
+                    "'background: #15171a; color: #e8e6e3; margin: 0; padding: 0;'"
+                    "+ ' font-family: -apple-system, sans-serif;');"
+            "}"
+            ""
             "window.scrollTo(0,0);"
-            "return 'success';"
+            ""
+            // Report the size actually in force, so a styling failure shows up
+            // as a number instead of looking like a page that merely needs
+            // tuning.
+            "var appliedSize = '';"
+            "try {"
+                "if (container && window.getComputedStyle) {"
+                    "appliedSize = window.getComputedStyle(container).fontSize || '';"
+                "}"
+            "} catch (error) {}"
+            "return 'success:' + appliedSize;"
             "})()", (unsigned long)fontSize];
 }
 

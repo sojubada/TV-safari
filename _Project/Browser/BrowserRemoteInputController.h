@@ -34,7 +34,6 @@ NS_ASSUME_NONNULL_BEGIN
 - (BOOL)browserRemoteInputControllerDpadScrollEnabled;
 - (BOOL)browserRemoteInputControllerEdgeAutoScrollEnabled;
 - (BOOL)browserRemoteInputControllerTapToClickEnabled;
-- (BOOL)browserRemoteInputControllerDpadBackForwardEnabled;
 - (void)browserRemoteInputControllerGoBack;
 - (void)browserRemoteInputControllerGoForward;
 

@@ -22,8 +22,8 @@ NS_ASSUME_NONNULL_BEGIN
 @property (nonatomic) BOOL openLinksInNewTabOnClick;
 @property (nonatomic) BOOL forcedDarkModeEnabled;
 @property (nonatomic) BOOL contentBlockingEnabled;
-@property (nonatomic) BOOL dpadBackForwardEnabled;
 @property (nonatomic) NSUInteger readerFontSize;
+@property (nonatomic) BOOL youTubeCaptureHookEnabled;
 
 - (void)ensureUserAgentConsistency;
 

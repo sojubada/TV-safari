@@ -91,6 +91,8 @@ static UIColor *kTextColor(void) {
     self.viewModel.textFontSize = self.preferencesStore.textFontSize;
     self.viewModel.fullscreenVideoPlaybackEnabled = self.preferencesStore.fullscreenVideoPlaybackEnabled;
 
+    [BrowserWebView setYouTubeCaptureHookEnabled:self.preferencesStore.youTubeCaptureHookEnabled];
+
     self.contentBlockerController = [BrowserContentBlockerController sharedController];
     [self.contentBlockerController prepareRuleListIfNeeded];
 
@@ -624,6 +626,7 @@ static UIColor *kTextColor(void) {
 }
 
 - (void)browserRecreateActiveWebViewPreservingCurrentURL {
+    [BrowserWebView setYouTubeCaptureHookEnabled:self.preferencesStore.youTubeCaptureHookEnabled];
     [self.tabCoordinator recreateActiveWebViewPreservingCurrentURL];
 }
 
@@ -645,7 +648,7 @@ static UIColor *kTextColor(void) {
     } else {
         NSString *result = [self.readerModeController enableReaderModeForWebView:self.webview
                                                                       fontSize:self.preferencesStore.readerFontSize];
-        if (![result isEqualToString:@"success"]) {
+        if (![result hasPrefix:@"success"]) {
             UIAlertController *alert = [UIAlertController alertControllerWithTitle:@"Reader Mode"
                                                                            message:@"Could not find enough readable content on this page."
                                                                     preferredStyle:UIAlertControllerStyleAlert];
@@ -855,10 +858,6 @@ static UIColor *kTextColor(void) {
 
 - (BOOL)browserRemoteInputControllerTapToClickEnabled {
     return self.preferencesStore.tapToClickEnabled;
-}
-
-- (BOOL)browserRemoteInputControllerDpadBackForwardEnabled {
-    return self.preferencesStore.dpadBackForwardEnabled;
 }
 
 - (void)browserRemoteInputControllerGoBack {

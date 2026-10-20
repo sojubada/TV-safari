@@ -324,6 +324,11 @@ static CGFloat const kTopBarSeparatorSpacing = 20.0;
     CGFloat iconY = floor((CGRectGetHeight(chromeFrame) - kTopBarIconSize) / 2.0);
     CGFloat leftX = kTopBarLeadingPadding;
 
+    for (BrowserTopBarFocusButton *button in self.focusButtons) {
+        UIView *icon = [self iconViewForAction:button.topBarAction];
+        icon.transform = CGAffineTransformIdentity;
+    }
+
     // Quit sits at the far left, fenced off by a hairline so it is never
     // mistaken for part of the navigation group next to it.
     self.exitImageView.frame = CGRectMake(leftX, iconY, kTopBarIconSize, kTopBarIconSize);
@@ -399,6 +404,7 @@ static CGFloat const kTopBarSeparatorSpacing = 20.0;
     }
 
     [self updateHighlightFrameForCurrentFocus];
+    [self applyFocusAppearanceToButton:self.lastFocusedButton];
 }
 
 - (CGRect)interactiveFrameForView:(UIView *)view {

@@ -37,6 +37,7 @@ NS_ASSUME_NONNULL_BEGIN
 - (void)pauseAllMediaPlayback;
 
 + (void)installRuleListToConfiguration:(id)configuration;
++ (void)setYouTubeCaptureHookEnabled:(BOOL)enabled;
 
 + (nullable NSData *)cookieDataRepresentation;
 + (NSArray<NSHTTPCookie *> * _Nonnull)allCookies;
