@@ -80,9 +80,16 @@ static const NSTimeInterval kBrowserRuleListCompileTimeout = 3.0;
 
         // Cosmetic rule. The keys here must be NSString literals: a bare C
         // string is not an object and will not compile as a dictionary key.
+        //
+        // The class matches use ~=, which matches one whole space-separated
+        // token. *= matched substrings, so "ad-" also hit load-more,
+        // read-more, upload-date, thread-list and page-head-wrapper, and
+        // hiding those takes real content with it. iframe[src*="ads"] went
+        // for the same reason: it matched any src with "ads" anywhere,
+        // including /uploads/ and /downloads/.
         @{@"trigger": @{@"url-filter": @".*"},
           @"action": @{@"type": @"css-display-none",
-                       @"selector": @".ads, .ad, .advert, .advertisement, .ad-banner, .ad-container, .adsbygoogle, #ads, #ad, #advert, #advertisement, [class*=\"ad-\"], [class*=\"-ad-\"], [class*=\"-ads-\"], [class*=\"sponsored\"], [id*=\"sponsored\"], [class*=\"banner-ad\"], iframe[src*=\"ads\"], iframe[src*=\"doubleclick\"]"}}
+                       @"selector": @".ads, .ad, .advert, .advertisement, .ad-banner, .ad-container, .adsbygoogle, #ads, #ad, #advert, #advertisement, [class~=\"ad\"], [class~=\"ads\"], [class~=\"advert\"], [class~=\"advertisement\"], [class~=\"sponsored\"], [id~=\"sponsored\"], [class*=\"banner-ad\"], iframe[src*=\"doubleclick\"]"}}
     ];
 }
 
@@ -205,13 +212,13 @@ static const NSTimeInterval kBrowserRuleListCompileTimeout = 3.0;
                 "} catch (e) {}"
             "}"
             "hideElements('.ads, .ad, .advert, .advertisement, .ad-banner, .ad-container, .adsbygoogle, #ads, #ad, #advert, #advertisement');"
-            "hideElements('[class*=\"ad-\"], [class*=\"-ad-\"], [class*=\"-ads-\"], [class*=\"sponsored\"], [id*=\"sponsored\"], [class*=\"banner-ad\"]');"
+            "hideElements('[class~=\"ad\"], [class~=\"ads\"], [class~=\"advert\"], [class~=\"advertisement\"], [class~=\"sponsored\"], [id~=\"sponsored\"], [class*=\"banner-ad\"]');"
             "try {"
                 "var frames = document.querySelectorAll('iframe');"
                 "for (var j = 0; j < frames.length; j++) {"
                     "var frame = frames[j];"
                     "var src = String(frame.src || '').toLowerCase();"
-                    "if (src.indexOf('ads') !== -1 || src.indexOf('doubleclick') !== -1 || src.indexOf('syndication') !== -1 || src.indexOf('banner') !== -1) {"
+                    "if (src.indexOf('doubleclick') !== -1 || src.indexOf('googlesyndication') !== -1 || src.indexOf('/ads/') !== -1 || src.indexOf('adserver') !== -1) {"
                         "frame.style.setProperty('display', 'none', 'important');"
                         "count++;"
                     "}"

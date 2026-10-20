@@ -13,7 +13,9 @@ typedef NS_ENUM(NSInteger, BrowserTopBarAction) {
     BrowserTopBarActionMenu,
     BrowserTopBarActionExit,
     BrowserTopBarActionBookmarks,
-    BrowserTopBarActionReading
+    BrowserTopBarActionReading,
+    BrowserTopBarActionPrivacy,
+    BrowserTopBarActionSettings
 };
 
 @class BrowserTopBarView;
@@ -33,6 +35,8 @@ typedef NS_ENUM(NSInteger, BrowserTopBarAction) {
 @property (nonatomic, readonly) UIImageView *forwardImageView;
 @property (nonatomic, readonly) UIImageView *homeImageView;
 @property (nonatomic, readonly) UIImageView *tabsImageView;
+@property (nonatomic, readonly) UIImageView *settingsImageView;
+@property (nonatomic, readonly) UIImageView *privacyImageView;
 @property (nonatomic, readonly) UIImageView *readingImageView;
 @property (nonatomic, readonly) UIImageView *bookmarksImageView;
 @property (nonatomic, readonly) UIImageView *fullscreenImageView;
@@ -42,6 +46,8 @@ typedef NS_ENUM(NSInteger, BrowserTopBarAction) {
 @property (nonatomic, readonly, getter=isFocusModeActive) BOOL focusModeActive;
 
 - (CGRect)interactiveFrameForView:(UIView *)view;
+// Screen x of the icon for an action, so a menu can drop down beneath it.
+- (CGFloat)screenCenterXForAction:(BrowserTopBarAction)action;
 - (void)setFocusModeActive:(BOOL)focusModeActive;
 - (nullable UIView *)preferredFocusItem;
 

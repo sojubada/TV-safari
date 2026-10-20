@@ -15,10 +15,20 @@ static NSString * const kTapToClickEnabledDefaultsKey = @"TapToClickEnabled";
 static NSString * const kOpenLinksInNewTabOnClickDefaultsKey = @"OpenLinksInNewTabOnClick";
 static NSString * const kForcedDarkModeEnabledDefaultsKey = @"ForcedDarkModeEnabled";
 static NSString * const kContentBlockingEnabledDefaultsKey = @"ContentBlockingEnabled";
+static NSString * const kDpadBackForwardEnabledDefaultsKey = @"DpadBackForwardEnabled";
+static NSString * const kReaderFontSizeDefaultsKey = @"ReaderFontSize";
 
 static NSUInteger const kDefaultTextFontSize = 100;
 static NSUInteger const kMinimumTextFontSize = 50;
 static NSUInteger const kMaximumTextFontSize = 200;
+
+// Reader text, in points at 1080p. 1080 points across a 55-inch panel is
+// 0.63 mm per point, so at 3 m one point subtends about 0.73 arcmin. 68
+// points puts x-height near 25 arcmin, which is the comfortable band for
+// reading at that distance rather than merely making out the words.
+static NSUInteger const kDefaultReaderFontSize = 68;
+static NSUInteger const kMinimumReaderFontSize = 44;
+static NSUInteger const kMaximumReaderFontSize = 96;
 
 @implementation BrowserPreferencesStore
 
@@ -182,6 +192,29 @@ static NSUInteger const kMaximumTextFontSize = 200;
 
 - (void)setForcedDarkModeEnabled:(BOOL)forcedDarkModeEnabled {
     [[self defaults] setObject:@(forcedDarkModeEnabled) forKey:kForcedDarkModeEnabledDefaultsKey];
+    [[self defaults] synchronize];
+}
+
+- (BOOL)dpadBackForwardEnabled {
+    NSNumber *value = [[self defaults] objectForKey:kDpadBackForwardEnabledDefaultsKey];
+    return value ? value.boolValue : YES;
+}
+- (void)setDpadBackForwardEnabled:(BOOL)dpadBackForwardEnabled {
+    [[self defaults] setObject:@(dpadBackForwardEnabled) forKey:kDpadBackForwardEnabledDefaultsKey];
+    [[self defaults] synchronize];
+}
+
+- (NSUInteger)readerFontSize {
+    NSNumber *value = [[self defaults] objectForKey:kReaderFontSizeDefaultsKey];
+    if (value == nil) {
+        return kDefaultReaderFontSize;
+    }
+    NSUInteger size = value.unsignedIntegerValue;
+    return MIN(MAX(size, kMinimumReaderFontSize), kMaximumReaderFontSize);
+}
+- (void)setReaderFontSize:(NSUInteger)readerFontSize {
+    NSUInteger clamped = MIN(MAX(readerFontSize, kMinimumReaderFontSize), kMaximumReaderFontSize);
+    [[self defaults] setObject:@(clamped) forKey:kReaderFontSizeDefaultsKey];
     [[self defaults] synchronize];
 }
 

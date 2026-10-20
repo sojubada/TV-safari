@@ -70,6 +70,11 @@ typedef void (^BrowserAdvancedMenuItemHandler)(void);
                      sections:(NSArray<BrowserAdvancedMenuSection *> *)sections
                    footerText:(NSString *)footerText;
 
+// Set to the screen x of the icon that opened the menu. The panel then drops
+// down beneath that icon instead of sliding in from the right edge, so a menu
+// reached from the bar reads as belonging to the icon that opened it.
+@property (nonatomic) CGFloat anchorCenterX;
+
 @end
 
 @interface BrowserAdvancedMenuViewController ()
@@ -81,6 +86,7 @@ typedef void (^BrowserAdvancedMenuItemHandler)(void);
 @property (nonatomic) UIVisualEffectView *panelView;
 @property (nonatomic) UITableView *tableView;
 @property (nonatomic) NSLayoutConstraint *panelTrailingConstraint;
+@property (nonatomic) NSLayoutConstraint *panelTopConstraint;
 @property (nonatomic) CGFloat panelWidth;
 @property (nonatomic) BOOL didAnimateIn;
 @property (nonatomic) BOOL dismissalInProgress;
@@ -89,6 +95,18 @@ typedef void (^BrowserAdvancedMenuItemHandler)(void);
 @end
 
 @implementation BrowserAdvancedMenuViewController
+
+- (BOOL)isAnchoredToBar {
+    return self.anchorCenterX > 0.0;
+}
+
+- (CGFloat)anchoredPanelVisibleTopConstant {
+    return 112.0;
+}
+
+- (CGFloat)anchoredPanelHiddenTopConstant {
+    return -CGRectGetHeight(UIScreen.mainScreen.bounds);
+}
 
 - (UIVisualEffect *)panelEffect {
     Class glassEffectClass = NSClassFromString(@"UIGlassEffect");
@@ -119,7 +137,11 @@ typedef void (^BrowserAdvancedMenuItemHandler)(void);
     [super viewDidLoad];
     self.view.backgroundColor = UIColor.clearColor;
 
-    self.panelWidth = MIN(MAX(CGRectGetWidth(UIScreen.mainScreen.bounds) * 0.38, 480.0), 700.0);
+    if ([self isAnchoredToBar]) {
+        self.panelWidth = MIN(MAX(CGRectGetWidth(UIScreen.mainScreen.bounds) * 0.30, 460.0), 620.0);
+    } else {
+        self.panelWidth = MIN(MAX(CGRectGetWidth(UIScreen.mainScreen.bounds) * 0.38, 480.0), 700.0);
+    }
     self.usingNativeGlassEffect = (NSClassFromString(@"UIGlassEffect") != Nil);
 
     UIView *dimView = [UIView new];
@@ -207,6 +229,8 @@ typedef void (^BrowserAdvancedMenuItemHandler)(void);
 
     self.panelTrailingConstraint = [panelView.trailingAnchor constraintEqualToAnchor:self.view.trailingAnchor
                                                                              constant:self.panelWidth + 32.0];
+    self.panelTopConstraint = [panelView.topAnchor constraintEqualToAnchor:self.view.topAnchor
+                                                                  constant:[self anchoredPanelHiddenTopConstant]];
 
     NSMutableArray<NSLayoutConstraint *> *constraints = [NSMutableArray arrayWithArray:@[
         [dimView.leadingAnchor constraintEqualToAnchor:self.view.leadingAnchor],
@@ -215,9 +239,6 @@ typedef void (^BrowserAdvancedMenuItemHandler)(void);
         [dimView.bottomAnchor constraintEqualToAnchor:self.view.bottomAnchor],
 
         [panelView.widthAnchor constraintEqualToConstant:self.panelWidth],
-        [panelView.topAnchor constraintEqualToAnchor:self.view.topAnchor constant:16.0],
-        [panelView.bottomAnchor constraintEqualToAnchor:self.view.bottomAnchor constant:-16.0],
-        self.panelTrailingConstraint,
 
         [titleLabel.leadingAnchor constraintEqualToAnchor:panelView.leadingAnchor constant:32.0],
         [titleLabel.trailingAnchor constraintEqualToAnchor:panelView.trailingAnchor constant:-32.0],
@@ -237,6 +258,22 @@ typedef void (^BrowserAdvancedMenuItemHandler)(void);
         [footerLabel.trailingAnchor constraintEqualToAnchor:panelView.trailingAnchor constant:-24.0],
         [footerLabel.bottomAnchor constraintEqualToAnchor:panelView.bottomAnchor constant:-12.0],
     ]];
+    if ([self isAnchoredToBar]) {
+        // Clamped so a panel hung off an icon near either end stays on screen.
+        CGFloat screenWidth = CGRectGetWidth(UIScreen.mainScreen.bounds);
+        CGFloat halfWidth = self.panelWidth / 2.0;
+        CGFloat margin = 40.0;
+        CGFloat centerX = MIN(MAX(self.anchorCenterX, halfWidth + margin), screenWidth - halfWidth - margin);
+        [constraints addObject:[panelView.centerXAnchor constraintEqualToAnchor:self.view.leadingAnchor
+                                                                      constant:centerX]];
+        [constraints addObject:self.panelTopConstraint];
+        [constraints addObject:[panelView.bottomAnchor constraintLessThanOrEqualToAnchor:self.view.bottomAnchor
+                                                                               constant:-70.0]];
+    } else {
+        [constraints addObject:[panelView.topAnchor constraintEqualToAnchor:self.view.topAnchor constant:16.0]];
+        [constraints addObject:[panelView.bottomAnchor constraintEqualToAnchor:self.view.bottomAnchor constant:-16.0]];
+        [constraints addObject:self.panelTrailingConstraint];
+    }
     if (panelTint != nil) {
         [constraints addObject:[panelTint.leadingAnchor constraintEqualToAnchor:panelView.contentView.leadingAnchor]];
         [constraints addObject:[panelTint.trailingAnchor constraintEqualToAnchor:panelView.contentView.trailingAnchor]];
@@ -252,7 +289,11 @@ typedef void (^BrowserAdvancedMenuItemHandler)(void);
         return;
     }
     self.didAnimateIn = YES;
-    self.panelTrailingConstraint.constant = -16.0;
+    if ([self isAnchoredToBar]) {
+        self.panelTopConstraint.constant = [self anchoredPanelVisibleTopConstant];
+    } else {
+        self.panelTrailingConstraint.constant = -16.0;
+    }
     [UIView animateWithDuration:0.28
                           delay:0.0
                         options:UIViewAnimationOptionCurveEaseOut
@@ -269,7 +310,11 @@ typedef void (^BrowserAdvancedMenuItemHandler)(void);
         return;
     }
 
-    self.panelTrailingConstraint.constant = self.panelWidth + 32.0;
+    if ([self isAnchoredToBar]) {
+        self.panelTopConstraint.constant = [self anchoredPanelHiddenTopConstant];
+    } else {
+        self.panelTrailingConstraint.constant = self.panelWidth + 32.0;
+    }
     id<UIViewControllerTransitionCoordinator> coordinator = self.transitionCoordinator;
     if (coordinator != nil) {
         [coordinator animateAlongsideTransition:^(__unused id<UIViewControllerTransitionCoordinatorContext> context) {
@@ -293,7 +338,11 @@ typedef void (^BrowserAdvancedMenuItemHandler)(void);
         return;
     }
     self.dismissalInProgress = YES;
-    self.panelTrailingConstraint.constant = self.panelWidth + 32.0;
+    if ([self isAnchoredToBar]) {
+        self.panelTopConstraint.constant = [self anchoredPanelHiddenTopConstant];
+    } else {
+        self.panelTrailingConstraint.constant = self.panelWidth + 32.0;
+    }
     [UIView animateWithDuration:0.22
                           delay:0.0
                         options:UIViewAnimationOptionCurveEaseIn
@@ -1256,7 +1305,16 @@ withAnimationCoordinator:(UIFocusAnimationCoordinator *)coordinator {
 
 // The two icons beside the menu open a slice of it. Same items, same titles,
 // reached in one click instead of scrolling the whole list from the sofa.
-- (void)showBookmarksMenu {
+- (void)presentAnchoredMenuWithTitle:(NSString *)title
+                            sections:(NSArray<BrowserAdvancedMenuSection *> *)sections
+                            anchorAt:(CGFloat)anchorCenterX {
+    BrowserAdvancedMenuViewController *menuViewController =
+        [[BrowserAdvancedMenuViewController alloc] initWithTitle:title sections:sections footerText:@""];
+    menuViewController.anchorCenterX = anchorCenterX;
+    [self.host browserPresentViewController:menuViewController];
+}
+
+- (void)showBookmarksMenuAnchoredAt:(CGFloat)anchorCenterX {
     NSMutableArray<BrowserAdvancedMenuItem *> *items = [NSMutableArray array];
     BrowserAdvancedMenuItem *toggleFavoriteItem = [self toggleFavoriteMenuItem];
     if (toggleFavoriteItem != nil) {
@@ -1269,31 +1327,145 @@ withAnimationCoordinator:(UIFocusAnimationCoordinator *)coordinator {
         [self setCurrentPageAsHomePageMenuItem],
     ]];
 
-    BrowserAdvancedMenuViewController *menuViewController =
-        [[BrowserAdvancedMenuViewController alloc] initWithTitle:@"Bookmarks"
-                                                        sections:@[[BrowserAdvancedMenuSection sectionWithTitle:@"Favorites & History"
-                                                                                                          items:items]]
-                                                      footerText:@""];
-    [self.host browserPresentViewController:menuViewController];
+    [self presentAnchoredMenuWithTitle:@"Bookmarks"
+                              sections:@[[BrowserAdvancedMenuSection sectionWithTitle:@"Favorites & History" items:items]]
+                              anchorAt:anchorCenterX];
 }
 
-- (void)showReadingMenu {
-    BrowserAdvancedMenuViewController *menuViewController =
-        [[BrowserAdvancedMenuViewController alloc] initWithTitle:@"Reading"
-                                                        sections:@[
-            [BrowserAdvancedMenuSection sectionWithTitle:@"Reading" items:@[
-                [self readerModeToggleMenuItem],
-                [self forcedDarkModeToggleMenuItem],
-            ]],
-            [BrowserAdvancedMenuSection sectionWithTitle:@"Text Size" items:@[
-                [self increaseFontSizeMenuItem],
-                [self decreaseFontSizeMenuItem],
-                [self resetFontSizeMenuItem],
-                [self pageScalingMenuItem],
-            ]],
-        ]
-                                                      footerText:@""];
-    [self.host browserPresentViewController:menuViewController];
+- (void)showReadingMenuAnchoredAt:(CGFloat)anchorCenterX {
+    [self presentAnchoredMenuWithTitle:@"Reading"
+                              sections:@[
+        [BrowserAdvancedMenuSection sectionWithTitle:@"Reading" items:@[
+            [self readerModeToggleMenuItem],
+            [self forcedDarkModeToggleMenuItem],
+        ]],
+        [BrowserAdvancedMenuSection sectionWithTitle:@"Reader Text Size" items:@[
+            [self increaseReaderFontSizeMenuItem],
+            [self decreaseReaderFontSizeMenuItem],
+        ]],
+        [BrowserAdvancedMenuSection sectionWithTitle:@"Page Text Size" items:@[
+            [self increaseFontSizeMenuItem],
+            [self decreaseFontSizeMenuItem],
+            [self resetFontSizeMenuItem],
+            [self pageScalingMenuItem],
+        ]],
+    ]
+                              anchorAt:anchorCenterX];
+}
+
+- (BrowserAdvancedMenuItem *)increaseReaderFontSizeMenuItem {
+    __weak typeof(self) weakSelf = self;
+    NSString *title = [NSString stringWithFormat:@"Larger Reader Text (%lu)",
+                       (unsigned long)self.preferencesStore.readerFontSize];
+    return [self advancedMenuItemWithTitle:title
+                                     style:UIAlertActionStyleDefault
+                                   handler:^{
+        weakSelf.preferencesStore.readerFontSize = weakSelf.preferencesStore.readerFontSize + 6;
+        [weakSelf reapplyReaderModeIfActive];
+    }];
+}
+
+- (BrowserAdvancedMenuItem *)decreaseReaderFontSizeMenuItem {
+    __weak typeof(self) weakSelf = self;
+    NSString *title = [NSString stringWithFormat:@"Smaller Reader Text (%lu)",
+                       (unsigned long)self.preferencesStore.readerFontSize];
+    return [self advancedMenuItemWithTitle:title
+                                     style:UIAlertActionStyleDefault
+                                   handler:^{
+        NSUInteger current = weakSelf.preferencesStore.readerFontSize;
+        weakSelf.preferencesStore.readerFontSize = current > 6 ? current - 6 : current;
+        [weakSelf reapplyReaderModeIfActive];
+    }];
+}
+
+// A size change only shows once the page is rebuilt, so reader mode is turned
+// off and on again when it is already showing.
+- (void)reapplyReaderModeIfActive {
+    if (![self.host browserIsReaderModeActive]) {
+        return;
+    }
+    [self.host browserToggleReaderMode];
+    [self.host browserToggleReaderMode];
+}
+
+- (void)showPrivacyMenuAnchoredAt:(CGFloat)anchorCenterX {
+    [self presentAnchoredMenuWithTitle:@"Privacy"
+                              sections:@[
+        [BrowserAdvancedMenuSection sectionWithTitle:@"Blocking" items:@[
+            [self contentBlockingToggleMenuItem],
+        ]],
+        [BrowserAdvancedMenuSection sectionWithTitle:@"Stored Data" items:@[
+            [self clearCacheMenuItem],
+            [self clearCookiesMenuItem],
+        ]],
+        [BrowserAdvancedMenuSection sectionWithTitle:@"Diagnostics" items:@[
+            [self contentBlockerDiagnosticsMenuItem],
+        ]],
+    ]
+                              anchorAt:anchorCenterX];
+}
+
+- (void)showSettingsMenuAnchoredAt:(CGFloat)anchorCenterX {
+    [self presentAnchoredMenuWithTitle:@"Settings"
+                              sections:@[
+        [BrowserAdvancedMenuSection sectionWithTitle:@"Remote" items:@[
+            [self tapToClickToggleMenuItem],
+            [self openLinksInNewTabToggleMenuItem],
+            [self dpadBackForwardToggleMenuItem],
+        ]],
+        [BrowserAdvancedMenuSection sectionWithTitle:@"Scrolling" items:@[
+            [self dpadScrollToggleMenuItem],
+            [self edgeAutoScrollToggleMenuItem],
+            [self jsScrollFallbackToggleMenuItem],
+        ]],
+        [BrowserAdvancedMenuSection sectionWithTitle:@"Page" items:@[
+            [self userAgentModeMenuItem],
+            [self fullscreenVideoPlaybackToggleMenuItem],
+            [self topNavigationVisibilityMenuItem],
+        ]],
+        [BrowserAdvancedMenuSection sectionWithTitle:@"Help" items:@[
+            [self usageGuideMenuItem],
+        ]],
+    ]
+                              anchorAt:anchorCenterX];
+}
+
+- (BrowserAdvancedMenuItem *)dpadBackForwardToggleMenuItem {
+    BOOL enabled = self.preferencesStore.dpadBackForwardEnabled;
+    NSString *title = enabled ? @"Left/Right for Back & Forward: On" : @"Left/Right for Back & Forward: Off";
+    __weak typeof(self) weakSelf = self;
+    return [self advancedMenuItemWithTitle:title
+                                     style:UIAlertActionStyleDefault
+                                   handler:^{
+        weakSelf.preferencesStore.dpadBackForwardEnabled = !enabled;
+    }];
+}
+
+- (BrowserAdvancedMenuItem *)clearCacheMenuItem {
+    __weak typeof(self) weakSelf = self;
+    return [self advancedMenuItemWithTitle:@"Clear Cache"
+                                     style:UIAlertActionStyleDestructive
+                                   handler:^{
+        [weakSelf clearCacheAndReload];
+    }];
+}
+
+- (BrowserAdvancedMenuItem *)clearCookiesMenuItem {
+    __weak typeof(self) weakSelf = self;
+    return [self advancedMenuItemWithTitle:@"Clear Cookies"
+                                     style:UIAlertActionStyleDestructive
+                                   handler:^{
+        [weakSelf clearCookiesAndReload];
+    }];
+}
+
+- (BrowserAdvancedMenuItem *)contentBlockerDiagnosticsMenuItem {
+    __weak typeof(self) weakSelf = self;
+    return [self advancedMenuItemWithTitle:@"Content Blocker Diagnostics"
+                                     style:UIAlertActionStyleDefault
+                                   handler:^{
+        [weakSelf presentContentBlockerDiagnostics];
+    }];
 }
 
 - (NSArray<BrowserAdvancedMenuSection *> *)advancedMenuSections {
@@ -1358,6 +1530,7 @@ withAnimationCoordinator:(UIFocusAnimationCoordinator *)coordinator {
             [self dpadScrollToggleMenuItem],
             [self edgeAutoScrollToggleMenuItem],
             [self jsScrollFallbackToggleMenuItem],
+            [self dpadBackForwardToggleMenuItem],
         ]],
         [BrowserAdvancedMenuSection sectionWithTitle:@"Appearance"
                                                items:@[

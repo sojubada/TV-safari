@@ -12,8 +12,8 @@
     return [result isEqualToString:@"true"];
 }
 
-- (NSString *)readerModeJavaScript {
-    return @"(function(){"
+- (NSString *)readerModeJavaScriptWithFontSize:(NSUInteger)fontSize {
+    return [NSString stringWithFormat:@"(function(){"
             "var docEl = document.documentElement;"
             "if (!docEl) { return 'error-no-document'; }"
             "if (docEl.getAttribute('data-browser-reader-mode') === '1') { return 'already-active'; }"
@@ -93,19 +93,24 @@
             "window.__browserReaderOriginalHTML = docEl.innerHTML;"
             "window.__browserReaderOriginalStyle = docEl.getAttribute('style');"
             ""
+            "var bodyFontSize = %lu;"
+            "var titleFontSize = Math.round(bodyFontSize * 1.32);"
+            "var headingFontSize = Math.round(bodyFontSize * 1.12);"
+            "var codeFontSize = Math.round(bodyFontSize * 0.82);"
+            "var blockSpacing = Math.round(bodyFontSize * 0.66);"
             "var css = 'body { background: #15171a !important; color: #e8e6e3 !important; font-family: -apple-system, sans-serif !important; margin: 0 !important; padding: 0 !important; } ' +"
-                      "'.reader-container { max-width: 1500px; margin: 0 auto; padding: 72px 70px 120px; font-size: 52px; line-height: 1.6; word-wrap: break-word; } ' +"
-                      "'.reader-title { font-size: 68px; font-weight: 700; line-height: 1.25; margin-bottom: 48px; color: #ffffff; } ' +"
-                      "'.reader-content h2, .reader-content h3, .reader-content h4 { font-size: 58px; line-height: 1.3; color: #ffffff; margin-top: 56px; margin-bottom: 24px; } ' +"
-                      "'.reader-content p { margin-bottom: 34px; } ' +"
+                      "'.reader-container { max-width: 1500px; margin: 0 auto; padding: 72px 70px 140px; font-size: ' + bodyFontSize + 'px; line-height: 1.6; word-wrap: break-word; } ' +"
+                      "'.reader-title { font-size: ' + titleFontSize + 'px; font-weight: 700; line-height: 1.25; margin-bottom: 48px; color: #ffffff; } ' +"
+                      "'.reader-content h2, .reader-content h3, .reader-content h4 { font-size: ' + headingFontSize + 'px; line-height: 1.3; color: #ffffff; margin-top: 56px; margin-bottom: 24px; } ' +"
+                      "'.reader-content p { margin-bottom: ' + blockSpacing + 'px; } ' +"
                       "'.reader-content a { color: #7fb3ff !important; text-decoration: none; } ' +"
-                      "'.reader-content img, .reader-content figure, .reader-content video { max-width: 100%; height: auto; margin: 40px 0; display: block; border-radius: 10px; } ' +"
+                      "'.reader-content img, .reader-content figure, .reader-content video { max-width: 100%%; height: auto; margin: 40px 0; display: block; border-radius: 10px; } ' +"
                       "'.reader-content blockquote { border-left: 8px solid #4a4d52; margin: 40px 0; padding-left: 34px; color: #b0afab; font-style: italic; } ' +"
-                      "'.reader-content pre, .reader-content code { background: #222428; border-radius: 8px; padding: 6px 10px; font-family: monospace; font-size: 42px; } ' +"
+                      "'.reader-content pre, .reader-content code { background: #222428; border-radius: 8px; padding: 6px 10px; font-family: monospace; font-size: ' + codeFontSize + 'px; } ' +"
                       "'.reader-content pre { padding: 28px; overflow-x: auto; } ' +"
                       "'.reader-content ul, .reader-content ol { margin-bottom: 34px; padding-left: 52px; } ' +"
                       "'.reader-content li { margin-bottom: 18px; } ' +"
-                      "'.reader-content table { width: 100%; border-collapse: collapse; margin-bottom: 34px; font-size: 44px; } ' +"
+                      "'.reader-content table { width: 100%%; border-collapse: collapse; margin-bottom: 34px; font-size: ' + codeFontSize + 'px; } ' +"
                       "'.reader-content th, .reader-content td { border: 1px solid #4a4d52; padding: 18px; text-align: left; } ' +"
                       "'.reader-content th { background: #222428; }';"
             "var html = '<head><meta name=\"viewport\" content=\"width=device-width, initial-scale=1.0\">' +"
@@ -122,7 +127,7 @@
             "docEl.innerHTML = html;"
             "window.scrollTo(0,0);"
             "return 'success';"
-            "})()";
+            "})()", (unsigned long)fontSize];
 }
 
 - (NSString *)disableReaderModeJavaScript {
@@ -143,11 +148,11 @@
             "})()";
 }
 
-- (NSString *)enableReaderModeForWebView:(BrowserWebView *)webView {
+- (NSString *)enableReaderModeForWebView:(BrowserWebView *)webView fontSize:(NSUInteger)fontSize {
     if (webView == nil) {
         return @"error";
     }
-    NSString *result = [webView stringByEvaluatingJavaScriptFromString:[self readerModeJavaScript]];
+    NSString *result = [webView stringByEvaluatingJavaScriptFromString:[self readerModeJavaScriptWithFontSize:fontSize]];
     NSLog(@"[InputTrace][ReaderMode] enable result=%@", result);
     return result ?: @"error";
 }

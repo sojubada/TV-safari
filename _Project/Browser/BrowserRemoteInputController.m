@@ -861,6 +861,19 @@ static const CFTimeInterval kBrowserCursorIdleHideDelay = 3.0;
         return NO;
     }
 
+    if ((press.type == UIPressTypeLeftArrow || press.type == UIPressTypeRightArrow) &&
+        [self.host browserRemoteInputControllerDpadBackForwardEnabled] &&
+        ![self.host browserRemoteInputControllerTabOverviewVisible] &&
+        ![self.host browserRemoteInputControllerTopBarFocusActive] &&
+        [self.host browserRemoteInputControllerPresentedViewController] == nil) {
+        if (press.type == UIPressTypeLeftArrow) {
+            [self.host browserRemoteInputControllerGoBack];
+        } else {
+            [self.host browserRemoteInputControllerGoForward];
+        }
+        return YES;
+    }
+
     if ([self.host browserRemoteInputControllerTabOverviewVisible]) {
         if (press.type == UIPressTypeMenu || press.type == UIPressTypePlayPause) {
             [self.host browserRemoteInputControllerDismissTabOverview];

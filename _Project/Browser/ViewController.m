@@ -277,6 +277,29 @@ static UIColor *kTextColor(void) {
     }
 }
 
+// The anchor is read before the bar loses focus, because deactivating focus
+// can change the bar's layout.
+- (void)presentBarMenuForAction:(BrowserTopBarAction)action {
+    CGFloat anchorCenterX = [self.topMenuView screenCenterXForAction:action];
+    [self deactivateTopBarFocusMode];
+    switch (action) {
+        case BrowserTopBarActionBookmarks:
+            [self.menuCoordinator showBookmarksMenuAnchoredAt:anchorCenterX];
+            break;
+        case BrowserTopBarActionReading:
+            [self.menuCoordinator showReadingMenuAnchoredAt:anchorCenterX];
+            break;
+        case BrowserTopBarActionPrivacy:
+            [self.menuCoordinator showPrivacyMenuAnchoredAt:anchorCenterX];
+            break;
+        case BrowserTopBarActionSettings:
+            [self.menuCoordinator showSettingsMenuAnchoredAt:anchorCenterX];
+            break;
+        default:
+            break;
+    }
+}
+
 - (void)performTopBarAction:(BrowserTopBarAction)action {
     [self deactivateTopBarFocusMode];
 
@@ -327,12 +350,10 @@ static UIColor *kTextColor(void) {
             [self showAdvancedMenu];
             break;
         case BrowserTopBarActionBookmarks:
-            [self deactivateTopBarFocusMode];
-            [self.menuCoordinator showBookmarksMenu];
-            break;
         case BrowserTopBarActionReading:
-            [self deactivateTopBarFocusMode];
-            [self.menuCoordinator showReadingMenu];
+        case BrowserTopBarActionPrivacy:
+        case BrowserTopBarActionSettings:
+            [self presentBarMenuForAction:action];
             break;
     }
 }
@@ -622,7 +643,8 @@ static UIColor *kTextColor(void) {
     if ([self.readerModeController isReaderModeActiveForWebView:self.webview]) {
         [self.readerModeController disableReaderModeForWebView:self.webview];
     } else {
-        NSString *result = [self.readerModeController enableReaderModeForWebView:self.webview];
+        NSString *result = [self.readerModeController enableReaderModeForWebView:self.webview
+                                                                      fontSize:self.preferencesStore.readerFontSize];
         if (![result isEqualToString:@"success"]) {
             UIAlertController *alert = [UIAlertController alertControllerWithTitle:@"Reader Mode"
                                                                            message:@"Could not find enough readable content on this page."
@@ -833,6 +855,23 @@ static UIColor *kTextColor(void) {
 
 - (BOOL)browserRemoteInputControllerTapToClickEnabled {
     return self.preferencesStore.tapToClickEnabled;
+}
+
+- (BOOL)browserRemoteInputControllerDpadBackForwardEnabled {
+    return self.preferencesStore.dpadBackForwardEnabled;
+}
+
+- (void)browserRemoteInputControllerGoBack {
+    if ([self exitWebFullscreenIfActive]) {
+        return;
+    }
+    [self performBackNavigationOrCloseTab];
+}
+
+- (void)browserRemoteInputControllerGoForward {
+    if (self.webview.canGoForward) {
+        [self.webview goForward];
+    }
 }
 
 #pragma mark - BrowserWebViewDelegate

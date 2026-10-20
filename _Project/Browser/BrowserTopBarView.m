@@ -12,7 +12,7 @@ static CGFloat const kTopBarIconSize = 52.0;
 static CGFloat const kTopBarLeadingPadding = 28.0;
 static CGFloat const kTopBarTrailingPadding = 26.0;
 static CGFloat const kTopBarIconSpacing = 24.0;
-static CGFloat const kTopBarLabelSpacing = 28.0;
+static CGFloat const kTopBarLabelSpacing = 20.0;
 static CGFloat const kTopBarSpinnerSpacing = 22.0;
 static CGFloat const kTopBarFocusHighlightInset = 10.0;
 static CGFloat const kTopBarUniformFocusHeight = 72.0;
@@ -50,6 +50,8 @@ static CGFloat const kTopBarSeparatorSpacing = 20.0;
 @property (nonatomic) UIImageView *forwardImageView;
 @property (nonatomic) UIImageView *homeImageView;
 @property (nonatomic) UIImageView *tabsImageView;
+@property (nonatomic) UIImageView *settingsImageView;
+@property (nonatomic) UIImageView *privacyImageView;
 @property (nonatomic) UIImageView *readingImageView;
 @property (nonatomic) UIImageView *bookmarksImageView;
 @property (nonatomic) UIImageView *fullscreenImageView;
@@ -66,6 +68,8 @@ static CGFloat const kTopBarSeparatorSpacing = 20.0;
 @property (nonatomic) BrowserTopBarFocusButton *homeFocusButton;
 @property (nonatomic) BrowserTopBarFocusButton *tabsFocusButton;
 @property (nonatomic) BrowserTopBarFocusButton *URLFocusButton;
+@property (nonatomic) BrowserTopBarFocusButton *settingsFocusButton;
+@property (nonatomic) BrowserTopBarFocusButton *privacyFocusButton;
 @property (nonatomic) BrowserTopBarFocusButton *readingFocusButton;
 @property (nonatomic) BrowserTopBarFocusButton *bookmarksFocusButton;
 @property (nonatomic) BrowserTopBarFocusButton *fullscreenFocusButton;
@@ -132,10 +136,11 @@ static CGFloat const kTopBarSeparatorSpacing = 20.0;
     [self.chromeContainerView insertSubview:self.focusGlowView belowSubview:self.chromeEffectView];
 
     self.focusHighlightView = [[UIView alloc] initWithFrame:CGRectZero];
-    self.focusHighlightView.backgroundColor = [UIColor colorWithWhite:1.0 alpha:0.18];
+    self.focusHighlightView.backgroundColor = [UIColor colorWithWhite:1.0 alpha:0.96];
     self.focusHighlightView.layer.cornerRadius = 22.0;
     self.focusHighlightView.alpha = 0.0;
     self.focusHighlightView.hidden = YES;
+    self.focusHighlightView.userInteractionEnabled = NO;
     [self.chromeEffectView.contentView addSubview:self.focusHighlightView];
 
     _exitImageView = [self newIconViewWithSymbolName:@"power" fallbackImageNamed:nil];
@@ -144,6 +149,8 @@ static CGFloat const kTopBarSeparatorSpacing = 20.0;
     _forwardImageView = [self newIconViewWithSymbolName:@"chevron.forward" fallbackImageNamed:@"right-arrow-forward"];
     _homeImageView = [self newIconViewWithSymbolName:@"house" fallbackImageNamed:@"house-outline"];
     _tabsImageView = [self newIconViewWithSymbolName:@"square.on.square" fallbackImageNamed:@"multi-tab"];
+    _settingsImageView = [self newIconViewWithSymbolName:@"gearshape" fallbackImageNamed:nil];
+    _privacyImageView = [self newIconViewWithSymbolName:@"shield" fallbackImageNamed:nil];
     _readingImageView = [self newIconViewWithSymbolName:@"textformat.size" fallbackImageNamed:nil];
     _bookmarksImageView = [self newIconViewWithSymbolName:@"star" fallbackImageNamed:nil];
     _fullscreenImageView = [self newIconViewWithSymbolName:@"arrow.up.left.and.arrow.down.right" fallbackImageNamed:@"resize-arrows"];
@@ -177,6 +184,8 @@ static CGFloat const kTopBarSeparatorSpacing = 20.0;
         _forwardImageView,
         _homeImageView,
         _tabsImageView,
+        _settingsImageView,
+        _privacyImageView,
         _readingImageView,
         _bookmarksImageView,
         _fullscreenImageView,
@@ -193,6 +202,8 @@ static CGFloat const kTopBarSeparatorSpacing = 20.0;
     _homeFocusButton = [self newFocusButtonForAction:BrowserTopBarActionHome accessibilityLabel:@"Home"];
     _tabsFocusButton = [self newFocusButtonForAction:BrowserTopBarActionTabs accessibilityLabel:@"Tabs"];
     _URLFocusButton = [self newFocusButtonForAction:BrowserTopBarActionURL accessibilityLabel:@"Enter URL or Search"];
+    _settingsFocusButton = [self newFocusButtonForAction:BrowserTopBarActionSettings accessibilityLabel:@"Settings"];
+    _privacyFocusButton = [self newFocusButtonForAction:BrowserTopBarActionPrivacy accessibilityLabel:@"Privacy and Blocking"];
     _readingFocusButton = [self newFocusButtonForAction:BrowserTopBarActionReading accessibilityLabel:@"Reading and Text Size"];
     _bookmarksFocusButton = [self newFocusButtonForAction:BrowserTopBarActionBookmarks accessibilityLabel:@"Favorites and History"];
     _fullscreenFocusButton = [self newFocusButtonForAction:BrowserTopBarActionFullscreen accessibilityLabel:@"Top Navigation Visibility"];
@@ -205,6 +216,8 @@ static CGFloat const kTopBarSeparatorSpacing = 20.0;
         _homeFocusButton,
         _tabsFocusButton,
         _URLFocusButton,
+        _settingsFocusButton,
+        _privacyFocusButton,
         _readingFocusButton,
         _bookmarksFocusButton,
         _fullscreenFocusButton,
@@ -345,8 +358,14 @@ static CGFloat const kTopBarSeparatorSpacing = 20.0;
     rightX = CGRectGetMinX(self.bookmarksImageView.frame) - kTopBarIconSpacing - kTopBarIconSize;
     self.readingImageView.frame = CGRectMake(rightX, iconY, kTopBarIconSize, kTopBarIconSize);
 
+    rightX = CGRectGetMinX(self.readingImageView.frame) - kTopBarIconSpacing - kTopBarIconSize;
+    self.privacyImageView.frame = CGRectMake(rightX, iconY, kTopBarIconSize, kTopBarIconSize);
+
+    rightX = CGRectGetMinX(self.privacyImageView.frame) - kTopBarIconSpacing - kTopBarIconSize;
+    self.settingsImageView.frame = CGRectMake(rightX, iconY, kTopBarIconSize, kTopBarIconSize);
+
     CGFloat spinnerSide = 34.0;
-    rightX = CGRectGetMinX(self.readingImageView.frame) - kTopBarSpinnerSpacing - spinnerSide;
+    rightX = CGRectGetMinX(self.settingsImageView.frame) - kTopBarSpinnerSpacing - spinnerSide;
     self.loadingSpinner.frame = CGRectMake(rightX,
                                            floor((CGRectGetHeight(chromeFrame) - spinnerSide) / 2.0),
                                            spinnerSide,
@@ -354,7 +373,7 @@ static CGFloat const kTopBarSeparatorSpacing = 20.0;
 
     CGFloat labelOriginX = CGRectGetMaxX(self.tabsImageView.frame) + kTopBarLabelSpacing;
     CGFloat labelTrailingX = CGRectGetMinX(self.loadingSpinner.frame) - kTopBarLabelSpacing;
-    CGFloat labelWidth = MAX(200.0, labelTrailingX - labelOriginX);
+    CGFloat labelWidth = MAX(160.0, labelTrailingX - labelOriginX);
     self.URLLabel.frame = CGRectMake(labelOriginX,
                                      0.0,
                                      labelWidth,
@@ -367,6 +386,8 @@ static CGFloat const kTopBarSeparatorSpacing = 20.0;
     self.homeFocusButton.frame = [self focusFrameForIconView:self.homeImageView];
     self.tabsFocusButton.frame = [self focusFrameForIconView:self.tabsImageView];
     self.URLFocusButton.frame = [self focusFrameForLabel:self.URLLabel];
+    self.settingsFocusButton.frame = [self focusFrameForIconView:self.settingsImageView];
+    self.privacyFocusButton.frame = [self focusFrameForIconView:self.privacyImageView];
     self.readingFocusButton.frame = [self focusFrameForIconView:self.readingImageView];
     self.bookmarksFocusButton.frame = [self focusFrameForIconView:self.bookmarksImageView];
     self.fullscreenFocusButton.frame = [self focusFrameForIconView:self.fullscreenImageView];
@@ -382,6 +403,15 @@ static CGFloat const kTopBarSeparatorSpacing = 20.0;
 
 - (CGRect)interactiveFrameForView:(UIView *)view {
     return [self convertRect:view.bounds fromView:view];
+}
+
+- (CGFloat)screenCenterXForAction:(BrowserTopBarAction)action {
+    UIView *icon = [self iconViewForAction:action];
+    if (icon == nil) {
+        return 0.0;
+    }
+    CGRect frameInWindow = [icon convertRect:icon.bounds toView:nil];
+    return CGRectGetMidX(frameInWindow);
 }
 
 - (CGRect)uniformFocusFrameForRect:(CGRect)frame horizontalInset:(CGFloat)horizontalInset {
@@ -427,6 +457,53 @@ static CGFloat const kTopBarSeparatorSpacing = 20.0;
     [self.chromeContainerView insertSubview:self.focusGlowView belowSubview:self.chromeEffectView];
 }
 
+// The pill is drawn behind the icons, so it is inserted below the first of
+// them rather than on top.
+- (void)ensureHighlightBelowIcons {
+    UIView *container = self.chromeEffectView.contentView;
+    if (self.focusHighlightView.superview != container) {
+        [container addSubview:self.focusHighlightView];
+    }
+    [container insertSubview:self.focusHighlightView atIndex:0];
+}
+
+- (UIView *)iconViewForAction:(BrowserTopBarAction)action {
+    switch (action) {
+        case BrowserTopBarActionExit: return self.exitImageView;
+        case BrowserTopBarActionBack: return self.backImageView;
+        case BrowserTopBarActionRefresh: return self.refreshImageView;
+        case BrowserTopBarActionForward: return self.forwardImageView;
+        case BrowserTopBarActionHome: return self.homeImageView;
+        case BrowserTopBarActionTabs: return self.tabsImageView;
+        case BrowserTopBarActionReading: return self.readingImageView;
+        case BrowserTopBarActionBookmarks: return self.bookmarksImageView;
+        case BrowserTopBarActionPrivacy: return self.privacyImageView;
+        case BrowserTopBarActionSettings: return self.settingsImageView;
+        case BrowserTopBarActionFullscreen: return self.fullscreenImageView;
+        case BrowserTopBarActionMenu: return self.menuImageView;
+        case BrowserTopBarActionURL: return self.URLLabel;
+    }
+    return nil;
+}
+
+- (void)applyFocusAppearanceToButton:(BrowserTopBarFocusButton *)focusedButton {
+    UIColor *restingTint = [UIColor colorWithWhite:1.0 alpha:0.92];
+    UIColor *focusedTint = [UIColor colorWithRed:0.07 green:0.09 blue:0.10 alpha:1.0];
+    UIView *focusedIcon = focusedButton != nil ? [self iconViewForAction:focusedButton.topBarAction] : nil;
+
+    for (BrowserTopBarFocusButton *button in self.focusButtons) {
+        UIView *icon = [self iconViewForAction:button.topBarAction];
+        BOOL isFocused = (icon != nil && icon == focusedIcon);
+        CGFloat scale = isFocused ? 1.12 : 1.0;
+        icon.transform = CGAffineTransformMakeScale(scale, scale);
+        if ([icon isKindOfClass:[UILabel class]]) {
+            ((UILabel *)icon).textColor = isFocused ? focusedTint : [UIColor colorWithWhite:1.0 alpha:0.72];
+        } else {
+            icon.tintColor = isFocused ? focusedTint : restingTint;
+        }
+    }
+}
+
 - (void)resetFocusVisualState {
     [self.focusGlowView.layer removeAllAnimations];
     [self.focusHighlightView.layer removeAllAnimations];
@@ -439,6 +516,7 @@ static CGFloat const kTopBarSeparatorSpacing = 20.0;
     self.focusHighlightView.hidden = YES;
     self.focusHighlightView.alpha = 0.0;
     self.focusHighlightView.frame = CGRectZero;
+    [self applyFocusAppearanceToButton:nil];
 
     [self.focusGlowView removeFromSuperview];
     [self.layer setNeedsDisplay];
@@ -448,18 +526,27 @@ static CGFloat const kTopBarSeparatorSpacing = 20.0;
     if (!self.focusModeActive || self.lastFocusedButton == nil || !self.lastFocusedButton.focused) {
         return;
     }
+    [self showFocusDecorationForButton:self.lastFocusedButton];
+}
+
+- (void)showFocusDecorationForButton:(BrowserTopBarFocusButton *)button {
     [self ensureFocusGlowViewAttached];
-    CGRect glowFrame = [self glowFrameForButton:self.lastFocusedButton];
+    CGRect glowFrame = [self glowFrameForButton:button];
     self.focusGlowView.hidden = NO;
     self.focusGlowView.alpha = 1.0;
     self.focusGlowView.frame = glowFrame;
     self.focusGlowView.layer.cornerRadius = MIN(CGRectGetHeight(glowFrame) / 2.0, 24.0);
     self.focusGlowView.layer.shadowPath = [UIBezierPath bezierPathWithRoundedRect:self.focusGlowView.bounds
                                                                      cornerRadius:self.focusGlowView.layer.cornerRadius].CGPath;
-    self.focusGlowView.layer.shadowOpacity = 0.78;
-    self.focusHighlightView.hidden = YES;
-    self.focusHighlightView.alpha = 0.0;
-    self.focusHighlightView.frame = CGRectZero;
+    self.focusGlowView.layer.shadowOpacity = 0.55;
+
+    CGRect pillFrame = [self highlightFrameForButton:button];
+    [self ensureHighlightBelowIcons];
+    self.focusHighlightView.hidden = NO;
+    self.focusHighlightView.alpha = 1.0;
+    self.focusHighlightView.frame = pillFrame;
+    self.focusHighlightView.layer.cornerRadius = MIN(CGRectGetHeight(pillFrame) / 2.0, 26.0);
+    [self applyFocusAppearanceToButton:button];
 }
 
 - (void)setFocusModeActive:(BOOL)focusModeActive {
@@ -514,19 +601,7 @@ static CGFloat const kTopBarSeparatorSpacing = 20.0;
             return;
         }
 
-        [self ensureFocusGlowViewAttached];
-        CGRect glowFrame = [self glowFrameForButton:nextFocusedButton];
-        self.focusGlowView.hidden = NO;
-        self.focusGlowView.alpha = 1.0;
-        self.focusGlowView.frame = glowFrame;
-        self.focusGlowView.layer.cornerRadius = MIN(CGRectGetHeight(glowFrame) / 2.0, 24.0);
-        self.focusGlowView.layer.shadowPath = [UIBezierPath bezierPathWithRoundedRect:self.focusGlowView.bounds
-                                                                         cornerRadius:self.focusGlowView.layer.cornerRadius].CGPath;
-        self.focusGlowView.layer.shadowRadius = 18.0;
-        self.focusGlowView.layer.shadowOpacity = 0.78;
-        self.focusHighlightView.hidden = YES;
-        self.focusHighlightView.alpha = 0.0;
-        self.focusHighlightView.frame = CGRectZero;
+        [self showFocusDecorationForButton:nextFocusedButton];
         previousFocusedButton.alpha = 1.0;
         nextFocusedButton.alpha = 1.0;
     } completion:^{
