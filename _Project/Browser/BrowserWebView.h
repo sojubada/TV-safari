@@ -39,6 +39,10 @@ NS_ASSUME_NONNULL_BEGIN
 + (void)installRuleListToConfiguration:(id)configuration;
 + (void)setYouTubeCaptureHookEnabled:(BOOL)enabled;
 
+// The underlying WKWebView, for the platform probe to interrogate. Nil when
+// WebKit could not be reached at all.
+- (nullable id)runtimeWebViewForProbing;
+
 + (nullable NSData *)cookieDataRepresentation;
 + (NSArray<NSHTTPCookie *> * _Nonnull)allCookies;
 + (void)restoreCookiesFromData:(NSData * _Nullable)cookieData;

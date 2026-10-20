@@ -1,5 +1,6 @@
 #import "BrowserWebView.h"
 #import "BrowserContentBlockerController.h"
+#import "BrowserWebPlatformProbe.h"
 
 #import <dlfcn.h>
 #import <objc/message.h>
@@ -459,6 +460,47 @@ static NSString *BrowserYouTubeRequestCaptureScript(void) {
     "})();";
 }
 
+static void BrowserAddUserScript(id configuration, NSString *source) {
+    if (configuration == nil || source.length == 0) {
+        return;
+    }
+
+    Class userContentControllerClass = NSClassFromString(kBrowserUserContentControllerClassName);
+    Class userScriptClass = NSClassFromString(kBrowserUserScriptClassName);
+    if (userContentControllerClass == Nil || userScriptClass == Nil) {
+        return;
+    }
+
+    SEL userContentControllerGetter = NSSelectorFromString(@"userContentController");
+    SEL setUserContentControllerSelector = NSSelectorFromString(@"setUserContentController:");
+    id userContentController = nil;
+    if ([configuration respondsToSelector:userContentControllerGetter]) {
+        userContentController = ((id (*)(id, SEL))objc_msgSend)(configuration, userContentControllerGetter);
+    }
+    if (userContentController == nil && [configuration respondsToSelector:setUserContentControllerSelector]) {
+        userContentController = ((id (*)(id, SEL))objc_msgSend)((id)userContentControllerClass, @selector(new));
+        ((void (*)(id, SEL, id))objc_msgSend)(configuration, setUserContentControllerSelector, userContentController);
+    }
+
+    SEL addUserScriptSelector = NSSelectorFromString(@"addUserScript:");
+    SEL userScriptInitializer = NSSelectorFromString(@"initWithSource:injectionTime:forMainFrameOnly:");
+    if (userContentController == nil ||
+        ![userContentController respondsToSelector:addUserScriptSelector] ||
+        ![userScriptClass instancesRespondToSelector:userScriptInitializer]) {
+        return;
+    }
+
+    id userScript = ((id (*)(id, SEL))objc_msgSend)((id)userScriptClass, @selector(alloc));
+    userScript = ((id (*)(id, SEL, id, NSInteger, BOOL))objc_msgSend)(userScript, userScriptInitializer, source, 0, NO);
+    if (userScript != nil) {
+        ((void (*)(id, SEL, id))objc_msgSend)(userContentController, addUserScriptSelector, userScript);
+    }
+}
+
+static void BrowserInstallErrorCaptureUserScript(id configuration) {
+    BrowserAddUserScript(configuration, [BrowserWebPlatformProbe errorCaptureScript]);
+}
+
 static void BrowserInstallYouTubeCaptureUserScript(id configuration) {
     if (configuration == nil || !gBrowserYouTubeCaptureHookEnabled) {
         return;
@@ -575,6 +617,7 @@ static void BrowserInstallYouTubeCaptureUserScript(id configuration) {
         ((void (*)(id, SEL, BOOL))objc_msgSend)(configuration, allowsInlineMediaPlaybackSelector, allowsInlineMediaPlayback);
     }
     BrowserConfigurePrivateMediaPreferences(configuration);
+    BrowserInstallErrorCaptureUserScript(configuration);
     BrowserInstallYouTubeCaptureUserScript(configuration);
     [BrowserWebView installRuleListToConfiguration:configuration];
 
@@ -590,6 +633,13 @@ static void BrowserInstallYouTubeCaptureUserScript(id configuration) {
     runtimeView.frame = self.bounds;
     runtimeView.autoresizingMask = UIViewAutoresizingFlexibleWidth | UIViewAutoresizingFlexibleHeight;
     runtimeView.backgroundColor = UIColor.whiteColor;
+
+    // Lets Safari's Develop menu attach if this Apple TV is ever paired with
+    // a Mac. tvOS 16.4+, so it is reached by selector rather than by symbol.
+    SEL inspectableSelector = NSSelectorFromString(@"setInspectable:");
+    if ([webViewObject respondsToSelector:inspectableSelector]) {
+        ((void (*)(id, SEL, BOOL))objc_msgSend)(webViewObject, inspectableSelector, YES);
+    }
 
     SEL navigationDelegateSelector = NSSelectorFromString(@"setNavigationDelegate:");
     if ([webViewObject respondsToSelector:navigationDelegateSelector]) {
@@ -619,6 +669,10 @@ static void BrowserInstallYouTubeCaptureUserScript(id configuration) {
 
     UIScrollView *scrollView = [self scrollView];
     scrollView.userInteractionEnabled = userInteractionEnabled;
+}
+
+- (id)runtimeWebViewForProbing {
+    return self.runtimeWebView;
 }
 
 - (UIScrollView *)scrollView {

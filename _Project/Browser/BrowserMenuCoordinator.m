@@ -1,6 +1,7 @@
 #import "BrowserMenuCoordinator.h"
 #import "BrowserPreferencesStore.h"
 #import "BrowserContentBlockerController.h"
+#import "BrowserWebPlatformProbe.h"
 #import "BrowserWebView.h"
 #import "BrowserFavoritesStore.h"
 
@@ -1037,6 +1038,27 @@ withAnimationCoordinator:(UIFocusAnimationCoordinator *)coordinator {
     [self.host browserPresentViewController:alertController];
 }
 
+- (void)presentWebPlatformRuntimeReport {
+    NSString *report = [BrowserWebPlatformProbe runtimeReportForWebView:[self.host browserWebView]];
+    UIAlertController *alertController = [self browserAlertControllerWithTitle:@"WebKit Runtime" message:report];
+    [alertController addAction:[self browserCancelAction]];
+    [self.host browserPresentViewController:alertController];
+}
+
+- (void)presentWebPlatformEngineReport {
+    NSString *report = [BrowserWebPlatformProbe engineReportForWebView:[self.host browserWebView]];
+    UIAlertController *alertController = [self browserAlertControllerWithTitle:@"Engine Capabilities" message:report];
+    [alertController addAction:[self browserCancelAction]];
+    [self.host browserPresentViewController:alertController];
+}
+
+- (void)presentPageErrorReport {
+    NSString *report = [BrowserWebPlatformProbe pageErrorReportForWebView:[self.host browserWebView]];
+    UIAlertController *alertController = [self browserAlertControllerWithTitle:@"Page Script Errors" message:report];
+    [alertController addAction:[self browserCancelAction]];
+    [self.host browserPresentViewController:alertController];
+}
+
 - (void)presentContentBlockerDiagnostics {
     NSString *report = [[BrowserContentBlockerController sharedController] diagnosticsReport];
     UIAlertController *alertController = [self browserAlertControllerWithTitle:@"Content Blocker Diagnostics"
@@ -1576,6 +1598,18 @@ withAnimationCoordinator:(UIFocusAnimationCoordinator *)coordinator {
         [BrowserAdvancedMenuSection sectionWithTitle:@"Compatibility"
                                                items:@[
             [self userAgentModeMenuItem],
+        ]],
+        [BrowserAdvancedMenuSection sectionWithTitle:@"Web Platform Probe"
+                                               items:@[
+            [self advancedMenuItemWithTitle:@"1. WebKit Runtime" style:UIAlertActionStyleDefault handler:^{
+                [self presentWebPlatformRuntimeReport];
+            }],
+            [self advancedMenuItemWithTitle:@"2. Engine Capabilities" style:UIAlertActionStyleDefault handler:^{
+                [self presentWebPlatformEngineReport];
+            }],
+            [self advancedMenuItemWithTitle:@"3. Page Script Errors" style:UIAlertActionStyleDefault handler:^{
+                [self presentPageErrorReport];
+            }],
         ]],
         [BrowserAdvancedMenuSection sectionWithTitle:@"Diagnostics"
                                                items:@[
