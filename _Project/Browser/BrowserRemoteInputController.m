@@ -4,6 +4,7 @@
 // WebKit answers), so it must never be driven at display-link rate. Deltas are
 // accumulated and flushed at most this often.
 static const CFTimeInterval kBrowserJSScrollMinimumInterval = 0.05;
+static const CFTimeInterval kBrowserSelectLongClickThreshold = 0.5;
 
 static UIImage *BrowserDefaultCursor(void) {
     static UIImage *image;
@@ -70,6 +71,9 @@ static NSString *BrowserPressPhaseString(UIPressPhase phase) {
 @property (nonatomic) CGFloat currentTouchMaxCursorDistance;
 @property (nonatomic) BOOL selectPressDuringCurrentTouch;
 @property (nonatomic) CFTimeInterval lastSelectPressActivityTimestamp;
+@property (nonatomic) CFTimeInterval selectPressStartTime;
+@property (nonatomic, nullable) NSTimer *cursorIdleTimer;
+@property (nonatomic) CFTimeInterval lastCursorActivityTimestamp;
 
 @property (nonatomic, nullable) CADisplayLink *dpadPageScrollDisplayLink;
 @property (nonatomic) CFTimeInterval dpadPageScrollStartTime;
@@ -121,11 +125,15 @@ static NSString *BrowserPressPhaseString(UIPressPhase phase) {
         _manualScrollPanRecognizer.cancelsTouchesInView = NO;
         _manualScrollPanRecognizer.enabled = NO;
         [rootView addGestureRecognizer:_manualScrollPanRecognizer];
+
+        [self noteCursorActivity];
     }
     return self;
 }
 
 - (void)dealloc {
+    [self.cursorIdleTimer invalidate];
+    self.cursorIdleTimer = nil;
     [self stopManualScrollInertia];
     [self stopDpadPageScrollAnimation];
     [self stopDpadHoldAndContinuousScroll];
@@ -197,6 +205,9 @@ static NSString *BrowserPressPhaseString(UIPressPhase phase) {
     self.cursorView.hidden = !self.cursorModeEnabled ||
         tabOverviewVisible ||
         topBarFocusActive;
+    if (!self.cursorView.hidden) {
+        [self noteCursorActivity];
+    }
 }
 
 - (BOOL)applyManualScrollDelta:(CGPoint)delta {
@@ -518,6 +529,53 @@ static NSString *BrowserPressPhaseString(UIPressPhase phase) {
 // does not guarantee their relative order, so a press reported before
 // touchesBegan: would have its flag cleared and fire the tap action as well as
 // the click. The timestamp closes that window.
+static const CFTimeInterval kBrowserCursorIdleHideDelay = 3.0;
+
+- (void)noteCursorActivity {
+    self.lastCursorActivityTimestamp = CACurrentMediaTime();
+
+    if (self.cursorView.alpha < 1.0) {
+        [self.cursorView.layer removeAllAnimations];
+        [UIView animateWithDuration:0.2 animations:^{
+            self.cursorView.alpha = 1.0;
+        }];
+    }
+
+    if (self.cursorIdleTimer == nil) {
+        self.cursorIdleTimer = [NSTimer scheduledTimerWithTimeInterval:kBrowserCursorIdleHideDelay
+                                                                target:self
+                                                              selector:@selector(handleCursorIdleTimerFired:)
+                                                              userInfo:nil
+                                                               repeats:NO];
+    }
+}
+
+- (void)handleCursorIdleTimerFired:(__unused NSTimer *)timer {
+    self.cursorIdleTimer = nil;
+
+    CFTimeInterval idle = CACurrentMediaTime() - self.lastCursorActivityTimestamp;
+    if (idle < kBrowserCursorIdleHideDelay) {
+        // Activity arrived while the timer was running; wait out the remainder.
+        self.cursorIdleTimer = [NSTimer scheduledTimerWithTimeInterval:(kBrowserCursorIdleHideDelay - idle)
+                                                                target:self
+                                                              selector:@selector(handleCursorIdleTimerFired:)
+                                                              userInfo:nil
+                                                               repeats:NO];
+        return;
+    }
+
+    if (!self.cursorModeEnabled ||
+        self.cursorView.hidden ||
+        [self.host browserRemoteInputControllerTabOverviewVisible] ||
+        [self.host browserRemoteInputControllerTopBarFocusActive]) {
+        return;
+    }
+
+    [UIView animateWithDuration:0.4 animations:^{
+        self.cursorView.alpha = 0.0;
+    }];
+}
+
 - (void)noteSelectPressActivity {
     self.selectPressDuringCurrentTouch = YES;
     self.lastSelectPressActivityTimestamp = CACurrentMediaTime();
@@ -594,6 +652,7 @@ static NSString *BrowserPressPhaseString(UIPressPhase phase) {
 }
 
 - (void)handleManualScrollPan:(UIPanGestureRecognizer *)gestureRecognizer {
+    [self noteCursorActivity];
     if (self.cursorModeEnabled ||
         [self.host browserRemoteInputControllerTabOverviewVisible] ||
         [self.host browserRemoteInputControllerTopBarFocusActive]) {
@@ -629,9 +688,11 @@ static NSString *BrowserPressPhaseString(UIPressPhase phase) {
 
 - (void)handlePressesBegan:(NSSet<UIPress *> *)presses withEvent:(UIPressesEvent *)event {
     (void)event;
+    [self noteCursorActivity];
     for (UIPress *p in presses) {
         if (p.type == UIPressTypeSelect) {
             [self noteSelectPressActivity];
+            self.selectPressStartTime = CACurrentMediaTime();
         }
     }
 
@@ -668,6 +729,7 @@ static NSString *BrowserPressPhaseString(UIPressPhase phase) {
 
 - (void)handlePressesCancelled:(NSSet<UIPress *> *)presses withEvent:(UIPressesEvent *)event {
     (void)event;
+    [self noteCursorActivity];
     for (UIPress *press in presses) {
         if (press.type == UIPressTypeSelect) {
             [self noteSelectPressActivity];
@@ -680,6 +742,7 @@ static NSString *BrowserPressPhaseString(UIPressPhase phase) {
 
 - (BOOL)handlePressesEnded:(NSSet<UIPress *> *)presses withEvent:(UIPressesEvent *)event {
     (void)event;
+    [self noteCursorActivity];
     for (UIPress *p in presses) {
         if (p.type == UIPressTypeSelect) {
             [self noteSelectPressActivity];
@@ -745,6 +808,24 @@ static NSString *BrowserPressPhaseString(UIPressPhase phase) {
 
     if (press.type == UIPressTypeSelect) {
         self.lastDirectSelectPressTimestamp = CACurrentMediaTime();
+        CFTimeInterval holdDuration = (self.selectPressStartTime > 0.0)
+            ? (CACurrentMediaTime() - self.selectPressStartTime)
+            : 0.0;
+        self.selectPressStartTime = 0.0;
+        if (holdDuration >= kBrowserSelectLongClickThreshold) {
+            // Cancel any pending single-click action so the link does not also
+            // open in the current tab after opening in a new one.
+            [NSObject cancelPreviousPerformRequestsWithTarget:self
+                                                     selector:@selector(handleDeferredSelectPressAction)
+                                                       object:nil];
+            self.awaitingSecondSelectPress = NO;
+            if ([self.host browserRemoteInputControllerTabOverviewVisible]) {
+                [self.host browserRemoteInputControllerHandleTabOverviewSelectionAtPoint:self.cursorView.frame.origin];
+            } else {
+                [self.host browserRemoteInputControllerHandlePrimaryActionWithSource:BrowserPageActivationSourceLongClick];
+            }
+            return YES;
+        }
         [self handleSelectPressEnded];
         return YES;
     }
@@ -805,6 +886,7 @@ static NSString *BrowserPressPhaseString(UIPressPhase phase) {
 - (BOOL)handleTouchesBegan:(NSSet<UITouch *> *)touches withEvent:(UIEvent *)event {
     (void)touches;
     (void)event;
+    [self noteCursorActivity];
     if ([self.host browserRemoteInputControllerTopBarFocusActive]) {
         return NO;
     }
@@ -825,6 +907,7 @@ static NSString *BrowserPressPhaseString(UIPressPhase phase) {
 
 - (BOOL)handleTouchesMoved:(NSSet<UITouch *> *)touches withEvent:(UIEvent *)event {
     (void)event;
+    [self noteCursorActivity];
     if ([self.host browserRemoteInputControllerTopBarFocusActive]) {
         return NO;
     }
@@ -890,6 +973,7 @@ static NSString *BrowserPressPhaseString(UIPressPhase phase) {
 }
 
 - (void)handleTouchesEnded {
+    [self noteCursorActivity];
     self.lastTouchLocation = CGPointMake(-1, -1);
     // The cursor only moves while a finger is on the touch surface, so a cursor
     // parked inside the edge zone would otherwise auto-scroll to the end of the

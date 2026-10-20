@@ -25,6 +25,25 @@
 
 static NSString * const kBrowserGlobalSelectPressEndedNotification = @"BrowserGlobalSelectPressEndedNotification";
 
+// Checks and leaves fullscreen in a single evaluation: each one of these
+// pumps the run loop, and Menu is the most used button on the remote.
+// tvOS WebKit may only carry the webkit-prefixed form, so both are tried.
+static NSString * const kBrowserExitFullscreenScript =
+    @"(function(){"
+        "var element = document.fullscreenElement ||"
+                      "document.webkitFullscreenElement ||"
+                      "document.webkitCurrentFullScreenElement;"
+        "if (!element) { return 'none'; }"
+        "try {"
+            "if (document.exitFullscreen) { document.exitFullscreen(); }"
+            "else if (document.webkitExitFullscreen) { document.webkitExitFullscreen(); }"
+            "else if (document.webkitCancelFullScreen) { document.webkitCancelFullScreen(); }"
+            "else if (element.webkitExitFullscreen) { element.webkitExitFullscreen(); }"
+            "else { return 'none'; }"
+        "} catch (error) { return 'none'; }"
+        "return 'exited';"
+    "})()";
+
 static UIColor *kTextColor(void) {
     if (@available(tvOS 13, *)) {
         return UIColor.labelColor;
@@ -240,14 +259,22 @@ static UIColor *kTextColor(void) {
     [self browserPresentViewController:alert];
 }
 
-// Back always acts on the tab that is showing. With no history left there is
-// nothing to go back to, so offer to quit rather than doing nothing.
-- (void)performBackNavigationOrPromptExit {
+- (BOOL)exitWebFullscreenIfActive {
+    NSString *result = [self.webview stringByEvaluatingJavaScriptFromString:kBrowserExitFullscreenScript];
+    return [result isEqualToString:@"exited"];
+}
+
+// Back acts on the tab that is showing. With no history left, the tab itself
+// is what Back leaves, so it closes. On the last tab nothing happens: the
+// Apple TV home button is the way out, and quitting has its own button now.
+- (void)performBackNavigationOrCloseTab {
     if (self.webview.canGoBack) {
         [self.webview goBack];
         return;
     }
-    [self promptExitApp];
+    if (self.viewModel.tabs.count > 1) {
+        [self.tabCoordinator closeTabAtIndex:self.viewModel.activeTabIndex];
+    }
 }
 
 - (void)performTopBarAction:(BrowserTopBarAction)action {
@@ -255,7 +282,10 @@ static UIColor *kTextColor(void) {
 
     switch (action) {
         case BrowserTopBarActionBack:
-            [self performBackNavigationOrPromptExit];
+            if ([self exitWebFullscreenIfActive]) {
+                break;
+            }
+            [self performBackNavigationOrCloseTab];
             break;
         case BrowserTopBarActionExit:
             [self promptExitApp];
@@ -425,7 +455,7 @@ static UIColor *kTextColor(void) {
 
 - (void)showHintsAlert {
     UIAlertController *alertController = [UIAlertController alertControllerWithTitle:@"Usage Guide"
-                                                                             message:@"Double press the touch area to switch between cursor & scroll mode.\nLightly tap the touch area while in cursor mode to click or open links in the current tab.\nPress and click the touch area on a link to open it in a new tab.\nSingle tap to Menu button to Go Back, or Exit on root page.\nSingle tap the Play/Pause button to: Go Forward, Enter URL or Reload Page.\nDouble tap the Play/Pause to show the Advanced Menu with more options.\nUse the tabs icon in the top bar to open the tab overview."
+                                                                             message:@"Double press the touch area to switch between cursor & scroll mode.\nLightly tap the touch area while in cursor mode to click or open links in the current tab.\nPress and hold the click for half a second on a link to open it in a new tab.\nSingle tap the Menu button to Go Back, or to close the tab at the start of its history.\nUse the power icon at the left of the top bar to quit.\nSingle tap the Play/Pause button to: Go Forward, Enter URL or Reload Page.\nDouble tap the Play/Pause to show the Advanced Menu with more options.\nUse the tabs icon in the top bar to open the tab overview."
                                                                       preferredStyle:UIAlertControllerStyleAlert];
 
     __weak typeof(self) weakSelf = self;
@@ -724,7 +754,10 @@ static UIColor *kTextColor(void) {
         [self.presentedViewController dismissViewControllerAnimated:YES completion:nil];
         return;
     }
-    [self performBackNavigationOrPromptExit];
+    if ([self exitWebFullscreenIfActive]) {
+        return;
+    }
+    [self performBackNavigationOrCloseTab];
 }
 
 - (void)browserRemoteInputControllerHandlePlayPausePress {

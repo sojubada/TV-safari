@@ -553,7 +553,7 @@ static void BrowserInstallYouTubeCaptureUserScript(id configuration) {
 - (void)commonInitWithUserAgent:(NSString *)userAgent allowsInlineMediaPlayback:(BOOL)allowsInlineMediaPlayback {
     BrowserEnsureWebKitRuntimeLoaded();
 
-    self.backgroundColor = UIColor.blackColor;
+    self.backgroundColor = UIColor.whiteColor;
     self.userAgent = userAgent;
     self.scalesPageToFit = NO;
 
@@ -583,7 +583,7 @@ static void BrowserInstallYouTubeCaptureUserScript(id configuration) {
     UIView *runtimeView = (UIView *)webViewObject;
     runtimeView.frame = self.bounds;
     runtimeView.autoresizingMask = UIViewAutoresizingFlexibleWidth | UIViewAutoresizingFlexibleHeight;
-    runtimeView.backgroundColor = UIColor.blackColor;
+    runtimeView.backgroundColor = UIColor.whiteColor;
 
     SEL navigationDelegateSelector = NSSelectorFromString(@"setNavigationDelegate:");
     if ([webViewObject respondsToSelector:navigationDelegateSelector]) {

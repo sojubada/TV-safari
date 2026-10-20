@@ -4,6 +4,7 @@
 typedef NS_ENUM(NSInteger, BrowserPageActivationSource) {
     BrowserPageActivationSourceTap = 0,
     BrowserPageActivationSourceClick,
+    BrowserPageActivationSourceLongClick,
 };
 
 NS_ASSUME_NONNULL_BEGIN

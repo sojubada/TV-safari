@@ -240,8 +240,10 @@ static UIColor *BrowserPageActionTextColor(void) {
     if ([self handleTargetBlankLinkAtDOMPoint:point webView:webView]) {
         return YES;
     }
-    if (source == BrowserPageActivationSourceClick &&
-        self.preferencesStore.tapToClickEnabled &&
+    // A plain click now runs the element's own action, so clicking a video
+    // plays it instead of being swallowed by "open in new tab". Opening in a
+    // new tab moved to holding the click.
+    if (source == BrowserPageActivationSourceLongClick &&
         self.preferencesStore.openLinksInNewTabOnClick) {
         if ([self handleNewTabLinkOnClickAtDOMPoint:point webView:webView]) {
             return YES;
