@@ -11,7 +11,9 @@ typedef NS_ENUM(NSInteger, BrowserTopBarAction) {
     BrowserTopBarActionURL,
     BrowserTopBarActionFullscreen,
     BrowserTopBarActionMenu,
-    BrowserTopBarActionExit
+    BrowserTopBarActionExit,
+    BrowserTopBarActionBookmarks,
+    BrowserTopBarActionReading
 };
 
 @class BrowserTopBarView;
@@ -31,6 +33,8 @@ typedef NS_ENUM(NSInteger, BrowserTopBarAction) {
 @property (nonatomic, readonly) UIImageView *forwardImageView;
 @property (nonatomic, readonly) UIImageView *homeImageView;
 @property (nonatomic, readonly) UIImageView *tabsImageView;
+@property (nonatomic, readonly) UIImageView *readingImageView;
+@property (nonatomic, readonly) UIImageView *bookmarksImageView;
 @property (nonatomic, readonly) UIImageView *fullscreenImageView;
 @property (nonatomic, readonly) UIImageView *menuImageView;
 @property (nonatomic, readonly) UILabel *URLLabel;

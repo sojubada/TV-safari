@@ -50,6 +50,8 @@ static CGFloat const kTopBarSeparatorSpacing = 20.0;
 @property (nonatomic) UIImageView *forwardImageView;
 @property (nonatomic) UIImageView *homeImageView;
 @property (nonatomic) UIImageView *tabsImageView;
+@property (nonatomic) UIImageView *readingImageView;
+@property (nonatomic) UIImageView *bookmarksImageView;
 @property (nonatomic) UIImageView *fullscreenImageView;
 @property (nonatomic) UIImageView *menuImageView;
 @property (nonatomic) UILabel *URLLabel;
@@ -64,6 +66,8 @@ static CGFloat const kTopBarSeparatorSpacing = 20.0;
 @property (nonatomic) BrowserTopBarFocusButton *homeFocusButton;
 @property (nonatomic) BrowserTopBarFocusButton *tabsFocusButton;
 @property (nonatomic) BrowserTopBarFocusButton *URLFocusButton;
+@property (nonatomic) BrowserTopBarFocusButton *readingFocusButton;
+@property (nonatomic) BrowserTopBarFocusButton *bookmarksFocusButton;
 @property (nonatomic) BrowserTopBarFocusButton *fullscreenFocusButton;
 @property (nonatomic) BrowserTopBarFocusButton *menuFocusButton;
 @property (nonatomic) BrowserTopBarFocusButton *lastFocusedButton;
@@ -140,6 +144,8 @@ static CGFloat const kTopBarSeparatorSpacing = 20.0;
     _forwardImageView = [self newIconViewWithSymbolName:@"chevron.forward" fallbackImageNamed:@"right-arrow-forward"];
     _homeImageView = [self newIconViewWithSymbolName:@"house" fallbackImageNamed:@"house-outline"];
     _tabsImageView = [self newIconViewWithSymbolName:@"square.on.square" fallbackImageNamed:@"multi-tab"];
+    _readingImageView = [self newIconViewWithSymbolName:@"textformat.size" fallbackImageNamed:nil];
+    _bookmarksImageView = [self newIconViewWithSymbolName:@"star" fallbackImageNamed:nil];
     _fullscreenImageView = [self newIconViewWithSymbolName:@"arrow.up.left.and.arrow.down.right" fallbackImageNamed:@"resize-arrows"];
     _menuImageView = [self newIconViewWithSymbolName:@"ellipsis.circle" fallbackImageNamed:@"menu-2"];
 
@@ -171,6 +177,8 @@ static CGFloat const kTopBarSeparatorSpacing = 20.0;
         _forwardImageView,
         _homeImageView,
         _tabsImageView,
+        _readingImageView,
+        _bookmarksImageView,
         _fullscreenImageView,
         _menuImageView
     ];
@@ -185,6 +193,8 @@ static CGFloat const kTopBarSeparatorSpacing = 20.0;
     _homeFocusButton = [self newFocusButtonForAction:BrowserTopBarActionHome accessibilityLabel:@"Home"];
     _tabsFocusButton = [self newFocusButtonForAction:BrowserTopBarActionTabs accessibilityLabel:@"Tabs"];
     _URLFocusButton = [self newFocusButtonForAction:BrowserTopBarActionURL accessibilityLabel:@"Enter URL or Search"];
+    _readingFocusButton = [self newFocusButtonForAction:BrowserTopBarActionReading accessibilityLabel:@"Reading and Text Size"];
+    _bookmarksFocusButton = [self newFocusButtonForAction:BrowserTopBarActionBookmarks accessibilityLabel:@"Favorites and History"];
     _fullscreenFocusButton = [self newFocusButtonForAction:BrowserTopBarActionFullscreen accessibilityLabel:@"Top Navigation Visibility"];
     _menuFocusButton = [self newFocusButtonForAction:BrowserTopBarActionMenu accessibilityLabel:@"Menu"];
     _focusButtons = @[
@@ -195,6 +205,8 @@ static CGFloat const kTopBarSeparatorSpacing = 20.0;
         _homeFocusButton,
         _tabsFocusButton,
         _URLFocusButton,
+        _readingFocusButton,
+        _bookmarksFocusButton,
         _fullscreenFocusButton,
         _menuFocusButton
     ];
@@ -327,8 +339,14 @@ static CGFloat const kTopBarSeparatorSpacing = 20.0;
     rightX = CGRectGetMinX(self.menuImageView.frame) - kTopBarIconSpacing - kTopBarIconSize;
     self.fullscreenImageView.frame = CGRectMake(rightX, iconY, kTopBarIconSize, kTopBarIconSize);
 
+    rightX = CGRectGetMinX(self.fullscreenImageView.frame) - kTopBarIconSpacing - kTopBarIconSize;
+    self.bookmarksImageView.frame = CGRectMake(rightX, iconY, kTopBarIconSize, kTopBarIconSize);
+
+    rightX = CGRectGetMinX(self.bookmarksImageView.frame) - kTopBarIconSpacing - kTopBarIconSize;
+    self.readingImageView.frame = CGRectMake(rightX, iconY, kTopBarIconSize, kTopBarIconSize);
+
     CGFloat spinnerSide = 34.0;
-    rightX = CGRectGetMinX(self.fullscreenImageView.frame) - kTopBarSpinnerSpacing - spinnerSide;
+    rightX = CGRectGetMinX(self.readingImageView.frame) - kTopBarSpinnerSpacing - spinnerSide;
     self.loadingSpinner.frame = CGRectMake(rightX,
                                            floor((CGRectGetHeight(chromeFrame) - spinnerSide) / 2.0),
                                            spinnerSide,
@@ -349,6 +367,8 @@ static CGFloat const kTopBarSeparatorSpacing = 20.0;
     self.homeFocusButton.frame = [self focusFrameForIconView:self.homeImageView];
     self.tabsFocusButton.frame = [self focusFrameForIconView:self.tabsImageView];
     self.URLFocusButton.frame = [self focusFrameForLabel:self.URLLabel];
+    self.readingFocusButton.frame = [self focusFrameForIconView:self.readingImageView];
+    self.bookmarksFocusButton.frame = [self focusFrameForIconView:self.bookmarksImageView];
     self.fullscreenFocusButton.frame = [self focusFrameForIconView:self.fullscreenImageView];
     self.menuFocusButton.frame = [self focusFrameForMenuIconView:self.menuImageView];
 

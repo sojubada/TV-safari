@@ -6,6 +6,11 @@
 static NSString * const kBrowserNativeVideoPlayerLogPrefix = @"[NativeVideoPlayer]";
 static NSString * const kBrowserNativePlayerInputLogPrefix = @"[InputTrace][NativePlayer]";
 
+// How long to wait for a picture before giving up. A stream the decoder
+// cannot render shows as a black screen that never resolves, and until now
+// the failure was only written to the log.
+static NSTimeInterval const kBrowserPictureWatchdogTimeout = 6.0;
+
 static NSString *BrowserNativePlayerPressTypeString(UIPressType type) {
     switch (type) {
         case UIPressTypeMenu: return @"Menu";
@@ -37,6 +42,10 @@ static NSString *BrowserNativePlayerPressPhaseString(UIPressPhase phase) {
 @property (nonatomic, copy) NSDictionary<NSString *, NSString *> *requestHeaders;
 @property (nonatomic, copy) NSArray<NSHTTPCookie *> *requestCookies;
 @property (nonatomic, strong) BrowserNativeVideoAssetLoader *assetLoader;
+@property (nonatomic, nullable) NSTimer *pictureWatchdogTimer;
+@property (nonatomic) BOOL reportedPlaybackFailure;
+@property (nonatomic) BOOL hasAppeared;
+@property (nonatomic, copy, nullable) NSString *pendingFailureReason;
 
 @end
 
@@ -122,6 +131,74 @@ static NSString *BrowserNativePlayerPressPhaseString(UIPressPhase phase) {
     NSLog(@"%@ viewDidAppear", kBrowserNativePlayerInputLogPrefix);
     [self log:@"viewDidAppear play"];
     [self.player play];
+    self.hasAppeared = YES;
+
+    // A failure seen before the player finished appearing cannot dismiss yet,
+    // so it waits here rather than racing the presentation.
+    if (self.pendingFailureReason != nil) {
+        NSString *reason = self.pendingFailureReason;
+        self.pendingFailureReason = nil;
+        [self reportPlaybackFailure:reason];
+        return;
+    }
+    [self startPictureWatchdog];
+}
+
+- (void)startPictureWatchdog {
+    [self.pictureWatchdogTimer invalidate];
+    self.pictureWatchdogTimer = [NSTimer scheduledTimerWithTimeInterval:kBrowserPictureWatchdogTimeout
+                                                                 target:self
+                                                               selector:@selector(handlePictureWatchdogFired:)
+                                                               userInfo:nil
+                                                                repeats:NO];
+}
+
+- (void)stopPictureWatchdog {
+    [self.pictureWatchdogTimer invalidate];
+    self.pictureWatchdogTimer = nil;
+}
+
+// presentationSize stays zero until the item knows its video dimensions, so
+// it separates "still loading" from "there will never be a picture".
+- (BOOL)hasPicture {
+    AVPlayerItem *item = self.player.currentItem;
+    return item != nil && !CGSizeEqualToSize(item.presentationSize, CGSizeZero);
+}
+
+- (void)handlePictureWatchdogFired:(__unused NSTimer *)timer {
+    self.pictureWatchdogTimer = nil;
+
+    if ([self hasPicture]) {
+        return;
+    }
+
+    AVPlayerItem *item = self.player.currentItem;
+    if (item.status == AVPlayerItemStatusFailed) {
+        [self reportPlaybackFailure:item.error.localizedDescription ?: @"The stream could not be opened."];
+        return;
+    }
+    [self reportPlaybackFailure:@"The stream opened but produced no picture."];
+}
+
+- (void)reportPlaybackFailure:(NSString *)reason {
+    if (self.reportedPlaybackFailure) {
+        return;
+    }
+    if (!self.hasAppeared) {
+        self.pendingFailureReason = reason;
+        return;
+    }
+    self.reportedPlaybackFailure = YES;
+    [self stopPictureWatchdog];
+    [self log:@"reporting playback failure: %@", reason];
+    [self.player pause];
+
+    void (^handler)(NSString *) = self.playbackFailureHandler;
+    [self dismissViewControllerAnimated:YES completion:^{
+        if (handler != nil) {
+            handler(reason);
+        }
+    }];
 }
 
 - (void)viewWillDisappear:(BOOL)animated {
@@ -132,6 +209,8 @@ static NSString *BrowserNativePlayerPressPhaseString(UIPressPhase phase) {
 }
 
 - (void)dealloc {
+    [self.pictureWatchdogTimer invalidate];
+    self.pictureWatchdogTimer = nil;
     @try {
         [self.player.currentItem removeObserver:self forKeyPath:@"status"];
     } @catch (__unused NSException *exception) {}
@@ -191,6 +270,9 @@ static NSString *BrowserNativePlayerPressPhaseString(UIPressPhase phase) {
 - (void)handlePlayerItemFailedToPlayToEndTime:(NSNotification *)notification {
     NSError *error = notification.userInfo[AVPlayerItemFailedToPlayToEndTimeErrorKey];
     [self log:@"failedToPlayToEnd error=%@", error];
+    if (![self hasPicture]) {
+        [self reportPlaybackFailure:error.localizedDescription ?: @"Playback stopped before anything was shown."];
+    }
 }
 
 - (void)handlePlayerItemNewErrorLogEntry:(NSNotification *)notification {
@@ -218,6 +300,7 @@ static NSString *BrowserNativePlayerPressPhaseString(UIPressPhase phase) {
                 break;
             case AVPlayerItemStatusFailed:
                 [self log:@"item status=failed error=%@", self.player.currentItem.error];
+                [self reportPlaybackFailure:self.player.currentItem.error.localizedDescription ?: @"The stream could not be opened."];
                 break;
         }
         return;
@@ -235,6 +318,9 @@ static NSString *BrowserNativePlayerPressPhaseString(UIPressPhase phase) {
                     break;
                 case AVPlayerTimeControlStatusPlaying:
                     status = @"playing";
+                    if ([self hasPicture]) {
+                        [self stopPictureWatchdog];
+                    }
                     break;
             }
             [self log:@"timeControlStatus=%@ reason=%@", status, self.player.reasonForWaitingToPlay ?: @""];

@@ -326,6 +326,14 @@ static UIColor *kTextColor(void) {
         case BrowserTopBarActionMenu:
             [self showAdvancedMenu];
             break;
+        case BrowserTopBarActionBookmarks:
+            [self deactivateTopBarFocusMode];
+            [self.menuCoordinator showBookmarksMenu];
+            break;
+        case BrowserTopBarActionReading:
+            [self deactivateTopBarFocusMode];
+            [self.menuCoordinator showReadingMenu];
+            break;
     }
 }
 
@@ -641,6 +649,10 @@ static UIColor *kTextColor(void) {
 
 - (NSString *)browserCurrentPageTitle {
     return self.webview.title;
+}
+
+- (void)browserSetFullscreenVideoPlaybackEnabled:(BOOL)enabled {
+    [self setBrowserFullscreenVideoPlaybackEnabled:enabled];
 }
 
 #pragma mark - BrowserTabCoordinatorHost

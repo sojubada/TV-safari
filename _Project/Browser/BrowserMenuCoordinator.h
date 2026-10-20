@@ -34,5 +34,7 @@
 - (instancetype)initWithHost:(id<BrowserMenuCoordinatorHost>)host
             preferencesStore:(BrowserPreferencesStore *)preferencesStore;
 - (void)showAdvancedMenu;
+- (void)showBookmarksMenu;
+- (void)showReadingMenu;
 
 @end

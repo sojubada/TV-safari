@@ -16,6 +16,7 @@ NS_ASSUME_NONNULL_BEGIN
 @property (nonatomic, readonly) BOOL browserFullscreenVideoPlaybackEnabled;
 
 - (void)browserPresentViewController:(UIViewController *)viewController;
+- (void)browserSetFullscreenVideoPlaybackEnabled:(BOOL)enabled;
 
 @end
 

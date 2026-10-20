@@ -1224,25 +1224,82 @@ withAnimationCoordinator:(UIFocusAnimationCoordinator *)coordinator {
     }];
 }
 
+- (BrowserAdvancedMenuItem *)increaseFontSizeMenuItem {
+    __weak typeof(self) weakSelf = self;
+    return [self advancedMenuItemWithTitle:@"Increase Font Size"
+                                     style:UIAlertActionStyleDefault
+                                   handler:^{
+        weakSelf.host.browserTextFontSize += 5;
+        [weakSelf.host browserUpdateTextFontSize];
+    }];
+}
+
+- (BrowserAdvancedMenuItem *)decreaseFontSizeMenuItem {
+    __weak typeof(self) weakSelf = self;
+    return [self advancedMenuItemWithTitle:@"Decrease Font Size"
+                                     style:UIAlertActionStyleDefault
+                                   handler:^{
+        weakSelf.host.browserTextFontSize -= 5;
+        [weakSelf.host browserUpdateTextFontSize];
+    }];
+}
+
+- (BrowserAdvancedMenuItem *)resetFontSizeMenuItem {
+    __weak typeof(self) weakSelf = self;
+    return [self advancedMenuItemWithTitle:@"Reset Font Size"
+                                     style:UIAlertActionStyleDefault
+                                   handler:^{
+        weakSelf.host.browserTextFontSize = 100;
+        [weakSelf.host browserUpdateTextFontSize];
+    }];
+}
+
+// The two icons beside the menu open a slice of it. Same items, same titles,
+// reached in one click instead of scrolling the whole list from the sofa.
+- (void)showBookmarksMenu {
+    NSMutableArray<BrowserAdvancedMenuItem *> *items = [NSMutableArray array];
+    BrowserAdvancedMenuItem *toggleFavoriteItem = [self toggleFavoriteMenuItem];
+    if (toggleFavoriteItem != nil) {
+        [items addObject:toggleFavoriteItem];
+    }
+    [items addObjectsFromArray:@[
+        [self favoritesMenuItem],
+        [self historyMenuItem],
+        [self homePageMenuItem],
+        [self setCurrentPageAsHomePageMenuItem],
+    ]];
+
+    BrowserAdvancedMenuViewController *menuViewController =
+        [[BrowserAdvancedMenuViewController alloc] initWithTitle:@"Bookmarks"
+                                                        sections:@[[BrowserAdvancedMenuSection sectionWithTitle:@"Favorites & History"
+                                                                                                          items:items]]
+                                                      footerText:@""];
+    [self.host browserPresentViewController:menuViewController];
+}
+
+- (void)showReadingMenu {
+    BrowserAdvancedMenuViewController *menuViewController =
+        [[BrowserAdvancedMenuViewController alloc] initWithTitle:@"Reading"
+                                                        sections:@[
+            [BrowserAdvancedMenuSection sectionWithTitle:@"Reading" items:@[
+                [self readerModeToggleMenuItem],
+                [self forcedDarkModeToggleMenuItem],
+            ]],
+            [BrowserAdvancedMenuSection sectionWithTitle:@"Text Size" items:@[
+                [self increaseFontSizeMenuItem],
+                [self decreaseFontSizeMenuItem],
+                [self resetFontSizeMenuItem],
+                [self pageScalingMenuItem],
+            ]],
+        ]
+                                                      footerText:@""];
+    [self.host browserPresentViewController:menuViewController];
+}
+
 - (NSArray<BrowserAdvancedMenuSection *> *)advancedMenuSections {
-    BrowserAdvancedMenuItem *increaseFontSizeItem = [self advancedMenuItemWithTitle:@"Increase Font Size"
-                                                                               style:UIAlertActionStyleDefault
-                                                                             handler:^{
-        self.host.browserTextFontSize += 5;
-        [self.host browserUpdateTextFontSize];
-    }];
-    BrowserAdvancedMenuItem *decreaseFontSizeItem = [self advancedMenuItemWithTitle:@"Decrease Font Size"
-                                                                               style:UIAlertActionStyleDefault
-                                                                             handler:^{
-        self.host.browserTextFontSize -= 5;
-        [self.host browserUpdateTextFontSize];
-    }];
-    BrowserAdvancedMenuItem *resetFontSizeItem = [self advancedMenuItemWithTitle:@"Reset Font Size"
-                                                                            style:UIAlertActionStyleDefault
-                                                                          handler:^{
-        self.host.browserTextFontSize = 100;
-        [self.host browserUpdateTextFontSize];
-    }];
+    BrowserAdvancedMenuItem *increaseFontSizeItem = [self increaseFontSizeMenuItem];
+    BrowserAdvancedMenuItem *decreaseFontSizeItem = [self decreaseFontSizeMenuItem];
+    BrowserAdvancedMenuItem *resetFontSizeItem = [self resetFontSizeMenuItem];
     BrowserAdvancedMenuItem *contentBlockerDiagnosticsItem = [self advancedMenuItemWithTitle:@"Content Blocker Diagnostics"
                                                                                        style:UIAlertActionStyleDefault
                                                                                      handler:^{

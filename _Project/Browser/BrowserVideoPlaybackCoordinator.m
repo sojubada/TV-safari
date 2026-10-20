@@ -194,7 +194,32 @@ static BOOL const kBrowserYouTubeNativeExtractionEnabled = NO;
                                                                                                                           title:title
                                                                                                                   requestHeaders:requestHeaders
                                                                                                                          cookies:cookies];
+    __weak typeof(self) weakSelf = self;
+    playerViewController.playbackFailureHandler = ^(NSString *reason) {
+        [weakSelf presentPlaybackFailureAlertWithReason:reason URL:URL];
+    };
     [self.host browserPresentViewController:playerViewController];
+}
+
+- (void)presentPlaybackFailureAlertWithReason:(NSString *)reason URL:(NSURL *)URL {
+    NSString *host = URL.host ?: @"";
+    NSString *message = [NSString stringWithFormat:
+                         @"%@\n\n%@\n\nThe page can usually play it itself. Turning off the external "
+                         @"player makes clicking a video play it in the page instead.",
+                         reason ?: @"Playback failed.", host];
+    UIAlertController *alertController = [UIAlertController alertControllerWithTitle:@"Could Not Play This Video"
+                                                                             message:message
+                                                                      preferredStyle:UIAlertControllerStyleAlert];
+    __weak typeof(self) weakSelf = self;
+    [alertController addAction:[UIAlertAction actionWithTitle:@"Use In-Page Playback"
+                                                        style:UIAlertActionStyleDefault
+                                                      handler:^(__unused UIAlertAction *action) {
+        [weakSelf.host browserSetFullscreenVideoPlaybackEnabled:NO];
+    }]];
+    [alertController addAction:[UIAlertAction actionWithTitle:@"Keep External Player"
+                                                        style:UIAlertActionStyleCancel
+                                                      handler:nil]];
+    [self.host browserPresentViewController:alertController];
 }
 
 - (NSDictionary<NSString *, NSString *> *)browserHeadersForYouTubePlaybackURL:(NSURL *)playbackURL
