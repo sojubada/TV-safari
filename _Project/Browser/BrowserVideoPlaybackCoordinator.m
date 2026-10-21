@@ -3,16 +3,13 @@
 #import "BrowserDOMInteractionService.h"
 #import "BrowserNativeVideoPlayerViewController.h"
 #import "BrowserWebView.h"
-#import "BrowserYouTubeExtractor.h"
 
 static NSString * const kUserAgentDefaultsKey = @"UserAgent";
-static BOOL const kBrowserYouTubeNativeExtractionEnabled = NO;
 
 @interface BrowserVideoPlaybackCoordinator ()
 
 @property (nonatomic, weak) id<BrowserVideoPlaybackCoordinatorHost> host;
 @property (nonatomic) BrowserDOMInteractionService *domInteractionService;
-@property (nonatomic) BrowserYouTubeExtractor *youTubeExtractor;
 
 @end
 
@@ -32,13 +29,6 @@ static BOOL const kBrowserYouTubeNativeExtractionEnabled = NO;
     return self;
 }
 
-- (BrowserYouTubeExtractor *)youTubeExtractor {
-    if (_youTubeExtractor == nil) {
-        _youTubeExtractor = [BrowserYouTubeExtractor new];
-    }
-    return _youTubeExtractor;
-}
-
 - (void)playVideoUnderCursorIfAvailable {
     if (![self isFullscreenVideoPlaybackEnabled]) {
         return;
@@ -54,11 +44,6 @@ static BOOL const kBrowserYouTubeNativeExtractionEnabled = NO;
     CGPoint point = self.host.browserDOMCursorPoint;
     NSDictionary *videoInfo = [self.domInteractionService videoInfoAtDOMPoint:point
                                                                        webView:self.host.browserWebView];
-    if (kBrowserYouTubeNativeExtractionEnabled && [[self youTubeExtractor] canExtractFromPageURL:pageURL]) {
-        [self playYouTubeVideoAtPageURL:pageURL fallbackVideoInfo:videoInfo];
-        return;
-    }
-
     NSString *videoURLString = [self nativePlayableURLStringFromVideoInfo:videoInfo];
     if (![self isNativePlayableVideoURLString:videoURLString] &&
         [self.domInteractionService isVideoActivationTargetAtDOMPoint:point webView:self.host.browserWebView]) {

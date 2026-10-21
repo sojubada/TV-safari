@@ -32,7 +32,6 @@
 		A1B49A662D6A7500001D58A1 /* AVPlayerViewController+BrowserFullscreenBlock.m in Sources */ = {isa = PBXBuildFile; fileRef = A1B49A652D6A7500001D58A1 /* AVPlayerViewController+BrowserFullscreenBlock.m */; };
 		A1B49A682D6AD500001D58A1 /* UIApplication+BrowserSelectPressForwarding.m in Sources */ = {isa = PBXBuildFile; fileRef = A1B49A672D6AD500001D58A1 /* UIApplication+BrowserSelectPressForwarding.m */; };
 		A1B49A6C2D6B1000001D58A1 /* BrowserNativeVideoPlayerViewController.m in Sources */ = {isa = PBXBuildFile; fileRef = A1B49A6B2D6B1000001D58A1 /* BrowserNativeVideoPlayerViewController.m */; };
-		A1B49A722D6B7000001D58A1 /* BrowserYouTubeExtractor.m in Sources */ = {isa = PBXBuildFile; fileRef = A1B49A712D6B7000001D58A1 /* BrowserYouTubeExtractor.m */; };
 		A1B49A742D6C1000001D58A1 /* BrowserNativeVideoAssetLoader.m in Sources */ = {isa = PBXBuildFile; fileRef = A1B49A732D6C1000001D58A1 /* BrowserNativeVideoAssetLoader.m */; };
 		A1B49A842D6D2000001D58A1 /* BrowserDOMInteractionService.m in Sources */ = {isa = PBXBuildFile; fileRef = A1B49A832D6D2000001D58A1 /* BrowserDOMInteractionService.m */; };
 		A1B49A872D6D2000001D58A1 /* BrowserVideoPlaybackCoordinator.m in Sources */ = {isa = PBXBuildFile; fileRef = A1B49A862D6D2000001D58A1 /* BrowserVideoPlaybackCoordinator.m */; };
@@ -88,8 +87,6 @@
 		A1B49A672D6AD500001D58A1 /* UIApplication+BrowserSelectPressForwarding.m */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.objc; path = "UIApplication+BrowserSelectPressForwarding.m"; sourceTree = "<group>"; };
 		A1B49A692D6B1000001D58A1 /* BrowserNativeVideoPlayerViewController.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = BrowserNativeVideoPlayerViewController.h; sourceTree = "<group>"; };
 		A1B49A6B2D6B1000001D58A1 /* BrowserNativeVideoPlayerViewController.m */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.objc; path = BrowserNativeVideoPlayerViewController.m; sourceTree = "<group>"; };
-		A1B49A702D6B7000001D58A1 /* BrowserYouTubeExtractor.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = BrowserYouTubeExtractor.h; sourceTree = "<group>"; };
-		A1B49A712D6B7000001D58A1 /* BrowserYouTubeExtractor.m */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.objc; path = BrowserYouTubeExtractor.m; sourceTree = "<group>"; };
 		A1B49A732D6C1000001D58A1 /* BrowserNativeVideoAssetLoader.m */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.objc; path = BrowserNativeVideoAssetLoader.m; sourceTree = "<group>"; };
 		A1B49A752D6C1000001D58A1 /* BrowserNativeVideoAssetLoader.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = BrowserNativeVideoAssetLoader.h; sourceTree = "<group>"; };
 		A1B49A822D6D2000001D58A1 /* BrowserDOMInteractionService.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = BrowserDOMInteractionService.h; sourceTree = "<group>"; };
@@ -280,8 +277,6 @@
 			children = (
 				A1B49A752D6C1000001D58A1 /* BrowserNativeVideoAssetLoader.h */,
 				A1B49A732D6C1000001D58A1 /* BrowserNativeVideoAssetLoader.m */,
-				A1B49A702D6B7000001D58A1 /* BrowserYouTubeExtractor.h */,
-				A1B49A712D6B7000001D58A1 /* BrowserYouTubeExtractor.m */,
 			);
 			name = Video;
 			sourceTree = "<group>";
@@ -459,7 +454,6 @@
 				A1B49A582D6828D4001D58A1 /* BrowserSessionStore.m in Sources */,
 				A1B49A5B2D684000001D58A1 /* BrowserTopBarView.m in Sources */,
 				A1B49A6C2D6B1000001D58A1 /* BrowserNativeVideoPlayerViewController.m in Sources */,
-				A1B49A722D6B7000001D58A1 /* BrowserYouTubeExtractor.m in Sources */,
 				A1B49A742D6C1000001D58A1 /* BrowserNativeVideoAssetLoader.m in Sources */,
 				A1B49A662D6A7500001D58A1 /* AVPlayerViewController+BrowserFullscreenBlock.m in Sources */,
 				A1B49A682D6AD500001D58A1 /* UIApplication+BrowserSelectPressForwarding.m in Sources */,
@@ -605,7 +599,7 @@
 				ASSETCATALOG_COMPILER_APPICON_NAME = "App Icon & Top Shelf Image";
 				ASSETCATALOG_COMPILER_LAUNCHIMAGE_NAME = LaunchImage;
 				CODE_SIGN_IDENTITY = "iPhone Developer";
-				CURRENT_PROJECT_VERSION = 4300;
+				CURRENT_PROJECT_VERSION = 4400;
 				DEVELOPMENT_TEAM = PMC4RZG4LF;
 				EMBED_ASSET_PACKS_IN_PRODUCT_BUNDLE = YES;
 				ENABLE_ON_DEMAND_RESOURCES = NO;
@@ -615,7 +609,7 @@
 					"$(inherited)",
 					"@executable_path/Frameworks",
 				);
-				MARKETING_VERSION = 3.3.0;
+				MARKETING_VERSION = 3.4.0;
 				PRODUCT_BUNDLE_IDENTIFIER = com.jva.tvbrowser;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				SCAN_ALL_SOURCE_FILES_FOR_INCLUDES = NO;
@@ -630,7 +624,7 @@
 				ASSETCATALOG_COMPILER_APPICON_NAME = "App Icon & Top Shelf Image";
 				ASSETCATALOG_COMPILER_LAUNCHIMAGE_NAME = LaunchImage;
 				CODE_SIGN_IDENTITY = "iPhone Developer";
-				CURRENT_PROJECT_VERSION = 4300;
+				CURRENT_PROJECT_VERSION = 4400;
 				DEVELOPMENT_TEAM = PMC4RZG4LF;
 				EMBED_ASSET_PACKS_IN_PRODUCT_BUNDLE = YES;
 				ENABLE_ON_DEMAND_RESOURCES = NO;
@@ -640,7 +634,7 @@
 					"$(inherited)",
 					"@executable_path/Frameworks",
 				);
-				MARKETING_VERSION = 3.3.0;
+				MARKETING_VERSION = 3.4.0;
 				PRODUCT_BUNDLE_IDENTIFIER = com.jva.tvbrowser;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				SCAN_ALL_SOURCE_FILES_FOR_INCLUDES = NO;

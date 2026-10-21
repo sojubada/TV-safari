@@ -9,14 +9,7 @@
 static NSString * const kBrowserWebViewClassName = @"WKWebView";
 static NSString * const kBrowserWebViewConfigurationClassName = @"WKWebViewConfiguration";
 static NSString * const kBrowserWebsiteDataStoreClassName = @"WKWebsiteDataStore";
-static NSString * const kBrowserUserContentControllerClassName = @"WKUserContentController";
-static NSString * const kBrowserUserScriptClassName = @"WKUserScript";
 
-static BOOL gBrowserYouTubeCaptureHookEnabled;
-static BOOL gBrowserExperimentalMediaSourceEnabled;
-static BOOL gBrowserInlineMediaPlaybackEnabled;
-static BOOL gBrowserWebKitFullScreenEnabled;
-static BOOL gBrowserSiteSpecificQuirksEnabled;
 
 static void BrowserEnsureWebKitRuntimeLoaded(void) {
     static dispatch_once_t onceToken;
@@ -308,249 +301,18 @@ static void BrowserConfigurePrivateMediaPreferences(id configuration) {
         return;
     }
 
-    // Apple leaves MediaSource off on this platform and routes media through
-    // AVPlayer instead. Turning it on asks the content process to run a path
-    // that is not provisioned here, and the process dies the moment a video
-    // starts, which is what playback on the mobile site does. Off unless
-    // asked for.
-    BOOL mediaSource = gBrowserExperimentalMediaSourceEnabled;
-    BrowserSetBooleanSelectorIfAvailable(preferences, @"_setMediaSourceEnabled:", mediaSource);
-    BrowserSetBooleanSelectorIfAvailable(preferences, @"_setManagedMediaSourceEnabled:", mediaSource);
-    BrowserSetBooleanSelectorIfAvailable(preferences, @"_setMediaCapabilityGrantsEnabled:", mediaSource);
-    BrowserSetBooleanSelectorIfAvailable(preferences, @"_setVideoQualityIncludesDisplayCompositingEnabled:", mediaSource);
-
-    BrowserSetBooleanSelectorIfAvailable(preferences, @"_setFullScreenEnabled:", gBrowserWebKitFullScreenEnabled);
-    BrowserSetBooleanSelectorIfAvailable(preferences, @"_setNeedsSiteSpecificQuirks:", gBrowserSiteSpecificQuirksEnabled);
+    // Measured on tvOS 16.6: the engine exposes no MediaSource object at all,
+    // so these switches changed nothing a page could observe. WebKit full
+    // screen and site-specific quirks only broke page scripts. All off, and
+    // no longer configurable, so the browser cannot be put into a bad state.
+    BrowserSetBooleanSelectorIfAvailable(preferences, @"_setMediaSourceEnabled:", NO);
+    BrowserSetBooleanSelectorIfAvailable(preferences, @"_setManagedMediaSourceEnabled:", NO);
+    BrowserSetBooleanSelectorIfAvailable(preferences, @"_setMediaCapabilityGrantsEnabled:", NO);
+    BrowserSetBooleanSelectorIfAvailable(preferences, @"_setVideoQualityIncludesDisplayCompositingEnabled:", NO);
+    BrowserSetBooleanSelectorIfAvailable(preferences, @"_setFullScreenEnabled:", NO);
+    BrowserSetBooleanSelectorIfAvailable(preferences, @"_setNeedsSiteSpecificQuirks:", NO);
 }
 
-static NSString *BrowserYouTubeRequestCaptureScript(void) {
-    return
-    @"(function(){"
-        "if (window.__browserYouTubeHookInstalled) { return; }"
-        "window.__browserYouTubeHookInstalled = true;"
-        "window.__browserYouTubeIntegrity = window.__browserYouTubeIntegrity || {};"
-        "function assignIfPresent(key, value) {"
-            "if (value === undefined || value === null) { return; }"
-            "var stringValue = String(value || '');"
-            "if (!stringValue) { return; }"
-            "window.__browserYouTubeIntegrity[key] = stringValue;"
-        "}"
-        "function capturePayload(payload) {"
-            "try {"
-                "if (!payload || typeof payload !== 'object') { return; }"
-                "if (payload.serviceIntegrityDimensions) {"
-                    "assignIfPresent('poToken', payload.serviceIntegrityDimensions.poToken || payload.serviceIntegrityDimensions.po_token);"
-                "}"
-                "if (payload.context && payload.context.serviceIntegrityDimensions) {"
-                    "assignIfPresent('poToken', payload.context.serviceIntegrityDimensions.poToken || payload.context.serviceIntegrityDimensions.po_token);"
-                "}"
-                "if (payload.context && payload.context.client) {"
-                    "assignIfPresent('requestClientName', payload.context.client.clientName);"
-                    "assignIfPresent('requestClientVersion', payload.context.client.clientVersion);"
-                "}"
-            "} catch (error) {}"
-        "}"
-        "function toHeaderObject(headers) {"
-            "var result = {};"
-            "try {"
-                "if (!headers) { return result; }"
-                "if (typeof Headers !== 'undefined' && headers instanceof Headers) {"
-                    "headers.forEach(function(value, key) { result[String(key)] = String(value); });"
-                    "return result;"
-                "}"
-                "if (Array.isArray(headers)) {"
-                    "headers.forEach(function(entry) {"
-                        "if (Array.isArray(entry) && entry.length >= 2) { result[String(entry[0])] = String(entry[1]); }"
-                    "});"
-                    "return result;"
-                "}"
-                "if (typeof headers === 'object') {"
-                    "Object.keys(headers).forEach(function(key) { result[String(key)] = String(headers[key]); });"
-                "}"
-            "} catch (error) {}"
-            "return result;"
-        "}"
-        "function rememberRequest(url, body, headers, transport) {"
-            "try {"
-                "var integrity = window.__browserYouTubeIntegrity;"
-                "integrity.lastPlayerRequestURL = String(url || '');"
-                "integrity.lastPlayerRequestBody = String(body || '');"
-                "integrity.lastPlayerRequestHeaders = JSON.stringify(headers || {});"
-                "integrity.lastPlayerRequestTransport = String(transport || '');"
-                "if (!integrity.firstPlayerRequestURL) {"
-                    "integrity.firstPlayerRequestURL = integrity.lastPlayerRequestURL;"
-                    "integrity.firstPlayerRequestBody = integrity.lastPlayerRequestBody;"
-                    "integrity.firstPlayerRequestHeaders = integrity.lastPlayerRequestHeaders;"
-                    "integrity.firstPlayerRequestTransport = integrity.lastPlayerRequestTransport;"
-                "}"
-            "} catch (error) {}"
-        "}"
-        "function captureBodyStringAsync(source, bodyString, headers, transport) {"
-            "try {"
-                "if (bodyString && bodyString !== '[object ReadableStream]') {"
-                    "rememberRequest(source.url || '', bodyString, headers || {}, transport || '');"
-                    "try { capturePayload(JSON.parse(bodyString)); } catch (error) {}"
-                    "return;"
-                "}"
-                "if (source && typeof source.clone === 'function' && typeof source.text === 'function') {"
-                    "source.clone().text().then(function(text) {"
-                        "rememberRequest(source.url || '', text || '', headers || {}, transport || '');"
-                        "try { capturePayload(JSON.parse(text || '')); } catch (error) {}"
-                    "}).catch(function(){});"
-                "}"
-            "} catch (error) {}"
-        "}"
-        "function captureRequest(input, init) {"
-            "try {"
-                "var url = '';"
-                "if (typeof input === 'string') { url = input; }"
-                "else if (input && typeof input.url === 'string') { url = input.url; }"
-                "if (url.indexOf('/youtubei/v1/player') === -1) { return; }"
-                "var body = (init && init.body) || (input && input.body) || null;"
-                "var bodyString = '';"
-                "if (typeof body === 'string') { bodyString = body; }"
-                "else if (body && typeof body === 'object' && typeof body.toString === 'function') { bodyString = String(body); }"
-                "var headers = toHeaderObject((init && init.headers) || (input && input.headers) || null);"
-                "rememberRequest(url, bodyString, headers, 'fetch');"
-                "captureBodyStringAsync((input && typeof input.clone === 'function') ? input : null, bodyString, headers, 'fetch');"
-                "if (typeof bodyString !== 'string' || !bodyString || bodyString === '[object ReadableStream]') { return; }"
-                "try { capturePayload(JSON.parse(bodyString)); } catch (error) {}"
-            "} catch (error) {}"
-        "}"
-        "function captureXHRRequest(xhr, body) {"
-            "try {"
-                "var url = String((xhr && xhr.__browserYouTubeURL) || '');"
-                "if (url.indexOf('/youtubei/v1/player') === -1) { return; }"
-                "var bodyString = '';"
-                "if (typeof body === 'string') { bodyString = body; }"
-                "else if (body && typeof body === 'object' && typeof body.toString === 'function') { bodyString = String(body); }"
-                "var headers = xhr && xhr.__browserYouTubeHeaders ? xhr.__browserYouTubeHeaders : {};"
-                "rememberRequest(url, bodyString, headers, 'xhr');"
-                "if (typeof bodyString !== 'string' || !bodyString) { return; }"
-                "try { capturePayload(JSON.parse(bodyString)); } catch (error) {}"
-            "try { capturePayload(JSON.parse(body)); } catch (error) {}"
-            "} catch (error) {}"
-        "}"
-        "var cfg = (window.ytcfg && window.ytcfg.data_) || {};"
-        "assignIfPresent('poToken', cfg.PO_TOKEN || cfg.po_token || cfg.POTOKEN);"
-        "if (cfg.SERVICE_INTEGRITY_DIMENSIONS) {"
-            "assignIfPresent('poToken', cfg.SERVICE_INTEGRITY_DIMENSIONS.poToken || cfg.SERVICE_INTEGRITY_DIMENSIONS.po_token);"
-        "}"
-        "if (cfg.WEB_PLAYER_CONTEXT_CONFIGS) {"
-            "var watchConfig = cfg.WEB_PLAYER_CONTEXT_CONFIGS.WEB_PLAYER_CONTEXT_CONFIG_ID_KEVLAR_WATCH || {};"
-            "if (watchConfig.serviceIntegrityDimensions) {"
-                "assignIfPresent('poToken', watchConfig.serviceIntegrityDimensions.poToken || watchConfig.serviceIntegrityDimensions.po_token);"
-            "}"
-        "}"
-        "if (window.fetch) {"
-            "var originalFetch = window.fetch;"
-            "window.fetch = function(input, init) {"
-                "captureRequest(input, init);"
-                "return originalFetch.apply(this, arguments);"
-            "};"
-        "}"
-        "if (window.XMLHttpRequest && window.XMLHttpRequest.prototype) {"
-            "var originalOpen = window.XMLHttpRequest.prototype.open;"
-            "var originalSend = window.XMLHttpRequest.prototype.send;"
-            "var originalSetRequestHeader = window.XMLHttpRequest.prototype.setRequestHeader;"
-            "window.XMLHttpRequest.prototype.open = function(method, url) {"
-                "this.__browserYouTubeURL = String(url || '');"
-                "this.__browserYouTubeHeaders = {};"
-                "return originalOpen.apply(this, arguments);"
-            "};"
-            "window.XMLHttpRequest.prototype.setRequestHeader = function(key, value) {"
-                "try {"
-                    "if (!this.__browserYouTubeHeaders) { this.__browserYouTubeHeaders = {}; }"
-                    "this.__browserYouTubeHeaders[String(key)] = String(value);"
-                "} catch (error) {}"
-                "return originalSetRequestHeader.apply(this, arguments);"
-            "};"
-            "window.XMLHttpRequest.prototype.send = function(body) {"
-                "captureXHRRequest(this, body);"
-                "return originalSend.apply(this, arguments);"
-            "};"
-        "}"
-    "})();";
-}
-
-static void BrowserAddUserScript(id configuration, NSString *source) {
-    if (configuration == nil || source.length == 0) {
-        return;
-    }
-
-    Class userContentControllerClass = NSClassFromString(kBrowserUserContentControllerClassName);
-    Class userScriptClass = NSClassFromString(kBrowserUserScriptClassName);
-    if (userContentControllerClass == Nil || userScriptClass == Nil) {
-        return;
-    }
-
-    SEL userContentControllerGetter = NSSelectorFromString(@"userContentController");
-    SEL setUserContentControllerSelector = NSSelectorFromString(@"setUserContentController:");
-    id userContentController = nil;
-    if ([configuration respondsToSelector:userContentControllerGetter]) {
-        userContentController = ((id (*)(id, SEL))objc_msgSend)(configuration, userContentControllerGetter);
-    }
-    if (userContentController == nil && [configuration respondsToSelector:setUserContentControllerSelector]) {
-        userContentController = ((id (*)(id, SEL))objc_msgSend)((id)userContentControllerClass, @selector(new));
-        ((void (*)(id, SEL, id))objc_msgSend)(configuration, setUserContentControllerSelector, userContentController);
-    }
-
-    SEL addUserScriptSelector = NSSelectorFromString(@"addUserScript:");
-    SEL userScriptInitializer = NSSelectorFromString(@"initWithSource:injectionTime:forMainFrameOnly:");
-    if (userContentController == nil ||
-        ![userContentController respondsToSelector:addUserScriptSelector] ||
-        ![userScriptClass instancesRespondToSelector:userScriptInitializer]) {
-        return;
-    }
-
-    id userScript = ((id (*)(id, SEL))objc_msgSend)((id)userScriptClass, @selector(alloc));
-    userScript = ((id (*)(id, SEL, id, NSInteger, BOOL))objc_msgSend)(userScript, userScriptInitializer, source, 0, NO);
-    if (userScript != nil) {
-        ((void (*)(id, SEL, id))objc_msgSend)(userContentController, addUserScriptSelector, userScript);
-    }
-}
-
-static void BrowserInstallErrorCaptureUserScript(id configuration) {
-    BrowserAddUserScript(configuration, [BrowserWebPlatformProbe errorCaptureScript]);
-}
-
-static void BrowserInstallYouTubeCaptureUserScript(id configuration) {
-    if (configuration == nil || !gBrowserYouTubeCaptureHookEnabled) {
-        return;
-    }
-
-    Class userContentControllerClass = NSClassFromString(kBrowserUserContentControllerClassName);
-    Class userScriptClass = NSClassFromString(kBrowserUserScriptClassName);
-    if (userContentControllerClass == Nil || userScriptClass == Nil) {
-        return;
-    }
-
-    SEL userContentControllerGetter = NSSelectorFromString(@"userContentController");
-    SEL setUserContentControllerSelector = NSSelectorFromString(@"setUserContentController:");
-    id userContentController = nil;
-    if ([configuration respondsToSelector:userContentControllerGetter]) {
-        userContentController = ((id (*)(id, SEL))objc_msgSend)(configuration, userContentControllerGetter);
-    }
-
-    if (userContentController == nil && [configuration respondsToSelector:setUserContentControllerSelector]) {
-        userContentController = ((id (*)(id, SEL))objc_msgSend)((id)userContentControllerClass, @selector(new));
-        ((void (*)(id, SEL, id))objc_msgSend)(configuration, setUserContentControllerSelector, userContentController);
-    }
-
-    SEL addUserScriptSelector = NSSelectorFromString(@"addUserScript:");
-    SEL userScriptInitializer = NSSelectorFromString(@"initWithSource:injectionTime:forMainFrameOnly:");
-    if (userContentController == nil ||
-        ![userContentController respondsToSelector:addUserScriptSelector] ||
-        ![userScriptClass instancesRespondToSelector:userScriptInitializer]) {
-        return;
-    }
-
-    id userScript = ((id (*)(id, SEL))objc_msgSend)((id)userScriptClass, @selector(alloc));
-    userScript = ((id (*)(id, SEL, id, NSInteger, BOOL))objc_msgSend)(userScript, userScriptInitializer, BrowserYouTubeRequestCaptureScript(), 0, NO);
-    if (userScript != nil) {
-        ((void (*)(id, SEL, id))objc_msgSend)(userContentController, addUserScriptSelector, userScript);
-    }
-}
 
 @interface BrowserWebView ()
 
@@ -566,26 +328,6 @@ static void BrowserInstallYouTubeCaptureUserScript(id configuration) {
 @end
 
 @implementation BrowserWebView
-
-+ (void)setYouTubeCaptureHookEnabled:(BOOL)enabled {
-    gBrowserYouTubeCaptureHookEnabled = enabled;
-}
-
-+ (void)setExperimentalMediaSourceEnabled:(BOOL)enabled {
-    gBrowserExperimentalMediaSourceEnabled = enabled;
-}
-
-+ (void)setInlineMediaPlaybackEnabled:(BOOL)enabled {
-    gBrowserInlineMediaPlaybackEnabled = enabled;
-}
-
-+ (void)setWebKitFullScreenEnabled:(BOOL)enabled {
-    gBrowserWebKitFullScreenEnabled = enabled;
-}
-
-+ (void)setSiteSpecificQuirksEnabled:(BOOL)enabled {
-    gBrowserSiteSpecificQuirksEnabled = enabled;
-}
 
 + (void)installRuleListToConfiguration:(id)configuration {
     if (configuration == nil) {
@@ -643,19 +385,15 @@ static void BrowserInstallYouTubeCaptureUserScript(id configuration) {
     }
 
     id configuration = ((id (*)(id, SEL))objc_msgSend)((id)configurationClass, @selector(new));
-    // Every caller passed YES, which forced inline playback on a platform
-    // whose own default is off and which expects the system player. The
-    // setting decides now.
+    // Forcing inline playback was the cause of the repeated web content
+    // process crashes. tvOS expects media to go to the system player, so the
+    // platform default stands and the caller's argument is ignored.
     (void)allowsInlineMediaPlayback;
     SEL allowsInlineMediaPlaybackSelector = NSSelectorFromString(@"setAllowsInlineMediaPlayback:");
     if (configuration != nil && [configuration respondsToSelector:allowsInlineMediaPlaybackSelector]) {
-        ((void (*)(id, SEL, BOOL))objc_msgSend)(configuration,
-                                                allowsInlineMediaPlaybackSelector,
-                                                gBrowserInlineMediaPlaybackEnabled);
+        ((void (*)(id, SEL, BOOL))objc_msgSend)(configuration, allowsInlineMediaPlaybackSelector, NO);
     }
     BrowserConfigurePrivateMediaPreferences(configuration);
-    BrowserInstallErrorCaptureUserScript(configuration);
-    BrowserInstallYouTubeCaptureUserScript(configuration);
     [BrowserWebView installRuleListToConfiguration:configuration];
 
     id webViewObject = ((id (*)(id, SEL))objc_msgSend)((id)webViewClass, @selector(alloc));
@@ -1034,13 +772,6 @@ static void BrowserInstallYouTubeCaptureUserScript(id configuration) {
     return BrowserPreviewString(report, 24000);
 }
 
-- (void)installYouTubeRequestCaptureHook {
-    if (!gBrowserYouTubeCaptureHookEnabled) {
-        return;
-    }
-    [self stringByEvaluatingJavaScriptFromString:BrowserYouTubeRequestCaptureScript()];
-}
-
 - (void)setUserAgent:(NSString *)userAgent {
     _userAgent = [userAgent copy];
     SEL selector = NSSelectorFromString(@"setCustomUserAgent:");
@@ -1079,14 +810,15 @@ static void BrowserInstallYouTubeCaptureUserScript(id configuration) {
         return;
     }
 
-    CGFloat zoomValue = 1.0;
+    CGFloat zoomValue = self.userPageZoom > 0.0 ? self.userPageZoom : 1.0;
     if (self.scalesPageToFit) {
         CGFloat contentWidth = scrollView.contentSize.width;
         CGFloat boundsWidth = CGRectGetWidth(scrollView.bounds);
         if (contentWidth > 1.0 && boundsWidth > 1.0) {
-            zoomValue = MIN(1.0, MAX(0.25, boundsWidth / contentWidth));
+            zoomValue *= MIN(1.0, MAX(0.25, boundsWidth / contentWidth));
         }
     }
+    zoomValue = MIN(3.0, MAX(0.25, zoomValue));
 
     SEL pageZoomSelector = NSSelectorFromString(@"setPageZoom:");
     if ([self.runtimeWebView respondsToSelector:pageZoomSelector]) {
@@ -1111,7 +843,6 @@ static void BrowserInstallYouTubeCaptureUserScript(id configuration) {
     self.loading = NO;
     self.lastTitle = [self title];
     self.lastRequest = [self request];
-    [self installYouTubeRequestCaptureHook];
     [self applyPageScalingIfNeeded];
     if ([self.delegate respondsToSelector:@selector(webViewDidFinishLoad:)]) {
         [self.delegate webViewDidFinishLoad:self];

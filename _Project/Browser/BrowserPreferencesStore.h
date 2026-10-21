@@ -23,12 +23,10 @@ NS_ASSUME_NONNULL_BEGIN
 @property (nonatomic) BOOL forcedDarkModeEnabled;
 @property (nonatomic) BOOL contentBlockingEnabled;
 @property (nonatomic) NSUInteger readerFontSize;
-@property (nonatomic) BOOL youTubeCaptureHookEnabled;
+
+/// Whole-page reading zoom in percent. 100 == no zoom. Clamped 50...250.
+@property (nonatomic) NSUInteger pageZoomPercent;
 @property (nonatomic) BOOL lightenHeavySitesEnabled;
-@property (nonatomic) BOOL experimentalMediaSourceEnabled;
-@property (nonatomic) BOOL inlineMediaPlaybackEnabled;
-@property (nonatomic) BOOL webKitFullScreenEnabled;
-@property (nonatomic) BOOL siteSpecificQuirksEnabled;
 
 - (void)ensureUserAgentConsistency;
 

@@ -17,10 +17,8 @@ NS_ASSUME_NONNULL_BEGIN
 + (NSString *)engineReportForWebView:(nullable BrowserWebView *)webView;
 
 // Script errors the page has reported since it loaded.
-+ (NSString *)pageErrorReportForWebView:(nullable BrowserWebView *)webView;
 
 // Installed at document start so errors are caught from the first line.
-+ (NSString *)errorCaptureScript;
 
 @end
 

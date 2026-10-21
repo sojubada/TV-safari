@@ -1134,12 +1134,6 @@ withAnimationCoordinator:(UIFocusAnimationCoordinator *)coordinator {
         [[BrowserReportViewController alloc] initWithTitle:@"Engine Capabilities" reportText:report]];
 }
 
-- (void)presentPageErrorReport {
-    NSString *report = [BrowserWebPlatformProbe pageErrorReportForWebView:[self.host browserWebView]];
-    [self.host browserPresentViewController:
-        [[BrowserReportViewController alloc] initWithTitle:@"Page Script Errors" reportText:report]];
-}
-
 - (void)presentContentBlockerDiagnostics {
     NSString *report = [[BrowserContentBlockerController sharedController] diagnosticsReport];
     [self.host browserPresentViewController:
@@ -1457,12 +1451,44 @@ withAnimationCoordinator:(UIFocusAnimationCoordinator *)coordinator {
             [self decreaseReaderFontSizeMenuItem],
         ]],
         [BrowserAdvancedMenuSection sectionWithTitle:@"Page Text Size" items:@[
+            [self increasePageZoomMenuItem],
+            [self decreasePageZoomMenuItem],
+            [self resetPageZoomMenuItem],
             [self increaseFontSizeMenuItem],
             [self decreaseFontSizeMenuItem],
             [self resetFontSizeMenuItem],
             [self pageScalingMenuItem],
         ]],
     ];
+}
+
+- (BrowserAdvancedMenuItem *)increasePageZoomMenuItem {
+    NSString *title = [NSString stringWithFormat:@"Zoom In  (%lu%%)",
+                       (unsigned long)self.preferencesStore.pageZoomPercent];
+    __weak typeof(self) weakSelf = self;
+    return [self settingMenuItemWithTitle:title handler:^{
+        weakSelf.preferencesStore.pageZoomPercent = weakSelf.preferencesStore.pageZoomPercent + 10;
+        [weakSelf.host browserApplyReadingZoom];
+    }];
+}
+
+- (BrowserAdvancedMenuItem *)decreasePageZoomMenuItem {
+    NSString *title = [NSString stringWithFormat:@"Zoom Out  (%lu%%)",
+                       (unsigned long)self.preferencesStore.pageZoomPercent];
+    __weak typeof(self) weakSelf = self;
+    return [self settingMenuItemWithTitle:title handler:^{
+        NSUInteger current = weakSelf.preferencesStore.pageZoomPercent;
+        weakSelf.preferencesStore.pageZoomPercent = current > 10 ? current - 10 : current;
+        [weakSelf.host browserApplyReadingZoom];
+    }];
+}
+
+- (BrowserAdvancedMenuItem *)resetPageZoomMenuItem {
+    __weak typeof(self) weakSelf = self;
+    return [self settingMenuItemWithTitle:@"Reset Zoom to 100%" handler:^{
+        weakSelf.preferencesStore.pageZoomPercent = 100;
+        [weakSelf.host browserApplyReadingZoom];
+    }];
 }
 
 - (BrowserAdvancedMenuItem *)increaseReaderFontSizeMenuItem {
@@ -1527,17 +1553,15 @@ withAnimationCoordinator:(UIFocusAnimationCoordinator *)coordinator {
             [self edgeAutoScrollToggleMenuItem],
             [self jsScrollFallbackToggleMenuItem],
         ]],
-        [BrowserAdvancedMenuSection sectionWithTitle:@"Media Experiments" items:@[
-            [self inlineMediaPlaybackToggleMenuItem],
-            [self webKitFullScreenToggleMenuItem],
-            [self siteSpecificQuirksToggleMenuItem],
-            [self experimentalMediaSourceToggleMenuItem],
+        [BrowserAdvancedMenuSection sectionWithTitle:@"Reading" items:@[
+            [self increasePageZoomMenuItem],
+            [self decreasePageZoomMenuItem],
+            [self resetPageZoomMenuItem],
         ]],
         [BrowserAdvancedMenuSection sectionWithTitle:@"Page" items:@[
             [self lightenHeavySitesToggleMenuItem],
             [self userAgentModeMenuItem],
             [self fullscreenVideoPlaybackToggleMenuItem],
-            [self youTubeCaptureHookToggleMenuItem],
             [self topNavigationVisibilityMenuItem],
         ]],
         [BrowserAdvancedMenuSection sectionWithTitle:@"Help" items:@[
@@ -1582,57 +1606,6 @@ withAnimationCoordinator:(UIFocusAnimationCoordinator *)coordinator {
                               anchorAt:anchorCenterX];
 }
 
-- (BrowserAdvancedMenuItem *)youTubeCaptureHookToggleMenuItem {
-    BOOL enabled = self.preferencesStore.youTubeCaptureHookEnabled;
-    NSString *title = enabled ? @"YouTube Capture Hook: On" : @"YouTube Capture Hook: Off";
-    __weak typeof(self) weakSelf = self;
-    return [self settingMenuItemWithTitle:title
-                                 handler:^{
-        weakSelf.preferencesStore.youTubeCaptureHookEnabled = !enabled;
-        [weakSelf.host browserRecreateActiveWebViewPreservingCurrentURL];
-    }];
-}
-
-- (BrowserAdvancedMenuItem *)inlineMediaPlaybackToggleMenuItem {
-    BOOL enabled = self.preferencesStore.inlineMediaPlaybackEnabled;
-    NSString *title = enabled ? @"1. Inline Video: On" : @"1. Inline Video: Off";
-    __weak typeof(self) weakSelf = self;
-    return [self settingMenuItemWithTitle:title handler:^{
-        weakSelf.preferencesStore.inlineMediaPlaybackEnabled = !enabled;
-        [weakSelf.host browserRecreateActiveWebViewPreservingCurrentURL];
-    }];
-}
-
-- (BrowserAdvancedMenuItem *)webKitFullScreenToggleMenuItem {
-    BOOL enabled = self.preferencesStore.webKitFullScreenEnabled;
-    NSString *title = enabled ? @"2. WebKit Fullscreen: On" : @"2. WebKit Fullscreen: Off";
-    __weak typeof(self) weakSelf = self;
-    return [self settingMenuItemWithTitle:title handler:^{
-        weakSelf.preferencesStore.webKitFullScreenEnabled = !enabled;
-        [weakSelf.host browserRecreateActiveWebViewPreservingCurrentURL];
-    }];
-}
-
-- (BrowserAdvancedMenuItem *)siteSpecificQuirksToggleMenuItem {
-    BOOL enabled = self.preferencesStore.siteSpecificQuirksEnabled;
-    NSString *title = enabled ? @"3. Site Quirks: On" : @"3. Site Quirks: Off";
-    __weak typeof(self) weakSelf = self;
-    return [self settingMenuItemWithTitle:title handler:^{
-        weakSelf.preferencesStore.siteSpecificQuirksEnabled = !enabled;
-        [weakSelf.host browserRecreateActiveWebViewPreservingCurrentURL];
-    }];
-}
-
-- (BrowserAdvancedMenuItem *)experimentalMediaSourceToggleMenuItem {
-    BOOL enabled = self.preferencesStore.experimentalMediaSourceEnabled;
-    NSString *title = enabled ? @"4. MediaSource (MSE): On" : @"4. MediaSource (MSE): Off";
-    __weak typeof(self) weakSelf = self;
-    return [self settingMenuItemWithTitle:title
-                                  handler:^{
-        weakSelf.preferencesStore.experimentalMediaSourceEnabled = !enabled;
-        [weakSelf.host browserRecreateActiveWebViewPreservingCurrentURL];
-    }];
-}
 
 - (BrowserAdvancedMenuItem *)lightenHeavySitesToggleMenuItem {
     BOOL enabled = self.preferencesStore.lightenHeavySitesEnabled;
@@ -1749,6 +1722,9 @@ withAnimationCoordinator:(UIFocusAnimationCoordinator *)coordinator {
             [self forcedDarkModeToggleMenuItem],
             [self topNavigationVisibilityMenuItem],
             [self pageScalingMenuItem],
+            [self increasePageZoomMenuItem],
+            [self decreasePageZoomMenuItem],
+            [self resetPageZoomMenuItem],
             increaseFontSizeItem,
             decreaseFontSizeItem,
             resetFontSizeItem,
@@ -1764,10 +1740,6 @@ withAnimationCoordinator:(UIFocusAnimationCoordinator *)coordinator {
         [BrowserAdvancedMenuSection sectionWithTitle:@"Compatibility"
                                                items:@[
             [self lightenHeavySitesToggleMenuItem],
-            [self inlineMediaPlaybackToggleMenuItem],
-            [self webKitFullScreenToggleMenuItem],
-            [self siteSpecificQuirksToggleMenuItem],
-            [self experimentalMediaSourceToggleMenuItem],
             [self userAgentModeMenuItem],
         ]],
         [BrowserAdvancedMenuSection sectionWithTitle:@"Web Platform Probe"
@@ -1777,9 +1749,6 @@ withAnimationCoordinator:(UIFocusAnimationCoordinator *)coordinator {
             }],
             [self advancedMenuItemWithTitle:@"2. Engine Capabilities" style:UIAlertActionStyleDefault handler:^{
                 [self presentWebPlatformEngineReport];
-            }],
-            [self advancedMenuItemWithTitle:@"3. Page Script Errors" style:UIAlertActionStyleDefault handler:^{
-                [self presentPageErrorReport];
             }],
         ]],
         [BrowserAdvancedMenuSection sectionWithTitle:@"Diagnostics"

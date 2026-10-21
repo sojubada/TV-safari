@@ -27,6 +27,13 @@ NS_ASSUME_NONNULL_BEGIN
 @property (nonatomic, readonly, getter=isLoading) BOOL loading;
 @property (nonatomic) BOOL scalesPageToFit;
 
+/// Reading zoom chosen by the person, 1.0 == 100%. Applied on every
+/// load and combined with scalesPageToFit.
+@property (nonatomic) CGFloat userPageZoom;
+
+/// Re-applies userPageZoom (and scalesPageToFit) to the live page.
+- (void)applyPageScalingIfNeeded;
+
 - (instancetype)initWithUserAgent:(NSString * _Nullable)userAgent
       allowsInlineMediaPlayback:(BOOL)allowsInlineMediaPlayback NS_DESIGNATED_INITIALIZER;
 
@@ -65,15 +72,10 @@ typedef NS_ENUM(NSInteger, BrowserScriptEvaluationStatus) {
 - (void)pauseAllMediaPlayback;
 
 + (void)installRuleListToConfiguration:(id)configuration;
-+ (void)setYouTubeCaptureHookEnabled:(BOOL)enabled;
 
 // Turns on WebKit's MediaSource path, which Apple leaves off on this
 // platform. Forcing a disabled code path is a candidate for the process
 // dying on video playback, so it is a switch rather than an assumption.
-+ (void)setExperimentalMediaSourceEnabled:(BOOL)enabled;
-+ (void)setInlineMediaPlaybackEnabled:(BOOL)enabled;
-+ (void)setWebKitFullScreenEnabled:(BOOL)enabled;
-+ (void)setSiteSpecificQuirksEnabled:(BOOL)enabled;
 
 // The underlying WKWebView, for the platform probe to interrogate. Nil when
 // WebKit could not be reached at all.

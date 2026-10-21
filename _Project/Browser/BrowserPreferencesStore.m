@@ -15,13 +15,9 @@ static NSString * const kTapToClickEnabledDefaultsKey = @"TapToClickEnabled";
 static NSString * const kOpenLinksInNewTabOnClickDefaultsKey = @"OpenLinksInNewTabOnClick";
 static NSString * const kForcedDarkModeEnabledDefaultsKey = @"ForcedDarkModeEnabled";
 static NSString * const kContentBlockingEnabledDefaultsKey = @"ContentBlockingEnabled";
+static NSString * const kPageZoomPercentDefaultsKey = @"PageZoomPercent";
 static NSString * const kReaderFontSizeDefaultsKey = @"ReaderFontSize";
-static NSString * const kYouTubeCaptureHookEnabledDefaultsKey = @"YouTubeCaptureHookEnabled";
 static NSString * const kLightenHeavySitesEnabledDefaultsKey = @"LightenHeavySitesEnabled";
-static NSString * const kExperimentalMediaSourceEnabledDefaultsKey = @"ExperimentalMediaSourceEnabled";
-static NSString * const kInlineMediaPlaybackEnabledDefaultsKey = @"InlineMediaPlaybackEnabled";
-static NSString * const kWebKitFullScreenEnabledDefaultsKey = @"WebKitFullScreenEnabled";
-static NSString * const kSiteSpecificQuirksEnabledDefaultsKey = @"SiteSpecificQuirksEnabled";
 
 static NSUInteger const kDefaultTextFontSize = 100;
 static NSUInteger const kMinimumTextFontSize = 50;
@@ -225,44 +221,6 @@ static NSUInteger const kMaximumReaderFontSize = 96;
 // The desktop build of a site like YouTube is the heaviest thing it serves,
 // and this device's web process cannot hold it: it dies and the page goes
 // blank. Those sites get the phone agent, which is a fraction of the weight.
-// Off by default: boolForKey gives NO for an unset key, which is what we
-// want here.
-// tvOS does not play video inline; it expects the system player and a
-// fullscreen presentation. The app was forcing inline on anyway, which is
-// the same shape of mistake as forcing MediaSource. Off by default now,
-// which is the platform's own default.
-- (BOOL)inlineMediaPlaybackEnabled {
-    return [[self defaults] boolForKey:kInlineMediaPlaybackEnabledDefaultsKey];
-}
-- (void)setInlineMediaPlaybackEnabled:(BOOL)inlineMediaPlaybackEnabled {
-    [[self defaults] setBool:inlineMediaPlaybackEnabled forKey:kInlineMediaPlaybackEnabledDefaultsKey];
-    [[self defaults] synchronize];
-}
-
-- (BOOL)webKitFullScreenEnabled {
-    return [[self defaults] boolForKey:kWebKitFullScreenEnabledDefaultsKey];
-}
-- (void)setWebKitFullScreenEnabled:(BOOL)webKitFullScreenEnabled {
-    [[self defaults] setBool:webKitFullScreenEnabled forKey:kWebKitFullScreenEnabledDefaultsKey];
-    [[self defaults] synchronize];
-}
-
-- (BOOL)siteSpecificQuirksEnabled {
-    return [[self defaults] boolForKey:kSiteSpecificQuirksEnabledDefaultsKey];
-}
-- (void)setSiteSpecificQuirksEnabled:(BOOL)siteSpecificQuirksEnabled {
-    [[self defaults] setBool:siteSpecificQuirksEnabled forKey:kSiteSpecificQuirksEnabledDefaultsKey];
-    [[self defaults] synchronize];
-}
-
-- (BOOL)experimentalMediaSourceEnabled {
-    return [[self defaults] boolForKey:kExperimentalMediaSourceEnabledDefaultsKey];
-}
-- (void)setExperimentalMediaSourceEnabled:(BOOL)experimentalMediaSourceEnabled {
-    [[self defaults] setBool:experimentalMediaSourceEnabled forKey:kExperimentalMediaSourceEnabledDefaultsKey];
-    [[self defaults] synchronize];
-}
-
 - (BOOL)lightenHeavySitesEnabled {
     NSNumber *value = [[self defaults] objectForKey:kLightenHeavySitesEnabledDefaultsKey];
     return value ? value.boolValue : YES;
@@ -272,11 +230,17 @@ static NSUInteger const kMaximumReaderFontSize = 96;
     [[self defaults] synchronize];
 }
 
-- (BOOL)youTubeCaptureHookEnabled {
-    return [[self defaults] boolForKey:kYouTubeCaptureHookEnabledDefaultsKey];
+// A TV is read from across a room, so whole-page zoom is the primary
+// readability control: it scales layout and images with the text, and costs
+// the web process nothing because WebKit does it, not a script.
+- (NSUInteger)pageZoomPercent {
+    NSNumber *value = [[self defaults] objectForKey:kPageZoomPercentDefaultsKey];
+    NSUInteger percent = value ? value.unsignedIntegerValue : 100;
+    return MIN((NSUInteger)250, MAX((NSUInteger)50, percent));
 }
-- (void)setYouTubeCaptureHookEnabled:(BOOL)youTubeCaptureHookEnabled {
-    [[self defaults] setBool:youTubeCaptureHookEnabled forKey:kYouTubeCaptureHookEnabledDefaultsKey];
+- (void)setPageZoomPercent:(NSUInteger)pageZoomPercent {
+    NSUInteger clamped = MIN((NSUInteger)250, MAX((NSUInteger)50, pageZoomPercent));
+    [[self defaults] setObject:@(clamped) forKey:kPageZoomPercentDefaultsKey];
     [[self defaults] synchronize];
 }
 

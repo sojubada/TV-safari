@@ -93,11 +93,6 @@ static UIColor *kTextColor(void) {
     self.viewModel.textFontSize = self.preferencesStore.textFontSize;
     self.viewModel.fullscreenVideoPlaybackEnabled = self.preferencesStore.fullscreenVideoPlaybackEnabled;
 
-    [BrowserWebView setYouTubeCaptureHookEnabled:self.preferencesStore.youTubeCaptureHookEnabled];
-    [BrowserWebView setExperimentalMediaSourceEnabled:self.preferencesStore.experimentalMediaSourceEnabled];
-    [BrowserWebView setInlineMediaPlaybackEnabled:self.preferencesStore.inlineMediaPlaybackEnabled];
-    [BrowserWebView setWebKitFullScreenEnabled:self.preferencesStore.webKitFullScreenEnabled];
-    [BrowserWebView setSiteSpecificQuirksEnabled:self.preferencesStore.siteSpecificQuirksEnabled];
 
     self.contentBlockerController = [BrowserContentBlockerController sharedController];
     [self.contentBlockerController prepareRuleListIfNeeded];
@@ -371,42 +366,27 @@ static UIColor *kTextColor(void) {
         return;
     }
 
+    // This used to walk every element in the document, calling
+    // getComputedStyle on each and writing an inline font-size. On a heavy
+    // page that is tens of thousands of forced layout passes inside a
+    // synchronous evaluation, and it ran on every load even at 100%. It is
+    // one stylesheet now: WebKit's own text-size-adjust does the scaling.
+    NSUInteger size = self.viewModel.textFontSize;
     NSString *jsString = [[NSString alloc] initWithFormat:
                           @"(function(){"
                            "var value='%lu%%';"
-                           "var multiplier=%lu/100;"
-                           "if (document.documentElement && document.documentElement.style) {"
-                               "document.documentElement.style.setProperty('-webkit-text-size-adjust', value, 'important');"
-                               "document.documentElement.style.setProperty('text-size-adjust', value, 'important');"
+                           "var el = document.getElementById('browser-text-scale');"
+                           "if (!el) {"
+                               "if (!document.head) { return 'no-head'; }"
+                               "el = document.createElement('style');"
+                               "el.id = 'browser-text-scale';"
+                               "document.head.appendChild(el);"
                            "}"
-                           "if (document.body && document.body.style) {"
-                               "document.body.style.setProperty('-webkit-text-size-adjust', value, 'important');"
-                               "document.body.style.setProperty('text-size-adjust', value, 'important');"
-                           "}"
-                           "if (!document.body || !window.getComputedStyle) { return value; }"
-                           "var elements = document.querySelectorAll('body, body *');"
-                           "for (var i = 0; i < elements.length; i++) {"
-                               "var element = elements[i];"
-                               "if (!element || !element.tagName) { continue; }"
-                               "var tagName = element.tagName.toLowerCase();"
-                               "if (tagName === 'script' || tagName === 'style' || tagName === 'noscript') { continue; }"
-                               "var originalSize = element.getAttribute('data-browser-original-font-size');"
-                               "if (!originalSize) {"
-                                   "var computedSize = window.getComputedStyle(element).fontSize || '';"
-                                   "if (computedSize.indexOf('px') == -1) { continue; }"
-                                   "var parsedSize = parseFloat(computedSize);"
-                                   "if (!isFinite(parsedSize) || parsedSize <= 0) { continue; }"
-                                   "originalSize = String(parsedSize);"
-                                   "element.setAttribute('data-browser-original-font-size', originalSize);"
-                               "}"
-                               "var baseSize = parseFloat(originalSize);"
-                               "if (!isFinite(baseSize) || baseSize <= 0) { continue; }"
-                               "element.style.setProperty('font-size', (baseSize * multiplier) + 'px', 'important');"
-                           "}"
+                           "el.textContent = 'html,body{-webkit-text-size-adjust:' + value + ' !important;"
+                           "text-size-adjust:' + value + ' !important;}';"
                            "return value;"
                           "})()",
-                          (unsigned long)self.viewModel.textFontSize,
-                          (unsigned long)self.viewModel.textFontSize];
+                          (unsigned long)size];
     [self.webview stringByEvaluatingJavaScriptFromString:jsString];
 }
 
@@ -655,11 +635,6 @@ static UIColor *kTextColor(void) {
 }
 
 - (void)browserRecreateActiveWebViewPreservingCurrentURL {
-    [BrowserWebView setYouTubeCaptureHookEnabled:self.preferencesStore.youTubeCaptureHookEnabled];
-    [BrowserWebView setExperimentalMediaSourceEnabled:self.preferencesStore.experimentalMediaSourceEnabled];
-    [BrowserWebView setInlineMediaPlaybackEnabled:self.preferencesStore.inlineMediaPlaybackEnabled];
-    [BrowserWebView setWebKitFullScreenEnabled:self.preferencesStore.webKitFullScreenEnabled];
-    [BrowserWebView setSiteSpecificQuirksEnabled:self.preferencesStore.siteSpecificQuirksEnabled];
     [self.tabCoordinator recreateActiveWebViewPreservingCurrentURL];
 }
 
@@ -720,7 +695,21 @@ static UIColor *kTextColor(void) {
 }
 
 - (void)browserTabCoordinatorUpdateTextFontSize {
+    [self applyReadingZoom];
     [self updateTextFontSize];
+}
+
+- (void)applyReadingZoom {
+    BrowserWebView *webView = self.webview;
+    if (webView == nil) {
+        return;
+    }
+    webView.userPageZoom = (CGFloat)self.preferencesStore.pageZoomPercent / 100.0;
+    [webView applyPageScalingIfNeeded];
+}
+
+- (void)browserApplyReadingZoom {
+    [self applyReadingZoom];
 }
 
 - (BOOL)browserTabCoordinatorIsCursorModeEnabled {
@@ -1022,22 +1011,12 @@ static UIColor *kTextColor(void) {
                          message:[NSString stringWithFormat:
                                   @"%@ stopped its web process twice in a row, which leaves the "
                                   @"page blank. Deaths so far: %lu.\n\n"
-                                  @"If this happens when a video starts, the switches under "
-                                  @"Settings · Media Experiments change how the engine is asked "
-                                  @"to handle media.",
+                                  @"Reader mode strips the page down to its text and is the "
+                                  @"most reliable way to read a site that keeps crashing.",
                                   host, (unsigned long)webView.webContentTerminationCount]
                   preferredStyle:UIAlertControllerStyleAlert];
 
     __weak typeof(self) weakSelf = self;
-    if (self.preferencesStore.experimentalMediaSourceEnabled) {
-        [alert addAction:[UIAlertAction actionWithTitle:@"Turn Off Experimental Media and Reload"
-                                                  style:UIAlertActionStyleDefault
-                                                handler:^(__unused UIAlertAction *action) {
-            weakSelf.preferencesStore.experimentalMediaSourceEnabled = NO;
-            weakSelf.consecutiveWebContentCrashes = 0;
-            [weakSelf browserRecreateActiveWebViewPreservingCurrentURL];
-        }]];
-    }
     if (!self.preferencesStore.mobileModeEnabled) {
         [alert addAction:[UIAlertAction actionWithTitle:@"Switch to Mobile and Reload"
                                                   style:UIAlertActionStyleDefault
