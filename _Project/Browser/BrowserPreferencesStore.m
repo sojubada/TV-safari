@@ -32,12 +32,14 @@ static NSUInteger const kMaximumReaderFontSize = 96;
 
 @implementation BrowserPreferencesStore
 
+// tvOS 16.6 carries the WebKit that shipped with Safari 16.6. Claiming 17
+// asks sites for code paths this engine does not have.
 + (NSString *)desktopUserAgent {
-    return @"Mozilla/5.0 (Macintosh; Intel Mac OS X 14_0) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.0 Safari/605.1.15";
+    return @"Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/16.6 Safari/605.1.15";
 }
 
 + (NSString *)mobileUserAgent {
-    return @"Mozilla/5.0 (iPhone; CPU iPhone OS 17_0 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.0 Mobile/15E148 Safari/604.1";
+    return @"Mozilla/5.0 (iPhone; CPU iPhone OS 16_6 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/16.6 Mobile/15E148 Safari/604.1";
 }
 
 - (NSUserDefaults *)defaults {
@@ -45,7 +47,23 @@ static NSUInteger const kMaximumReaderFontSize = 96;
 }
 
 - (void)ensureUserAgentConsistency {
-    if (self.userAgent.length > 0) {
+    // A stored agent from the earlier pair is replaced, so the version
+    // correction reaches installs that already have one saved.
+    static NSString * const kSupersededDesktopUserAgent =
+        @"Mozilla/5.0 (Macintosh; Intel Mac OS X 14_0) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.0 Safari/605.1.15";
+    static NSString * const kSupersededMobileUserAgent =
+        @"Mozilla/5.0 (iPhone; CPU iPhone OS 17_0 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.0 Mobile/15E148 Safari/604.1";
+
+    NSString *current = self.userAgent;
+    if ([current isEqualToString:kSupersededDesktopUserAgent]) {
+        self.userAgent = BrowserPreferencesStore.desktopUserAgent;
+        return;
+    }
+    if ([current isEqualToString:kSupersededMobileUserAgent]) {
+        self.userAgent = BrowserPreferencesStore.mobileUserAgent;
+        return;
+    }
+    if (current.length > 0) {
         return;
     }
     self.userAgent = self.mobileModeEnabled ? BrowserPreferencesStore.mobileUserAgent : BrowserPreferencesStore.desktopUserAgent;

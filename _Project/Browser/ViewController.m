@@ -71,6 +71,8 @@ static UIColor *kTextColor(void) {
 @property (nonatomic) BOOL displayedHintsOnLaunch;
 @property (nonatomic) BOOL scrollViewAllowBounces;
 @property (nonatomic, getter=isTopBarFocusActive) BOOL topBarFocusActive;
+@property (nonatomic, copy, nullable) NSString *lastWebContentCrashURLString;
+@property (nonatomic) NSUInteger consecutiveWebContentCrashes;
 
 @end
 
@@ -942,6 +944,60 @@ static UIColor *kTextColor(void) {
             }
         });
     }
+}
+
+// A dead content process shows as a blank page with no script running, which
+// is what the probe caught on YouTube: evaluation returned nothing at all.
+// One reload covers a transient death; a second on the same page means the
+// page is too heavy for this device, and the mobile site is the way out.
+- (void)browserWebViewWebContentProcessDidTerminate:(BrowserWebView *)webView {
+    NSString *urlString = webView.request.URL.absoluteString ?: @"";
+
+    if ([urlString isEqualToString:self.lastWebContentCrashURLString]) {
+        self.consecutiveWebContentCrashes += 1;
+    } else {
+        self.lastWebContentCrashURLString = urlString;
+        self.consecutiveWebContentCrashes = 1;
+    }
+
+    if (webView != self.webview) {
+        return;
+    }
+
+    if (self.consecutiveWebContentCrashes <= 1) {
+        [webView reload];
+        return;
+    }
+
+    NSString *host = webView.request.URL.host ?: urlString;
+    UIAlertController *alert = [UIAlertController
+        alertControllerWithTitle:@"This Page Keeps Crashing"
+                         message:[NSString stringWithFormat:
+                                  @"%@ ran out of room and its web process stopped, twice in a row. "
+                                  @"The page goes blank when that happens.\n\n"
+                                  @"The mobile version of a site is far lighter and usually loads.",
+                                  host]
+                  preferredStyle:UIAlertControllerStyleAlert];
+
+    __weak typeof(self) weakSelf = self;
+    if (!self.preferencesStore.mobileModeEnabled) {
+        [alert addAction:[UIAlertAction actionWithTitle:@"Switch to Mobile and Reload"
+                                                  style:UIAlertActionStyleDefault
+                                                handler:^(__unused UIAlertAction *action) {
+            weakSelf.preferencesStore.mobileModeEnabled = YES;
+            weakSelf.preferencesStore.userAgent = BrowserPreferencesStore.mobileUserAgent;
+            weakSelf.consecutiveWebContentCrashes = 0;
+            [weakSelf.tabCoordinator recreateActiveWebViewPreservingCurrentURL];
+        }]];
+    }
+    [alert addAction:[UIAlertAction actionWithTitle:@"Reload"
+                                              style:UIAlertActionStyleDefault
+                                            handler:^(__unused UIAlertAction *action) {
+        weakSelf.consecutiveWebContentCrashes = 0;
+        [weakSelf.webview reload];
+    }]];
+    [alert addAction:[UIAlertAction actionWithTitle:@"Leave It" style:UIAlertActionStyleCancel handler:nil]];
+    [self browserPresentViewController:alert];
 }
 
 - (void)webView:(id)webView didFailLoadWithError:(NSError *)error {

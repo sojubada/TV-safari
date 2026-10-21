@@ -547,6 +547,8 @@ static void BrowserInstallYouTubeCaptureUserScript(id configuration) {
 @property (nonatomic, copy) NSString *userAgent;
 @property (nonatomic) BOOL loading;
 @property (nonatomic) BOOL evaluatingJavaScript;
+@property (nonatomic, readwrite) NSUInteger webContentTerminationCount;
+@property (nonatomic, readwrite) NSTimeInterval lastWebContentTerminationTime;
 
 @end
 
@@ -1028,8 +1030,20 @@ static void BrowserInstallYouTubeCaptureUserScript(id configuration) {
     }
 }
 
+// The content process dying leaves a blank white page behind and every
+// script evaluation returning nothing. It was only clearing the loading
+// flag, so the app looked like it had simply rendered an empty page.
 - (void)webViewWebContentProcessDidTerminate:(id)webView {
+    (void)webView;
     self.loading = NO;
+    self.webContentTerminationCount += 1;
+    self.lastWebContentTerminationTime = [NSDate timeIntervalSinceReferenceDate];
+    NSLog(@"[WebContent] process terminated (count=%lu) url=%@",
+          (unsigned long)self.webContentTerminationCount,
+          self.request.URL.absoluteString ?: @"");
+    if ([self.delegate respondsToSelector:@selector(browserWebViewWebContentProcessDidTerminate:)]) {
+        [self.delegate browserWebViewWebContentProcessDidTerminate:self];
+    }
 }
 
 - (NSURLRequest *)requestFromNavigationAction:(id)navigationAction {

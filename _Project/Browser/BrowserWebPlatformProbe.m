@@ -20,7 +20,15 @@ static void BrowserAppendSelectorLine(NSMutableString *report, id object, NSStri
 + (NSString *)runtimeReportForWebView:(BrowserWebView *)webView {
     NSMutableString *report = [NSMutableString string];
 
-    [report appendString:@"— Classes —\n"];
+    [report appendFormat:@"web content deaths: %lu\n",
+     (unsigned long)webView.webContentTerminationCount];
+    if (webView.webContentTerminationCount > 0) {
+        NSTimeInterval ago = [NSDate timeIntervalSinceReferenceDate] - webView.lastWebContentTerminationTime;
+        [report appendFormat:@"last death: %.0f s ago\n", ago];
+        [report appendString:@"A dead content process is a blank page on which\n"
+                              "no script runs, which is what an empty probe means.\n"];
+    }
+    [report appendString:@"\n— Classes —\n"];
     for (NSString *className in @[@"WKWebView",
                                   @"WKWebViewConfiguration",
                                   @"WKPreferences",

@@ -2,6 +2,7 @@
 #import "BrowserPreferencesStore.h"
 #import "BrowserContentBlockerController.h"
 #import "BrowserWebPlatformProbe.h"
+#import "BrowserReportViewController.h"
 #import "BrowserWebView.h"
 #import "BrowserFavoritesStore.h"
 
@@ -1123,31 +1124,26 @@ withAnimationCoordinator:(UIFocusAnimationCoordinator *)coordinator {
 
 - (void)presentWebPlatformRuntimeReport {
     NSString *report = [BrowserWebPlatformProbe runtimeReportForWebView:[self.host browserWebView]];
-    UIAlertController *alertController = [self browserAlertControllerWithTitle:@"WebKit Runtime" message:report];
-    [alertController addAction:[self browserCancelAction]];
-    [self.host browserPresentViewController:alertController];
+    [self.host browserPresentViewController:
+        [[BrowserReportViewController alloc] initWithTitle:@"WebKit Runtime" reportText:report]];
 }
 
 - (void)presentWebPlatformEngineReport {
     NSString *report = [BrowserWebPlatformProbe engineReportForWebView:[self.host browserWebView]];
-    UIAlertController *alertController = [self browserAlertControllerWithTitle:@"Engine Capabilities" message:report];
-    [alertController addAction:[self browserCancelAction]];
-    [self.host browserPresentViewController:alertController];
+    [self.host browserPresentViewController:
+        [[BrowserReportViewController alloc] initWithTitle:@"Engine Capabilities" reportText:report]];
 }
 
 - (void)presentPageErrorReport {
     NSString *report = [BrowserWebPlatformProbe pageErrorReportForWebView:[self.host browserWebView]];
-    UIAlertController *alertController = [self browserAlertControllerWithTitle:@"Page Script Errors" message:report];
-    [alertController addAction:[self browserCancelAction]];
-    [self.host browserPresentViewController:alertController];
+    [self.host browserPresentViewController:
+        [[BrowserReportViewController alloc] initWithTitle:@"Page Script Errors" reportText:report]];
 }
 
 - (void)presentContentBlockerDiagnostics {
     NSString *report = [[BrowserContentBlockerController sharedController] diagnosticsReport];
-    UIAlertController *alertController = [self browserAlertControllerWithTitle:@"Content Blocker Diagnostics"
-                                                                       message:report];
-    [alertController addAction:[self browserCancelAction]];
-    [self.host browserPresentViewController:alertController];
+    [self.host browserPresentViewController:
+        [[BrowserReportViewController alloc] initWithTitle:@"Content Blocker Diagnostics" reportText:report]];
 }
 
 - (BrowserAdvancedMenuItem *)contentBlockingToggleMenuItem {

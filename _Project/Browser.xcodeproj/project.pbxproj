@@ -44,6 +44,7 @@
 		A1DC0203000000000000DA01 /* BrowserReaderModeController.m in Sources */ = {isa = PBXBuildFile; fileRef = A1DC0202000000000000DA01 /* BrowserReaderModeController.m */; };
 		A1DC0303000000000000DA01 /* BrowserFavoritesStore.m in Sources */ = {isa = PBXBuildFile; fileRef = A1DC0302000000000000DA01 /* BrowserFavoritesStore.m */; };
 		A1DC0403000000000000DA01 /* BrowserWebPlatformProbe.m in Sources */ = {isa = PBXBuildFile; fileRef = A1DC0402000000000000DA01 /* BrowserWebPlatformProbe.m */; };
+		A1DC0503000000000000DA01 /* BrowserReportViewController.m in Sources */ = {isa = PBXBuildFile; fileRef = A1DC0502000000000000DA01 /* BrowserReportViewController.m */; };
 		A1DC0103000000000000DA01 /* BrowserContentBlockerController.m in Sources */ = {isa = PBXBuildFile; fileRef = A1DC0102000000000000DA01 /* BrowserContentBlockerController.m */; };
 		A1B49A952D700040001D58A1 /* BrowserRemoteInputController.m in Sources */ = {isa = PBXBuildFile; fileRef = A1B49A942D700040001D58A1 /* BrowserRemoteInputController.m */; };
 		B002B8671BAE420500C744AF /* main.m in Sources */ = {isa = PBXBuildFile; fileRef = B002B8661BAE420500C744AF /* main.m */; };
@@ -111,6 +112,8 @@
 		A1DC0302000000000000DA01 /* BrowserFavoritesStore.m */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.objc; path = BrowserFavoritesStore.m; sourceTree = "<group>"; };
 		A1DC0401000000000000DA01 /* BrowserWebPlatformProbe.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = BrowserWebPlatformProbe.h; sourceTree = "<group>"; };
 		A1DC0402000000000000DA01 /* BrowserWebPlatformProbe.m */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.objc; path = BrowserWebPlatformProbe.m; sourceTree = "<group>"; };
+		A1DC0501000000000000DA01 /* BrowserReportViewController.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = BrowserReportViewController.h; sourceTree = "<group>"; };
+		A1DC0502000000000000DA01 /* BrowserReportViewController.m */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.objc; path = BrowserReportViewController.m; sourceTree = "<group>"; };
 		A1DC0101000000000000DA01 /* BrowserContentBlockerController.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = BrowserContentBlockerController.h; sourceTree = "<group>"; };
 		A1DC0102000000000000DA01 /* BrowserContentBlockerController.m */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.objc; path = BrowserContentBlockerController.m; sourceTree = "<group>"; };
 		A1B49A932D700040001D58A1 /* BrowserRemoteInputController.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = BrowserRemoteInputController.h; sourceTree = "<group>"; };
@@ -209,6 +212,8 @@
 				A1DC0302000000000000DA01 /* BrowserFavoritesStore.m */,
 				A1DC0401000000000000DA01 /* BrowserWebPlatformProbe.h */,
 				A1DC0402000000000000DA01 /* BrowserWebPlatformProbe.m */,
+				A1DC0501000000000000DA01 /* BrowserReportViewController.h */,
+				A1DC0502000000000000DA01 /* BrowserReportViewController.m */,
 				A1DC0101000000000000DA01 /* BrowserContentBlockerController.h */,
 				A1DC0102000000000000DA01 /* BrowserContentBlockerController.m */,
 				A1B49A932D700040001D58A1 /* BrowserRemoteInputController.h */,
@@ -442,6 +447,7 @@
 				A1DC0203000000000000DA01 /* BrowserReaderModeController.m in Sources */,
 				A1DC0303000000000000DA01 /* BrowserFavoritesStore.m in Sources */,
 				A1DC0403000000000000DA01 /* BrowserWebPlatformProbe.m in Sources */,
+				A1DC0503000000000000DA01 /* BrowserReportViewController.m in Sources */,
 				A1DC0103000000000000DA01 /* BrowserContentBlockerController.m in Sources */,
 				A1B49A952D700040001D58A1 /* BrowserRemoteInputController.m in Sources */,
 				A1B49A8C2D700010001D58A1 /* BrowserTabCoordinator.m in Sources */,
@@ -599,7 +605,7 @@
 				ASSETCATALOG_COMPILER_APPICON_NAME = "App Icon & Top Shelf Image";
 				ASSETCATALOG_COMPILER_LAUNCHIMAGE_NAME = LaunchImage;
 				CODE_SIGN_IDENTITY = "iPhone Developer";
-				CURRENT_PROJECT_VERSION = 3900;
+				CURRENT_PROJECT_VERSION = 4000;
 				DEVELOPMENT_TEAM = PMC4RZG4LF;
 				EMBED_ASSET_PACKS_IN_PRODUCT_BUNDLE = YES;
 				ENABLE_ON_DEMAND_RESOURCES = NO;
@@ -609,7 +615,7 @@
 					"$(inherited)",
 					"@executable_path/Frameworks",
 				);
-				MARKETING_VERSION = 2.9.0;
+				MARKETING_VERSION = 3.0.0;
 				PRODUCT_BUNDLE_IDENTIFIER = com.jva.tvbrowser;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				SCAN_ALL_SOURCE_FILES_FOR_INCLUDES = NO;
@@ -624,7 +630,7 @@
 				ASSETCATALOG_COMPILER_APPICON_NAME = "App Icon & Top Shelf Image";
 				ASSETCATALOG_COMPILER_LAUNCHIMAGE_NAME = LaunchImage;
 				CODE_SIGN_IDENTITY = "iPhone Developer";
-				CURRENT_PROJECT_VERSION = 3900;
+				CURRENT_PROJECT_VERSION = 4000;
 				DEVELOPMENT_TEAM = PMC4RZG4LF;
 				EMBED_ASSET_PACKS_IN_PRODUCT_BUNDLE = YES;
 				ENABLE_ON_DEMAND_RESOURCES = NO;
@@ -634,7 +640,7 @@
 					"$(inherited)",
 					"@executable_path/Frameworks",
 				);
-				MARKETING_VERSION = 2.9.0;
+				MARKETING_VERSION = 3.0.0;
 				PRODUCT_BUNDLE_IDENTIFIER = com.jva.tvbrowser;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				SCAN_ALL_SOURCE_FILES_FOR_INCLUDES = NO;

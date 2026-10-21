@@ -2,6 +2,8 @@
 
 NS_ASSUME_NONNULL_BEGIN
 
+@class BrowserWebView;
+
 @protocol BrowserWebViewDelegate <NSObject>
 
 @optional
@@ -10,6 +12,7 @@ NS_ASSUME_NONNULL_BEGIN
 - (void)webViewDidStartLoad:(id _Nonnull)webView;
 - (void)webViewDidFinishLoad:(id _Nonnull)webView;
 - (void)webView:(id _Nonnull)webView didFailLoadWithError:(NSError * _Nonnull)error;
+- (void)browserWebViewWebContentProcessDidTerminate:(BrowserWebView *)webView;
 
 @end
 
@@ -42,6 +45,11 @@ NS_ASSUME_NONNULL_BEGIN
 // The underlying WKWebView, for the platform probe to interrogate. Nil when
 // WebKit could not be reached at all.
 - (nullable id)runtimeWebViewForProbing;
+
+// How many times this web view's content process has died, and when it last
+// happened. A dead process is a blank page on which no script can run.
+@property (nonatomic, readonly) NSUInteger webContentTerminationCount;
+@property (nonatomic, readonly) NSTimeInterval lastWebContentTerminationTime;
 
 + (nullable NSData *)cookieDataRepresentation;
 + (NSArray<NSHTTPCookie *> * _Nonnull)allCookies;
