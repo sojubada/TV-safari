@@ -92,6 +92,12 @@ static void BrowserAppendSelectorLine(NSMutableString *report, id object, NSStri
         ? ((id (*)(id, SEL))objc_msgSend)(configuration, preferencesSelector)
         : nil;
 
+    SEL mediaSourceGetter = NSSelectorFromString(@"_mediaSourceEnabled");
+    if (preferences != nil && [preferences respondsToSelector:mediaSourceGetter]) {
+        BOOL mediaSourceEnabled = ((BOOL (*)(id, SEL))objc_msgSend)(preferences, mediaSourceGetter);
+        [report appendFormat:@"\nMediaSource actually enabled: %@\n", mediaSourceEnabled ? @"YES" : @"NO"];
+    }
+
     [report appendFormat:@"\n— WKPreferences (%@) —\n",
      preferences != nil ? NSStringFromClass([preferences class]) : @"unavailable"];
     for (NSString *selectorName in @[@"_setDeveloperExtrasEnabled:",
@@ -183,12 +189,51 @@ static void BrowserAppendSelectorLine(NSMutableString *report, id object, NSStri
     "})()";
 }
 
+static NSTimeInterval const kBrowserProbeEvaluationTimeout = 10.0;
+
++ (NSString *)evaluate:(NSString *)script onWebView:(BrowserWebView *)webView {
+    BrowserScriptEvaluationStatus status = BrowserScriptEvaluationStatusOK;
+    NSString *reason = nil;
+    NSString *result = [webView stringByEvaluatingJavaScriptFromString:script
+                                                               timeout:kBrowserProbeEvaluationTimeout
+                                                                status:&status
+                                                         failureReason:&reason];
+    if (result.length > 0) {
+        return result;
+    }
+
+    NSMutableString *explanation = [NSMutableString string];
+    [explanation appendFormat:@"No result: %@\n",
+     [BrowserWebView descriptionForScriptEvaluationStatus:status]];
+    if (reason.length > 0) {
+        [explanation appendFormat:@"%@\n", reason];
+    }
+    [explanation appendFormat:@"\nweb content deaths: %lu\n",
+     (unsigned long)webView.webContentTerminationCount];
+
+    switch (status) {
+        case BrowserScriptEvaluationStatusNoWebProcess:
+            [explanation appendString:@"\nThe page has no process behind it. That is a blank\n"
+                                       "screen by definition. Reload, or use Restart Page\n"
+                                       "Process in the privacy menu.\n"];
+            break;
+        case BrowserScriptEvaluationStatusTimedOut:
+            [explanation appendFormat:@"\nThe process is alive but did not answer within %.0f\n"
+                                       "seconds, so the page is busy rather than gone. A site\n"
+                                       "this heavy is the usual cause; its mobile version is\n"
+                                       "much lighter.\n", kBrowserProbeEvaluationTimeout];
+            break;
+        default:
+            break;
+    }
+    return explanation;
+}
+
 + (NSString *)engineReportForWebView:(BrowserWebView *)webView {
     if (webView == nil) {
         return @"No web view.";
     }
-    NSString *result = [webView stringByEvaluatingJavaScriptFromString:[self engineJavaScript]];
-    return result.length > 0 ? result : @"The probe returned nothing. Script evaluation itself failed.";
+    return [self evaluate:[self engineJavaScript] onWebView:webView];
 }
 
 // Only adds listeners and wraps console while still calling through. It does
@@ -250,8 +295,7 @@ static void BrowserAppendSelectorLine(NSMutableString *report, id object, NSStri
             "return head + list.join('\\n');"
         "})()";
 
-    NSString *result = [webView stringByEvaluatingJavaScriptFromString:script];
-    return result.length > 0 ? result : @"The probe returned nothing. Script evaluation itself failed.";
+    return [self evaluate:script onWebView:webView];
 }
 
 @end

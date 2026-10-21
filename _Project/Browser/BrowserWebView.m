@@ -752,20 +752,66 @@ static void BrowserInstallYouTubeCaptureUserScript(id configuration) {
     }
 }
 
++ (NSString *)descriptionForScriptEvaluationStatus:(BrowserScriptEvaluationStatus)status {
+    switch (status) {
+        case BrowserScriptEvaluationStatusOK: return @"ok";
+        case BrowserScriptEvaluationStatusNoWebView: return @"no web view";
+        case BrowserScriptEvaluationStatusUnsupported: return @"evaluateJavaScript: unavailable";
+        case BrowserScriptEvaluationStatusNoWebProcess: return @"web content process is gone";
+        case BrowserScriptEvaluationStatusReentrant: return @"another evaluation was already running";
+        case BrowserScriptEvaluationStatusTimedOut: return @"timed out waiting for the page";
+        case BrowserScriptEvaluationStatusScriptError: return @"the script raised an error";
+    }
+    return @"unknown";
+}
+
 - (NSString *)stringByEvaluatingJavaScriptFromString:(NSString *)script {
+    return [self stringByEvaluatingJavaScriptFromString:script
+                                                timeout:kBrowserScriptPumpTimeout
+                                                 status:NULL
+                                           failureReason:NULL];
+}
+
+- (NSString *)stringByEvaluatingJavaScriptFromString:(NSString *)script
+                                             timeout:(NSTimeInterval)timeout
+                                              status:(BrowserScriptEvaluationStatus *)status
+                                       failureReason:(NSString * __autoreleasing *)failureReason {
+    void (^report)(BrowserScriptEvaluationStatus, NSString *) = ^(BrowserScriptEvaluationStatus value, NSString *reason) {
+        if (status != NULL) {
+            *status = value;
+        }
+        if (failureReason != NULL) {
+            *failureReason = reason;
+        }
+    };
+
     if (script.length == 0 || self.runtimeWebView == nil) {
+        report(BrowserScriptEvaluationStatusNoWebView, nil);
         return nil;
     }
 
     SEL selector = NSSelectorFromString(@"evaluateJavaScript:completionHandler:");
     if (![self.runtimeWebView respondsToSelector:selector]) {
+        report(BrowserScriptEvaluationStatusUnsupported, nil);
         return nil;
+    }
+
+    // A pid of zero means the content process is not there, and nothing can
+    // run. Worth separating from a page that is merely slow.
+    SEL pidSelector = NSSelectorFromString(@"_webProcessIdentifier");
+    if ([self.runtimeWebView respondsToSelector:pidSelector]) {
+        int webProcessIdentifier = ((int (*)(id, SEL))objc_msgSend)(self.runtimeWebView, pidSelector);
+        if (webProcessIdentifier == 0) {
+            report(BrowserScriptEvaluationStatusNoWebProcess, nil);
+            return nil;
+        }
     }
 
     // Pumping the run loop below lets UIKit deliver another press or touch,
     // which can land back here. Nesting these waits compounds the stall and
     // interleaves two scripts, so the outer one wins and the inner one bails.
     if (self.evaluatingJavaScript) {
+        report(BrowserScriptEvaluationStatusReentrant, nil);
         return nil;
     }
     self.evaluatingJavaScript = YES;
@@ -778,12 +824,18 @@ static void BrowserInstallYouTubeCaptureUserScript(id configuration) {
         evaluationError = error;
         finished = YES;
     });
-    BOOL completed = BrowserPumpRunLoopUntil(&finished, kBrowserScriptPumpTimeout);
+    BOOL completed = BrowserPumpRunLoopUntil(&finished, timeout > 0.0 ? timeout : kBrowserScriptPumpTimeout);
     self.evaluatingJavaScript = NO;
 
-    if (!completed || evaluationError != nil) {
+    if (!completed) {
+        report(BrowserScriptEvaluationStatusTimedOut, nil);
         return nil;
     }
+    if (evaluationError != nil) {
+        report(BrowserScriptEvaluationStatusScriptError, evaluationError.localizedDescription);
+        return nil;
+    }
+    report(BrowserScriptEvaluationStatusOK, nil);
     return BrowserStringFromJavaScriptResult(evaluationResult);
 }
 
@@ -960,6 +1012,21 @@ static void BrowserInstallYouTubeCaptureUserScript(id configuration) {
     if (self.runtimeWebView != nil && [self.runtimeWebView respondsToSelector:selector]) {
         ((void (*)(id, SEL, id))objc_msgSend)(self.runtimeWebView, selector, _userAgent);
     }
+}
+
+- (NSString *)currentUserAgent {
+    return self.userAgent;
+}
+
+- (BOOL)restartWebContentProcess {
+    SEL killSelector = NSSelectorFromString(@"_killWebContentProcess");
+    if (self.runtimeWebView == nil || ![self.runtimeWebView respondsToSelector:killSelector]) {
+        [self reload];
+        return NO;
+    }
+    ((void (*)(id, SEL))objc_msgSend)(self.runtimeWebView, killSelector);
+    // The kill arrives as a termination, and the delegate's recovery reloads.
+    return YES;
 }
 
 - (void)setScalesPageToFit:(BOOL)scalesPageToFit {

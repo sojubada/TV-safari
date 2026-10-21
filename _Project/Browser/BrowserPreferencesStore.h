@@ -24,6 +24,7 @@ NS_ASSUME_NONNULL_BEGIN
 @property (nonatomic) BOOL contentBlockingEnabled;
 @property (nonatomic) NSUInteger readerFontSize;
 @property (nonatomic) BOOL youTubeCaptureHookEnabled;
+@property (nonatomic) BOOL lightenHeavySitesEnabled;
 
 - (void)ensureUserAgentConsistency;
 

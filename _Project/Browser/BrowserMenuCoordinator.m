@@ -1507,6 +1507,9 @@ withAnimationCoordinator:(UIFocusAnimationCoordinator *)coordinator {
             [self clearCacheMenuItem],
             [self clearCookiesMenuItem],
         ]],
+        [BrowserAdvancedMenuSection sectionWithTitle:@"Page Process" items:@[
+            [self restartWebProcessMenuItem],
+        ]],
         [BrowserAdvancedMenuSection sectionWithTitle:@"Diagnostics" items:@[
             [self contentBlockerDiagnosticsMenuItem],
         ]],
@@ -1525,6 +1528,7 @@ withAnimationCoordinator:(UIFocusAnimationCoordinator *)coordinator {
             [self jsScrollFallbackToggleMenuItem],
         ]],
         [BrowserAdvancedMenuSection sectionWithTitle:@"Page" items:@[
+            [self lightenHeavySitesToggleMenuItem],
             [self userAgentModeMenuItem],
             [self fullscreenVideoPlaybackToggleMenuItem],
             [self youTubeCaptureHookToggleMenuItem],
@@ -1580,6 +1584,25 @@ withAnimationCoordinator:(UIFocusAnimationCoordinator *)coordinator {
                                  handler:^{
         weakSelf.preferencesStore.youTubeCaptureHookEnabled = !enabled;
         [weakSelf.host browserRecreateActiveWebViewPreservingCurrentURL];
+    }];
+}
+
+- (BrowserAdvancedMenuItem *)lightenHeavySitesToggleMenuItem {
+    BOOL enabled = self.preferencesStore.lightenHeavySitesEnabled;
+    NSString *title = enabled ? @"Lighten Heavy Sites: On" : @"Lighten Heavy Sites: Off";
+    __weak typeof(self) weakSelf = self;
+    return [self settingMenuItemWithTitle:title
+                                  handler:^{
+        weakSelf.preferencesStore.lightenHeavySitesEnabled = !enabled;
+    }];
+}
+
+- (BrowserAdvancedMenuItem *)restartWebProcessMenuItem {
+    __weak typeof(self) weakSelf = self;
+    return [self advancedMenuItemWithTitle:@"Restart Page Process"
+                                     style:UIAlertActionStyleDestructive
+                                   handler:^{
+        [[weakSelf.host browserWebView] restartWebContentProcess];
     }];
 }
 
@@ -1693,6 +1716,7 @@ withAnimationCoordinator:(UIFocusAnimationCoordinator *)coordinator {
         ]],
         [BrowserAdvancedMenuSection sectionWithTitle:@"Compatibility"
                                                items:@[
+            [self lightenHeavySitesToggleMenuItem],
             [self userAgentModeMenuItem],
         ]],
         [BrowserAdvancedMenuSection sectionWithTitle:@"Web Platform Probe"

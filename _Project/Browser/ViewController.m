@@ -906,8 +906,47 @@ static UIColor *kTextColor(void) {
     return [self.tabCoordinator createNewTabWithRequest:request];
 }
 
+// Hosts whose desktop build is heavy enough to take the web content process
+// down on this hardware. The phone agent gets a far lighter page.
+- (BOOL)isHeavyHost:(NSString *)host {
+    NSString *lowercaseHost = host.lowercaseString ?: @"";
+    for (NSString *heavy in @[@"youtube.com", @"youtu.be"]) {
+        if ([lowercaseHost isEqualToString:heavy] ||
+            [lowercaseHost hasSuffix:[@"." stringByAppendingString:heavy]]) {
+            return YES;
+        }
+    }
+    return NO;
+}
+
+// The agent applies to the next load, not the one being decided, so this
+// cancels and re-issues once. The agent check keeps that from repeating.
+- (BOOL)lightenRequestIfNeeded:(NSURLRequest *)request webView:(id)webView {
+    if (!self.preferencesStore.lightenHeavySitesEnabled ||
+        ![webView isKindOfClass:[BrowserWebView class]] ||
+        ![self isHeavyHost:request.URL.host]) {
+        return NO;
+    }
+
+    BrowserWebView *browserWebView = (BrowserWebView *)webView;
+    NSString *mobileAgent = BrowserPreferencesStore.mobileUserAgent;
+    if ([browserWebView.currentUserAgent isEqualToString:mobileAgent]) {
+        return NO;
+    }
+
+    [browserWebView setUserAgent:mobileAgent];
+    NSURLRequest *retry = [request copy];
+    dispatch_async(dispatch_get_main_queue(), ^{
+        [browserWebView loadRequest:retry];
+    });
+    return YES;
+}
+
 - (BOOL)webView:(id)webView shouldStartLoadWithRequest:(NSURLRequest *)request navigationType:(NSInteger)navigationType {
     (void)navigationType;
+    if ([self lightenRequestIfNeeded:request webView:webView]) {
+        return NO;
+    }
     [self.tabCoordinator prepareTabForRequest:request webView:webView];
     return YES;
 }

@@ -35,8 +35,33 @@ NS_ASSUME_NONNULL_BEGIN
 - (void)goBack;
 - (void)goForward;
 - (nullable NSString *)stringByEvaluatingJavaScriptFromString:(NSString * _Nonnull)script;
+
+// Why an evaluation produced nothing. Returning a bare nil made a timeout, a
+// dead process and a script error look identical, which is how a probe meant
+// to remove guesswork ended up producing it.
+typedef NS_ENUM(NSInteger, BrowserScriptEvaluationStatus) {
+    BrowserScriptEvaluationStatusOK = 0,
+    BrowserScriptEvaluationStatusNoWebView,
+    BrowserScriptEvaluationStatusUnsupported,
+    BrowserScriptEvaluationStatusNoWebProcess,
+    BrowserScriptEvaluationStatusReentrant,
+    BrowserScriptEvaluationStatusTimedOut,
+    BrowserScriptEvaluationStatusScriptError,
+};
+
+- (nullable NSString *)stringByEvaluatingJavaScriptFromString:(NSString * _Nonnull)script
+                                                      timeout:(NSTimeInterval)timeout
+                                                       status:(nullable BrowserScriptEvaluationStatus *)status
+                                                 failureReason:(NSString * _Nullable * _Nullable)failureReason;
+
++ (NSString *)descriptionForScriptEvaluationStatus:(BrowserScriptEvaluationStatus)status;
 - (NSString * _Nonnull)runtimeMediaPreferenceReport;
 - (void)setUserAgent:(NSString * _Nullable)userAgent;
+- (nullable NSString *)currentUserAgent;
+
+// Tears the page's process down and loads it again. The way back from a
+// process that is wedged rather than dead.
+- (BOOL)restartWebContentProcess;
 - (void)pauseAllMediaPlayback;
 
 + (void)installRuleListToConfiguration:(id)configuration;

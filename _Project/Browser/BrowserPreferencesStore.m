@@ -17,6 +17,7 @@ static NSString * const kForcedDarkModeEnabledDefaultsKey = @"ForcedDarkModeEnab
 static NSString * const kContentBlockingEnabledDefaultsKey = @"ContentBlockingEnabled";
 static NSString * const kReaderFontSizeDefaultsKey = @"ReaderFontSize";
 static NSString * const kYouTubeCaptureHookEnabledDefaultsKey = @"YouTubeCaptureHookEnabled";
+static NSString * const kLightenHeavySitesEnabledDefaultsKey = @"LightenHeavySitesEnabled";
 
 static NSUInteger const kDefaultTextFontSize = 100;
 static NSUInteger const kMinimumTextFontSize = 50;
@@ -217,6 +218,18 @@ static NSUInteger const kMaximumReaderFontSize = 96;
 // on every page, and it exists only to feed the external YouTube player,
 // which is not the playback path in use. A site's own scripts run through
 // those two, so the hook is a page-wide risk for no current benefit.
+// The desktop build of a site like YouTube is the heaviest thing it serves,
+// and this device's web process cannot hold it: it dies and the page goes
+// blank. Those sites get the phone agent, which is a fraction of the weight.
+- (BOOL)lightenHeavySitesEnabled {
+    NSNumber *value = [[self defaults] objectForKey:kLightenHeavySitesEnabledDefaultsKey];
+    return value ? value.boolValue : YES;
+}
+- (void)setLightenHeavySitesEnabled:(BOOL)lightenHeavySitesEnabled {
+    [[self defaults] setObject:@(lightenHeavySitesEnabled) forKey:kLightenHeavySitesEnabledDefaultsKey];
+    [[self defaults] synchronize];
+}
+
 - (BOOL)youTubeCaptureHookEnabled {
     return [[self defaults] boolForKey:kYouTubeCaptureHookEnabledDefaultsKey];
 }
