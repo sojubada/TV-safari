@@ -14,6 +14,9 @@ static NSString * const kBrowserUserScriptClassName = @"WKUserScript";
 
 static BOOL gBrowserYouTubeCaptureHookEnabled;
 static BOOL gBrowserExperimentalMediaSourceEnabled;
+static BOOL gBrowserInlineMediaPlaybackEnabled;
+static BOOL gBrowserWebKitFullScreenEnabled;
+static BOOL gBrowserSiteSpecificQuirksEnabled;
 
 static void BrowserEnsureWebKitRuntimeLoaded(void) {
     static dispatch_once_t onceToken;
@@ -315,6 +318,9 @@ static void BrowserConfigurePrivateMediaPreferences(id configuration) {
     BrowserSetBooleanSelectorIfAvailable(preferences, @"_setManagedMediaSourceEnabled:", mediaSource);
     BrowserSetBooleanSelectorIfAvailable(preferences, @"_setMediaCapabilityGrantsEnabled:", mediaSource);
     BrowserSetBooleanSelectorIfAvailable(preferences, @"_setVideoQualityIncludesDisplayCompositingEnabled:", mediaSource);
+
+    BrowserSetBooleanSelectorIfAvailable(preferences, @"_setFullScreenEnabled:", gBrowserWebKitFullScreenEnabled);
+    BrowserSetBooleanSelectorIfAvailable(preferences, @"_setNeedsSiteSpecificQuirks:", gBrowserSiteSpecificQuirksEnabled);
 }
 
 static NSString *BrowserYouTubeRequestCaptureScript(void) {
@@ -569,6 +575,18 @@ static void BrowserInstallYouTubeCaptureUserScript(id configuration) {
     gBrowserExperimentalMediaSourceEnabled = enabled;
 }
 
++ (void)setInlineMediaPlaybackEnabled:(BOOL)enabled {
+    gBrowserInlineMediaPlaybackEnabled = enabled;
+}
+
++ (void)setWebKitFullScreenEnabled:(BOOL)enabled {
+    gBrowserWebKitFullScreenEnabled = enabled;
+}
+
++ (void)setSiteSpecificQuirksEnabled:(BOOL)enabled {
+    gBrowserSiteSpecificQuirksEnabled = enabled;
+}
+
 + (void)installRuleListToConfiguration:(id)configuration {
     if (configuration == nil) {
         return;
@@ -625,9 +643,15 @@ static void BrowserInstallYouTubeCaptureUserScript(id configuration) {
     }
 
     id configuration = ((id (*)(id, SEL))objc_msgSend)((id)configurationClass, @selector(new));
+    // Every caller passed YES, which forced inline playback on a platform
+    // whose own default is off and which expects the system player. The
+    // setting decides now.
+    (void)allowsInlineMediaPlayback;
     SEL allowsInlineMediaPlaybackSelector = NSSelectorFromString(@"setAllowsInlineMediaPlayback:");
     if (configuration != nil && [configuration respondsToSelector:allowsInlineMediaPlaybackSelector]) {
-        ((void (*)(id, SEL, BOOL))objc_msgSend)(configuration, allowsInlineMediaPlaybackSelector, allowsInlineMediaPlayback);
+        ((void (*)(id, SEL, BOOL))objc_msgSend)(configuration,
+                                                allowsInlineMediaPlaybackSelector,
+                                                gBrowserInlineMediaPlaybackEnabled);
     }
     BrowserConfigurePrivateMediaPreferences(configuration);
     BrowserInstallErrorCaptureUserScript(configuration);

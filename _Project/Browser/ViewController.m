@@ -95,6 +95,9 @@ static UIColor *kTextColor(void) {
 
     [BrowserWebView setYouTubeCaptureHookEnabled:self.preferencesStore.youTubeCaptureHookEnabled];
     [BrowserWebView setExperimentalMediaSourceEnabled:self.preferencesStore.experimentalMediaSourceEnabled];
+    [BrowserWebView setInlineMediaPlaybackEnabled:self.preferencesStore.inlineMediaPlaybackEnabled];
+    [BrowserWebView setWebKitFullScreenEnabled:self.preferencesStore.webKitFullScreenEnabled];
+    [BrowserWebView setSiteSpecificQuirksEnabled:self.preferencesStore.siteSpecificQuirksEnabled];
 
     self.contentBlockerController = [BrowserContentBlockerController sharedController];
     [self.contentBlockerController prepareRuleListIfNeeded];
@@ -654,6 +657,9 @@ static UIColor *kTextColor(void) {
 - (void)browserRecreateActiveWebViewPreservingCurrentURL {
     [BrowserWebView setYouTubeCaptureHookEnabled:self.preferencesStore.youTubeCaptureHookEnabled];
     [BrowserWebView setExperimentalMediaSourceEnabled:self.preferencesStore.experimentalMediaSourceEnabled];
+    [BrowserWebView setInlineMediaPlaybackEnabled:self.preferencesStore.inlineMediaPlaybackEnabled];
+    [BrowserWebView setWebKitFullScreenEnabled:self.preferencesStore.webKitFullScreenEnabled];
+    [BrowserWebView setSiteSpecificQuirksEnabled:self.preferencesStore.siteSpecificQuirksEnabled];
     [self.tabCoordinator recreateActiveWebViewPreservingCurrentURL];
 }
 
@@ -1015,11 +1021,11 @@ static UIColor *kTextColor(void) {
         alertControllerWithTitle:@"This Page Keeps Crashing"
                          message:[NSString stringWithFormat:
                                   @"%@ stopped its web process twice in a row, which leaves the "
-                                  @"page blank.\n\n"
-                                  @"Video playback is the usual trigger: this device routes media "
-                                  @"through its own player, and asking the web engine to decode a "
-                                  @"stream itself is more than it can do.",
-                                  host]
+                                  @"page blank. Deaths so far: %lu.\n\n"
+                                  @"If this happens when a video starts, the switches under "
+                                  @"Settings · Media Experiments change how the engine is asked "
+                                  @"to handle media.",
+                                  host, (unsigned long)webView.webContentTerminationCount]
                   preferredStyle:UIAlertControllerStyleAlert];
 
     __weak typeof(self) weakSelf = self;

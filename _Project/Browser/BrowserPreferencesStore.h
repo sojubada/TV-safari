@@ -26,6 +26,9 @@ NS_ASSUME_NONNULL_BEGIN
 @property (nonatomic) BOOL youTubeCaptureHookEnabled;
 @property (nonatomic) BOOL lightenHeavySitesEnabled;
 @property (nonatomic) BOOL experimentalMediaSourceEnabled;
+@property (nonatomic) BOOL inlineMediaPlaybackEnabled;
+@property (nonatomic) BOOL webKitFullScreenEnabled;
+@property (nonatomic) BOOL siteSpecificQuirksEnabled;
 
 - (void)ensureUserAgentConsistency;
 

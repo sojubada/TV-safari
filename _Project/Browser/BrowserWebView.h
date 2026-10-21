@@ -71,6 +71,9 @@ typedef NS_ENUM(NSInteger, BrowserScriptEvaluationStatus) {
 // platform. Forcing a disabled code path is a candidate for the process
 // dying on video playback, so it is a switch rather than an assumption.
 + (void)setExperimentalMediaSourceEnabled:(BOOL)enabled;
++ (void)setInlineMediaPlaybackEnabled:(BOOL)enabled;
++ (void)setWebKitFullScreenEnabled:(BOOL)enabled;
++ (void)setSiteSpecificQuirksEnabled:(BOOL)enabled;
 
 // The underlying WKWebView, for the platform probe to interrogate. Nil when
 // WebKit could not be reached at all.

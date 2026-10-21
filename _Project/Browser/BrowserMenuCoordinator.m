@@ -1527,9 +1527,14 @@ withAnimationCoordinator:(UIFocusAnimationCoordinator *)coordinator {
             [self edgeAutoScrollToggleMenuItem],
             [self jsScrollFallbackToggleMenuItem],
         ]],
+        [BrowserAdvancedMenuSection sectionWithTitle:@"Media Experiments" items:@[
+            [self inlineMediaPlaybackToggleMenuItem],
+            [self webKitFullScreenToggleMenuItem],
+            [self siteSpecificQuirksToggleMenuItem],
+            [self experimentalMediaSourceToggleMenuItem],
+        ]],
         [BrowserAdvancedMenuSection sectionWithTitle:@"Page" items:@[
             [self lightenHeavySitesToggleMenuItem],
-            [self experimentalMediaSourceToggleMenuItem],
             [self userAgentModeMenuItem],
             [self fullscreenVideoPlaybackToggleMenuItem],
             [self youTubeCaptureHookToggleMenuItem],
@@ -1588,9 +1593,39 @@ withAnimationCoordinator:(UIFocusAnimationCoordinator *)coordinator {
     }];
 }
 
+- (BrowserAdvancedMenuItem *)inlineMediaPlaybackToggleMenuItem {
+    BOOL enabled = self.preferencesStore.inlineMediaPlaybackEnabled;
+    NSString *title = enabled ? @"1. Inline Video: On" : @"1. Inline Video: Off";
+    __weak typeof(self) weakSelf = self;
+    return [self settingMenuItemWithTitle:title handler:^{
+        weakSelf.preferencesStore.inlineMediaPlaybackEnabled = !enabled;
+        [weakSelf.host browserRecreateActiveWebViewPreservingCurrentURL];
+    }];
+}
+
+- (BrowserAdvancedMenuItem *)webKitFullScreenToggleMenuItem {
+    BOOL enabled = self.preferencesStore.webKitFullScreenEnabled;
+    NSString *title = enabled ? @"2. WebKit Fullscreen: On" : @"2. WebKit Fullscreen: Off";
+    __weak typeof(self) weakSelf = self;
+    return [self settingMenuItemWithTitle:title handler:^{
+        weakSelf.preferencesStore.webKitFullScreenEnabled = !enabled;
+        [weakSelf.host browserRecreateActiveWebViewPreservingCurrentURL];
+    }];
+}
+
+- (BrowserAdvancedMenuItem *)siteSpecificQuirksToggleMenuItem {
+    BOOL enabled = self.preferencesStore.siteSpecificQuirksEnabled;
+    NSString *title = enabled ? @"3. Site Quirks: On" : @"3. Site Quirks: Off";
+    __weak typeof(self) weakSelf = self;
+    return [self settingMenuItemWithTitle:title handler:^{
+        weakSelf.preferencesStore.siteSpecificQuirksEnabled = !enabled;
+        [weakSelf.host browserRecreateActiveWebViewPreservingCurrentURL];
+    }];
+}
+
 - (BrowserAdvancedMenuItem *)experimentalMediaSourceToggleMenuItem {
     BOOL enabled = self.preferencesStore.experimentalMediaSourceEnabled;
-    NSString *title = enabled ? @"Experimental Media (MSE): On" : @"Experimental Media (MSE): Off";
+    NSString *title = enabled ? @"4. MediaSource (MSE): On" : @"4. MediaSource (MSE): Off";
     __weak typeof(self) weakSelf = self;
     return [self settingMenuItemWithTitle:title
                                   handler:^{
@@ -1729,6 +1764,9 @@ withAnimationCoordinator:(UIFocusAnimationCoordinator *)coordinator {
         [BrowserAdvancedMenuSection sectionWithTitle:@"Compatibility"
                                                items:@[
             [self lightenHeavySitesToggleMenuItem],
+            [self inlineMediaPlaybackToggleMenuItem],
+            [self webKitFullScreenToggleMenuItem],
+            [self siteSpecificQuirksToggleMenuItem],
             [self experimentalMediaSourceToggleMenuItem],
             [self userAgentModeMenuItem],
         ]],
