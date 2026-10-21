@@ -1529,6 +1529,7 @@ withAnimationCoordinator:(UIFocusAnimationCoordinator *)coordinator {
         ]],
         [BrowserAdvancedMenuSection sectionWithTitle:@"Page" items:@[
             [self lightenHeavySitesToggleMenuItem],
+            [self experimentalMediaSourceToggleMenuItem],
             [self userAgentModeMenuItem],
             [self fullscreenVideoPlaybackToggleMenuItem],
             [self youTubeCaptureHookToggleMenuItem],
@@ -1583,6 +1584,17 @@ withAnimationCoordinator:(UIFocusAnimationCoordinator *)coordinator {
     return [self settingMenuItemWithTitle:title
                                  handler:^{
         weakSelf.preferencesStore.youTubeCaptureHookEnabled = !enabled;
+        [weakSelf.host browserRecreateActiveWebViewPreservingCurrentURL];
+    }];
+}
+
+- (BrowserAdvancedMenuItem *)experimentalMediaSourceToggleMenuItem {
+    BOOL enabled = self.preferencesStore.experimentalMediaSourceEnabled;
+    NSString *title = enabled ? @"Experimental Media (MSE): On" : @"Experimental Media (MSE): Off";
+    __weak typeof(self) weakSelf = self;
+    return [self settingMenuItemWithTitle:title
+                                  handler:^{
+        weakSelf.preferencesStore.experimentalMediaSourceEnabled = !enabled;
         [weakSelf.host browserRecreateActiveWebViewPreservingCurrentURL];
     }];
 }
@@ -1717,6 +1729,7 @@ withAnimationCoordinator:(UIFocusAnimationCoordinator *)coordinator {
         [BrowserAdvancedMenuSection sectionWithTitle:@"Compatibility"
                                                items:@[
             [self lightenHeavySitesToggleMenuItem],
+            [self experimentalMediaSourceToggleMenuItem],
             [self userAgentModeMenuItem],
         ]],
         [BrowserAdvancedMenuSection sectionWithTitle:@"Web Platform Probe"

@@ -94,6 +94,7 @@ static UIColor *kTextColor(void) {
     self.viewModel.fullscreenVideoPlaybackEnabled = self.preferencesStore.fullscreenVideoPlaybackEnabled;
 
     [BrowserWebView setYouTubeCaptureHookEnabled:self.preferencesStore.youTubeCaptureHookEnabled];
+    [BrowserWebView setExperimentalMediaSourceEnabled:self.preferencesStore.experimentalMediaSourceEnabled];
 
     self.contentBlockerController = [BrowserContentBlockerController sharedController];
     [self.contentBlockerController prepareRuleListIfNeeded];
@@ -652,6 +653,7 @@ static UIColor *kTextColor(void) {
 
 - (void)browserRecreateActiveWebViewPreservingCurrentURL {
     [BrowserWebView setYouTubeCaptureHookEnabled:self.preferencesStore.youTubeCaptureHookEnabled];
+    [BrowserWebView setExperimentalMediaSourceEnabled:self.preferencesStore.experimentalMediaSourceEnabled];
     [self.tabCoordinator recreateActiveWebViewPreservingCurrentURL];
 }
 
@@ -1012,13 +1014,24 @@ static UIColor *kTextColor(void) {
     UIAlertController *alert = [UIAlertController
         alertControllerWithTitle:@"This Page Keeps Crashing"
                          message:[NSString stringWithFormat:
-                                  @"%@ ran out of room and its web process stopped, twice in a row. "
-                                  @"The page goes blank when that happens.\n\n"
-                                  @"The mobile version of a site is far lighter and usually loads.",
+                                  @"%@ stopped its web process twice in a row, which leaves the "
+                                  @"page blank.\n\n"
+                                  @"Video playback is the usual trigger: this device routes media "
+                                  @"through its own player, and asking the web engine to decode a "
+                                  @"stream itself is more than it can do.",
                                   host]
                   preferredStyle:UIAlertControllerStyleAlert];
 
     __weak typeof(self) weakSelf = self;
+    if (self.preferencesStore.experimentalMediaSourceEnabled) {
+        [alert addAction:[UIAlertAction actionWithTitle:@"Turn Off Experimental Media and Reload"
+                                                  style:UIAlertActionStyleDefault
+                                                handler:^(__unused UIAlertAction *action) {
+            weakSelf.preferencesStore.experimentalMediaSourceEnabled = NO;
+            weakSelf.consecutiveWebContentCrashes = 0;
+            [weakSelf browserRecreateActiveWebViewPreservingCurrentURL];
+        }]];
+    }
     if (!self.preferencesStore.mobileModeEnabled) {
         [alert addAction:[UIAlertAction actionWithTitle:@"Switch to Mobile and Reload"
                                                   style:UIAlertActionStyleDefault

@@ -67,6 +67,11 @@ typedef NS_ENUM(NSInteger, BrowserScriptEvaluationStatus) {
 + (void)installRuleListToConfiguration:(id)configuration;
 + (void)setYouTubeCaptureHookEnabled:(BOOL)enabled;
 
+// Turns on WebKit's MediaSource path, which Apple leaves off on this
+// platform. Forcing a disabled code path is a candidate for the process
+// dying on video playback, so it is a switch rather than an assumption.
++ (void)setExperimentalMediaSourceEnabled:(BOOL)enabled;
+
 // The underlying WKWebView, for the platform probe to interrogate. Nil when
 // WebKit could not be reached at all.
 - (nullable id)runtimeWebViewForProbing;

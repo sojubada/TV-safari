@@ -18,6 +18,7 @@ static NSString * const kContentBlockingEnabledDefaultsKey = @"ContentBlockingEn
 static NSString * const kReaderFontSizeDefaultsKey = @"ReaderFontSize";
 static NSString * const kYouTubeCaptureHookEnabledDefaultsKey = @"YouTubeCaptureHookEnabled";
 static NSString * const kLightenHeavySitesEnabledDefaultsKey = @"LightenHeavySitesEnabled";
+static NSString * const kExperimentalMediaSourceEnabledDefaultsKey = @"ExperimentalMediaSourceEnabled";
 
 static NSUInteger const kDefaultTextFontSize = 100;
 static NSUInteger const kMinimumTextFontSize = 50;
@@ -221,6 +222,16 @@ static NSUInteger const kMaximumReaderFontSize = 96;
 // The desktop build of a site like YouTube is the heaviest thing it serves,
 // and this device's web process cannot hold it: it dies and the page goes
 // blank. Those sites get the phone agent, which is a fraction of the weight.
+// Off by default: boolForKey gives NO for an unset key, which is what we
+// want here.
+- (BOOL)experimentalMediaSourceEnabled {
+    return [[self defaults] boolForKey:kExperimentalMediaSourceEnabledDefaultsKey];
+}
+- (void)setExperimentalMediaSourceEnabled:(BOOL)experimentalMediaSourceEnabled {
+    [[self defaults] setBool:experimentalMediaSourceEnabled forKey:kExperimentalMediaSourceEnabledDefaultsKey];
+    [[self defaults] synchronize];
+}
+
 - (BOOL)lightenHeavySitesEnabled {
     NSNumber *value = [[self defaults] objectForKey:kLightenHeavySitesEnabledDefaultsKey];
     return value ? value.boolValue : YES;

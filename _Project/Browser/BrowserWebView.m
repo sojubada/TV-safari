@@ -13,6 +13,7 @@ static NSString * const kBrowserUserContentControllerClassName = @"WKUserContent
 static NSString * const kBrowserUserScriptClassName = @"WKUserScript";
 
 static BOOL gBrowserYouTubeCaptureHookEnabled;
+static BOOL gBrowserExperimentalMediaSourceEnabled;
 
 static void BrowserEnsureWebKitRuntimeLoaded(void) {
     static dispatch_once_t onceToken;
@@ -304,10 +305,16 @@ static void BrowserConfigurePrivateMediaPreferences(id configuration) {
         return;
     }
 
-    BrowserSetBooleanSelectorIfAvailable(preferences, @"_setMediaSourceEnabled:", YES);
-    BrowserSetBooleanSelectorIfAvailable(preferences, @"_setManagedMediaSourceEnabled:", YES);
-    BrowserSetBooleanSelectorIfAvailable(preferences, @"_setMediaCapabilityGrantsEnabled:", YES);
-    BrowserSetBooleanSelectorIfAvailable(preferences, @"_setVideoQualityIncludesDisplayCompositingEnabled:", YES);
+    // Apple leaves MediaSource off on this platform and routes media through
+    // AVPlayer instead. Turning it on asks the content process to run a path
+    // that is not provisioned here, and the process dies the moment a video
+    // starts, which is what playback on the mobile site does. Off unless
+    // asked for.
+    BOOL mediaSource = gBrowserExperimentalMediaSourceEnabled;
+    BrowserSetBooleanSelectorIfAvailable(preferences, @"_setMediaSourceEnabled:", mediaSource);
+    BrowserSetBooleanSelectorIfAvailable(preferences, @"_setManagedMediaSourceEnabled:", mediaSource);
+    BrowserSetBooleanSelectorIfAvailable(preferences, @"_setMediaCapabilityGrantsEnabled:", mediaSource);
+    BrowserSetBooleanSelectorIfAvailable(preferences, @"_setVideoQualityIncludesDisplayCompositingEnabled:", mediaSource);
 }
 
 static NSString *BrowserYouTubeRequestCaptureScript(void) {
@@ -556,6 +563,10 @@ static void BrowserInstallYouTubeCaptureUserScript(id configuration) {
 
 + (void)setYouTubeCaptureHookEnabled:(BOOL)enabled {
     gBrowserYouTubeCaptureHookEnabled = enabled;
+}
+
++ (void)setExperimentalMediaSourceEnabled:(BOOL)enabled {
+    gBrowserExperimentalMediaSourceEnabled = enabled;
 }
 
 + (void)installRuleListToConfiguration:(id)configuration {
