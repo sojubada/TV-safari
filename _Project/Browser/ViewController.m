@@ -250,18 +250,11 @@ static UIColor *kTextColor(void) {
     [self updateFocusIfNeeded];
 }
 
+// The exit button is its own button at the far left of the bar, so pressing
+// it is already the decision. A confirmation would only add a second press.
 - (void)promptExitApp {
-    UIAlertController *alert = [UIAlertController alertControllerWithTitle:@"Exit App?"
-                                                                   message:nil
-                                                            preferredStyle:UIAlertControllerStyleAlert];
-    [alert addAction:[UIAlertAction actionWithTitle:@"Exit"
-                                              style:UIAlertActionStyleDestructive
-                                            handler:^(__unused UIAlertAction *action) {
-        [self.tabCoordinator persistSession];
-        exit(EXIT_SUCCESS);
-    }]];
-    [alert addAction:[UIAlertAction actionWithTitle:@"Dismiss" style:UIAlertActionStyleCancel handler:nil]];
-    [self browserPresentViewController:alert];
+    [self.tabCoordinator persistSession];
+    exit(EXIT_SUCCESS);
 }
 
 - (BOOL)exitWebFullscreenIfActive {
