@@ -361,27 +361,44 @@ static UIColor *kTextColor(void) {
         return;
     }
 
-    // This used to walk every element in the document, calling
-    // getComputedStyle on each and writing an inline font-size. On a heavy
-    // page that is tens of thousands of forced layout passes inside a
-    // synchronous evaluation, and it ran on every load even at 100%. It is
-    // one stylesheet now: WebKit's own text-size-adjust does the scaling.
-    NSUInteger size = self.viewModel.textFontSize;
-    NSString *jsString = [[NSString alloc] initWithFormat:
+    // One stylesheet carries every reading adjustment. This used to walk each
+    // element in the document calling getComputedStyle, which is what killed
+    // heavy pages; selector matching is WebKit's own work and costs nothing.
+    //
+    // Weight matters as much as size. News sites set body text in thin faces
+    // that hold up on a phone at arm's length and wash out at three metres,
+    // where a television's pixels are too coarse to carry the stroke.
+    // Enlarging thin text only makes it large and faint.
+    NSMutableString *css = [NSMutableString string];
+    [css appendFormat:@"html,body{-webkit-text-size-adjust:%lu%%!important;"
+                       "text-size-adjust:%lu%%!important;}",
+                      (unsigned long)self.viewModel.textFontSize,
+                      (unsigned long)self.viewModel.textFontSize];
+
+    if (self.preferencesStore.boldTextEnabled) {
+        [css appendString:
+            @"html body,html body p,html body li,html body td,html body dd,"
+             "html body span,html body div,html body a,html body figcaption"
+             "{font-weight:600!important;}"
+             "html body h1,html body h2,html body h3,html body h4,"
+             "html body b,html body strong{font-weight:800!important;}"
+             "html body p,html body li{line-height:1.65!important;}"];
+    }
+
+    // The rules carry no quotes, backslashes or newlines, so they drop into a
+    // JavaScript string literal as they are.
+    NSString *jsString = [NSString stringWithFormat:
                           @"(function(){"
-                           "var value='%lu%%';"
-                           "var el = document.getElementById('browser-text-scale');"
-                           "if (!el) {"
-                               "if (!document.head) { return 'no-head'; }"
-                               "el = document.createElement('style');"
-                               "el.id = 'browser-text-scale';"
+                           "var el=document.getElementById('browser-text-scale');"
+                           "if(!el){"
+                               "if(!document.head){return 'no-head';}"
+                               "el=document.createElement('style');"
+                               "el.id='browser-text-scale';"
                                "document.head.appendChild(el);"
                            "}"
-                           "el.textContent = 'html,body{-webkit-text-size-adjust:' + value + ' !important;"
-                           "text-size-adjust:' + value + ' !important;}';"
-                           "return value;"
-                          "})()",
-                          (unsigned long)size];
+                           "el.textContent='%@';"
+                           "return 'ok';"
+                          "})()", css];
     [self.webview stringByEvaluatingJavaScriptFromString:jsString];
 }
 
@@ -718,6 +735,8 @@ static UIColor *kTextColor(void) {
     BOOL dark = self.preferencesStore.forcedDarkModeEnabled;
     BOOL blocking = self.preferencesStore.contentBlockingEnabled;
     BOOL mobile = self.preferencesStore.mobileModeEnabled;
+    BOOL bold = self.preferencesStore.boldTextEnabled;
+    NSUInteger minimumFont = self.preferencesStore.minimumFontSize;
 
     BrowserWorkbenchSection *apply = [BrowserWorkbenchSection sectionWithTitle:@"이 페이지에 적용" items:@[
         [BrowserWorkbenchItem itemWithTitle:[NSString stringWithFormat:@"확대 키우기  (지금 %lu%%)", (unsigned long)zoom]
@@ -740,6 +759,32 @@ static UIColor *kTextColor(void) {
             [weakSelf applyReadingZoom];
             [weakSelf refreshWorkbenchRows];
             return @"확대 100%";
+        }],
+        [BrowserWorkbenchItem itemWithTitle:bold ? @"글자 굵게 끄기" : @"글자 굵게 켜기"
+                                     action:^NSString *{
+            weakSelf.preferencesStore.boldTextEnabled = !weakSelf.preferencesStore.boldTextEnabled;
+            [weakSelf updateTextFontSize];
+            [weakSelf refreshWorkbenchRows];
+            return weakSelf.preferencesStore.boldTextEnabled ? @"굵게 켜짐" : @"굵게 꺼짐";
+        }],
+        [BrowserWorkbenchItem itemWithTitle:[NSString stringWithFormat:@"최소 글자 크기 키우기  (%lupt)", (unsigned long)minimumFont]
+                                     action:^NSString *{
+            weakSelf.preferencesStore.minimumFontSize = weakSelf.preferencesStore.minimumFontSize + 2;
+            [weakSelf applyReadingZoom];
+            [weakSelf.webview reload];
+            [weakSelf refreshWorkbenchRows];
+            return [NSString stringWithFormat:@"최소 %lupt\n다시 불러오는 중",
+                    (unsigned long)weakSelf.preferencesStore.minimumFontSize];
+        }],
+        [BrowserWorkbenchItem itemWithTitle:[NSString stringWithFormat:@"최소 글자 크기 줄이기  (%lupt)", (unsigned long)minimumFont]
+                                     action:^NSString *{
+            NSUInteger current = weakSelf.preferencesStore.minimumFontSize;
+            weakSelf.preferencesStore.minimumFontSize = current >= 2 ? current - 2 : 0;
+            [weakSelf applyReadingZoom];
+            [weakSelf.webview reload];
+            [weakSelf refreshWorkbenchRows];
+            return [NSString stringWithFormat:@"최소 %lupt\n다시 불러오는 중",
+                    (unsigned long)weakSelf.preferencesStore.minimumFontSize];
         }],
         [BrowserWorkbenchItem itemWithTitle:reader ? @"읽기 모드 끄기" : @"읽기 모드 켜기"
                                      action:^NSString *{
@@ -871,7 +916,12 @@ static UIColor *kTextColor(void) {
         return;
     }
     webView.userPageZoom = (CGFloat)self.preferencesStore.pageZoomPercent / 100.0;
+    [webView setMinimumFontSize:(CGFloat)self.preferencesStore.minimumFontSize];
     [webView applyPageScalingIfNeeded];
+}
+
+- (void)browserReloadActivePage {
+    [self.webview reload];
 }
 
 - (void)browserApplyReadingZoom {

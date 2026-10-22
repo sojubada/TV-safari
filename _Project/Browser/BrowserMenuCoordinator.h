@@ -21,6 +21,7 @@
 - (void)browserUpdateTextFontSize;
 - (void)browserApplyReadingZoom;
 - (void)browserShowProbeWorkbench;
+- (void)browserReloadActivePage;
 - (void)browserUpdateForcedDarkMode;
 - (void)browserCaptureSnapshotForCurrentTab;
 - (void)browserRecreateActiveWebViewPreservingCurrentURL;

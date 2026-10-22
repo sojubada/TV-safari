@@ -26,6 +26,12 @@ NS_ASSUME_NONNULL_BEGIN
 
 /// Whole-page reading zoom in percent. 100 == no zoom. Clamped 50...250.
 @property (nonatomic) NSUInteger pageZoomPercent;
+
+/// Floor on rendered text size in points. 0 turns it off. Clamped 0...48.
+@property (nonatomic) NSUInteger minimumFontSize;
+
+/// Thickens page text. Thin strokes wash out at television viewing distance.
+@property (nonatomic) BOOL boldTextEnabled;
 @property (nonatomic) BOOL lightenHeavySitesEnabled;
 
 - (void)ensureUserAgentConsistency;

@@ -1501,12 +1501,52 @@ withAnimationCoordinator:(UIFocusAnimationCoordinator *)coordinator {
             [self increasePageZoomMenuItem],
             [self decreasePageZoomMenuItem],
             [self resetPageZoomMenuItem],
+            [self boldTextToggleMenuItem],
+            [self increaseMinimumFontSizeMenuItem],
+            [self decreaseMinimumFontSizeMenuItem],
             [self increaseFontSizeMenuItem],
             [self decreaseFontSizeMenuItem],
             [self resetFontSizeMenuItem],
             [self pageScalingMenuItem],
         ]],
     ];
+}
+
+- (BrowserAdvancedMenuItem *)boldTextToggleMenuItem {
+    BOOL enabled = self.preferencesStore.boldTextEnabled;
+    NSString *title = enabled ? @"Bolder Text: On" : @"Bolder Text: Off";
+    __weak typeof(self) weakSelf = self;
+    return [self settingMenuItemWithTitle:title handler:^{
+        weakSelf.preferencesStore.boldTextEnabled = !enabled;
+        [weakSelf.host browserUpdateTextFontSize];
+    }];
+}
+
+- (BrowserAdvancedMenuItem *)increaseMinimumFontSizeMenuItem {
+    NSUInteger size = self.preferencesStore.minimumFontSize;
+    NSString *title = size > 0
+        ? [NSString stringWithFormat:@"Minimum Text Bigger  (%lupt)", (unsigned long)size]
+        : @"Minimum Text Bigger  (off)";
+    __weak typeof(self) weakSelf = self;
+    return [self settingMenuItemWithTitle:title handler:^{
+        weakSelf.preferencesStore.minimumFontSize = weakSelf.preferencesStore.minimumFontSize + 2;
+        [weakSelf.host browserApplyReadingZoom];
+        [weakSelf.host browserReloadActivePage];
+    }];
+}
+
+- (BrowserAdvancedMenuItem *)decreaseMinimumFontSizeMenuItem {
+    NSUInteger size = self.preferencesStore.minimumFontSize;
+    NSString *title = size > 0
+        ? [NSString stringWithFormat:@"Minimum Text Smaller  (%lupt)", (unsigned long)size]
+        : @"Minimum Text Smaller  (off)";
+    __weak typeof(self) weakSelf = self;
+    return [self settingMenuItemWithTitle:title handler:^{
+        NSUInteger current = weakSelf.preferencesStore.minimumFontSize;
+        weakSelf.preferencesStore.minimumFontSize = current >= 2 ? current - 2 : 0;
+        [weakSelf.host browserApplyReadingZoom];
+        [weakSelf.host browserReloadActivePage];
+    }];
 }
 
 - (BrowserAdvancedMenuItem *)increasePageZoomMenuItem {
@@ -1604,6 +1644,9 @@ withAnimationCoordinator:(UIFocusAnimationCoordinator *)coordinator {
             [self increasePageZoomMenuItem],
             [self decreasePageZoomMenuItem],
             [self resetPageZoomMenuItem],
+            [self boldTextToggleMenuItem],
+            [self increaseMinimumFontSizeMenuItem],
+            [self decreaseMinimumFontSizeMenuItem],
         ]],
         [BrowserAdvancedMenuSection sectionWithTitle:@"Page" items:@[
             [self lightenHeavySitesToggleMenuItem],

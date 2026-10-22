@@ -800,6 +800,29 @@ static void BrowserConfigurePrivateMediaPreferences(id configuration) {
     [self applyPageScalingIfNeeded];
 }
 
+// WebKit's own floor on rendered text. A television is read from across a
+// room, so raising it lifts the small print without the layout surgery a
+// script would need, and WebKit applies it during layout at no cost.
+- (void)setMinimumFontSize:(CGFloat)minimumFontSize {
+    if (self.runtimeWebView == nil) {
+        return;
+    }
+    SEL configurationSelector = NSSelectorFromString(@"configuration");
+    if (![self.runtimeWebView respondsToSelector:configurationSelector]) {
+        return;
+    }
+    id configuration = ((id (*)(id, SEL))objc_msgSend)(self.runtimeWebView, configurationSelector);
+    SEL preferencesSelector = NSSelectorFromString(@"preferences");
+    if (configuration == nil || ![configuration respondsToSelector:preferencesSelector]) {
+        return;
+    }
+    id preferences = ((id (*)(id, SEL))objc_msgSend)(configuration, preferencesSelector);
+    SEL setter = NSSelectorFromString(@"setMinimumFontSize:");
+    if (preferences != nil && [preferences respondsToSelector:setter]) {
+        ((void (*)(id, SEL, CGFloat))objc_msgSend)(preferences, setter, minimumFontSize);
+    }
+}
+
 - (void)applyPageScalingIfNeeded {
     if (self.runtimeWebView == nil) {
         return;

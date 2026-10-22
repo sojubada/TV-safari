@@ -16,6 +16,8 @@ static NSString * const kOpenLinksInNewTabOnClickDefaultsKey = @"OpenLinksInNewT
 static NSString * const kForcedDarkModeEnabledDefaultsKey = @"ForcedDarkModeEnabled";
 static NSString * const kContentBlockingEnabledDefaultsKey = @"ContentBlockingEnabled";
 static NSString * const kPageZoomPercentDefaultsKey = @"PageZoomPercent";
+static NSString * const kMinimumFontSizeDefaultsKey = @"MinimumFontSize";
+static NSString * const kBoldTextEnabledDefaultsKey = @"BoldTextEnabled";
 static NSString * const kReaderFontSizeDefaultsKey = @"ReaderFontSize";
 static NSString * const kLightenHeavySitesEnabledDefaultsKey = @"LightenHeavySitesEnabled";
 
@@ -233,6 +235,28 @@ static NSUInteger const kMaximumReaderFontSize = 96;
 // A TV is read from across a room, so whole-page zoom is the primary
 // readability control: it scales layout and images with the text, and costs
 // the web process nothing because WebKit does it, not a script.
+// Defaults chosen for a television rather than a desk: news body text runs
+// around 16px, which is under ten arcminutes at three metres, and the thin
+// faces Korean news sites use lose their strokes at this pixel density.
+- (NSUInteger)minimumFontSize {
+    NSNumber *value = [[self defaults] objectForKey:kMinimumFontSizeDefaultsKey];
+    NSUInteger size = value ? value.unsignedIntegerValue : 22;
+    return MIN((NSUInteger)48, size);
+}
+- (void)setMinimumFontSize:(NSUInteger)minimumFontSize {
+    [[self defaults] setObject:@(MIN((NSUInteger)48, minimumFontSize)) forKey:kMinimumFontSizeDefaultsKey];
+    [[self defaults] synchronize];
+}
+
+- (BOOL)boldTextEnabled {
+    NSNumber *value = [[self defaults] objectForKey:kBoldTextEnabledDefaultsKey];
+    return value ? value.boolValue : YES;
+}
+- (void)setBoldTextEnabled:(BOOL)boldTextEnabled {
+    [[self defaults] setObject:@(boldTextEnabled) forKey:kBoldTextEnabledDefaultsKey];
+    [[self defaults] synchronize];
+}
+
 - (NSUInteger)pageZoomPercent {
     NSNumber *value = [[self defaults] objectForKey:kPageZoomPercentDefaultsKey];
     NSUInteger percent = value ? value.unsignedIntegerValue : 100;

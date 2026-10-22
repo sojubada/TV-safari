@@ -34,6 +34,9 @@ NS_ASSUME_NONNULL_BEGIN
 /// Re-applies userPageZoom (and scalesPageToFit) to the live page.
 - (void)applyPageScalingIfNeeded;
 
+/// WebKit's floor on rendered text size, in points. 0 disables it.
+- (void)setMinimumFontSize:(CGFloat)minimumFontSize;
+
 - (instancetype)initWithUserAgent:(NSString * _Nullable)userAgent
       allowsInlineMediaPlayback:(BOOL)allowsInlineMediaPlayback NS_DESIGNATED_INITIALIZER;
 
