@@ -57,6 +57,11 @@ NS_ASSUME_NONNULL_BEGIN
 - (void)webViewDidStartLoad:(id)webView;
 - (void)webViewDidFinishLoad:(id)webView;
 - (void)prepareTabForRequest:(NSURLRequest *)request webView:(id)webView;
+/// Left inset applied to the active web view, used by the probe workbench so
+/// the page is narrowed rather than covered.
+@property (nonatomic) CGFloat webViewLeadingInset;
+
+- (void)updateTopNavAndWebView;
 - (void)setTopNavigationVisible:(BOOL)visible;
 - (BrowserTabViewModel *)tabForWebView:(id)webView;
 - (BOOL)isPrimaryDocumentRequest:(NSURLRequest *)request;

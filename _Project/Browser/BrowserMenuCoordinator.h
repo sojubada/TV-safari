@@ -20,6 +20,7 @@
 - (void)browserShowTopNav;
 - (void)browserUpdateTextFontSize;
 - (void)browserApplyReadingZoom;
+- (void)browserShowProbeWorkbench;
 - (void)browserUpdateForcedDarkMode;
 - (void)browserCaptureSnapshotForCurrentTab;
 - (void)browserRecreateActiveWebViewPreservingCurrentURL;

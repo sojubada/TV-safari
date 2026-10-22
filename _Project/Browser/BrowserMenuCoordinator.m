@@ -421,6 +421,53 @@ typedef void (^BrowserAdvancedMenuItemHandler)(void);
     return self.sections[(NSUInteger)section].title;
 }
 
+- (CGFloat)tableView:(__unused UITableView *)tableView heightForHeaderInSection:(NSInteger)section {
+    if (section < 0 || section >= (NSInteger)self.sections.count ||
+        self.sections[(NSUInteger)section].title.length == 0) {
+        return 0.0;
+    }
+    return 54.0;
+}
+
+// The system header style is small, grey and uppercase, which disappears at
+// three metres. These are the only labels that say what part of the menu you
+// are in, so they are drawn bright and large instead.
+- (UIView *)tableView:(__unused UITableView *)tableView viewForHeaderInSection:(NSInteger)section {
+    if (section < 0 || section >= (NSInteger)self.sections.count) {
+        return nil;
+    }
+    NSString *title = self.sections[(NSUInteger)section].title;
+    if (title.length == 0) {
+        return nil;
+    }
+
+    UIView *header = [[UIView alloc] initWithFrame:CGRectZero];
+    header.backgroundColor = UIColor.clearColor;
+
+    UILabel *label = [[UILabel alloc] initWithFrame:CGRectZero];
+    label.text = title;
+    label.textColor = [UIColor colorWithWhite:1.0 alpha:0.96];
+    label.font = [UIFont systemFontOfSize:30.0 weight:UIFontWeightBold];
+    label.translatesAutoresizingMaskIntoConstraints = NO;
+    [header addSubview:label];
+
+    UIView *rule = [[UIView alloc] initWithFrame:CGRectZero];
+    rule.backgroundColor = [UIColor colorWithWhite:1.0 alpha:0.28];
+    rule.translatesAutoresizingMaskIntoConstraints = NO;
+    [header addSubview:rule];
+
+    [NSLayoutConstraint activateConstraints:@[
+        [label.leadingAnchor constraintEqualToAnchor:header.leadingAnchor constant:28.0],
+        [label.trailingAnchor constraintLessThanOrEqualToAnchor:header.trailingAnchor constant:-28.0],
+        [label.bottomAnchor constraintEqualToAnchor:rule.topAnchor constant:-8.0],
+        [rule.leadingAnchor constraintEqualToAnchor:header.leadingAnchor constant:28.0],
+        [rule.trailingAnchor constraintEqualToAnchor:header.trailingAnchor constant:-28.0],
+        [rule.bottomAnchor constraintEqualToAnchor:header.bottomAnchor constant:-6.0],
+        [rule.heightAnchor constraintEqualToConstant:2.0],
+    ]];
+    return header;
+}
+
 - (UITableViewCell *)tableView:(UITableView *)tableView cellForRowAtIndexPath:(NSIndexPath *)indexPath {
     static NSString * const kCellIdentifier = @"BrowserAdvancedMenuCell";
     static NSInteger const kMenuTitleLabelTag = 9191;
@@ -1742,12 +1789,15 @@ withAnimationCoordinator:(UIFocusAnimationCoordinator *)coordinator {
             [self lightenHeavySitesToggleMenuItem],
             [self userAgentModeMenuItem],
         ]],
-        [BrowserAdvancedMenuSection sectionWithTitle:@"Web Platform Probe"
+        [BrowserAdvancedMenuSection sectionWithTitle:@"Probe Workbench"
                                                items:@[
-            [self advancedMenuItemWithTitle:@"1. WebKit Runtime" style:UIAlertActionStyleDefault handler:^{
+            [self advancedMenuItemWithTitle:@"탐침 작업대 열기" style:UIAlertActionStyleDefault handler:^{
+                [self.host browserShowProbeWorkbench];
+            }],
+            [self advancedMenuItemWithTitle:@"WebKit Runtime (전체 리포트)" style:UIAlertActionStyleDefault handler:^{
                 [self presentWebPlatformRuntimeReport];
             }],
-            [self advancedMenuItemWithTitle:@"2. Engine Capabilities" style:UIAlertActionStyleDefault handler:^{
+            [self advancedMenuItemWithTitle:@"Engine Capabilities (전체 리포트)" style:UIAlertActionStyleDefault handler:^{
                 [self presentWebPlatformEngineReport];
             }],
         ]],

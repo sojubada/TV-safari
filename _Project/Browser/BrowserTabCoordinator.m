@@ -103,14 +103,21 @@ static CGFloat const kThumbnailStagingOffset = 4096.0;
     if (self.activeWebView == nil) {
         return;
     }
-    if (self.topNavigationVisible) {
-        self.activeWebView.frame = CGRectMake(self.rootView.bounds.origin.x,
-                                              self.rootView.bounds.origin.y + self.topMenuBrowserOffset,
-                                              self.rootView.bounds.size.width,
-                                              self.rootView.bounds.size.height - self.topMenuBrowserOffset);
-    } else {
-        self.activeWebView.frame = self.rootView.bounds;
-    }
+    // The workbench narrows the page rather than covering it, so what is being
+    // tried stays visible beside the controls that trigger it. Only the frame
+    // changes; the web process is never touched.
+    CGFloat inset = MAX(0.0, MIN(self.webViewLeadingInset, CGRectGetWidth(self.rootView.bounds) - 200.0));
+    CGFloat top = self.rootView.bounds.origin.y + (self.topNavigationVisible ? self.topMenuBrowserOffset : 0.0);
+    CGFloat height = self.rootView.bounds.size.height - (self.topNavigationVisible ? self.topMenuBrowserOffset : 0.0);
+    self.activeWebView.frame = CGRectMake(self.rootView.bounds.origin.x + inset,
+                                          top,
+                                          self.rootView.bounds.size.width - inset,
+                                          height);
+}
+
+- (void)setWebViewLeadingInset:(CGFloat)webViewLeadingInset {
+    _webViewLeadingInset = webViewLeadingInset;
+    [self updateTopNavAndWebView];
 }
 
 - (CGSize)thumbnailViewportSize {

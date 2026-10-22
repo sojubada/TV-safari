@@ -10,6 +10,7 @@
 #import "BrowserDarkModeController.h"
 #import "BrowserReaderModeController.h"
 #import "BrowserMenuCoordinator.h"
+#import "BrowserProbeWorkbenchViewController.h"
 #import "BrowserDOMInteractionService.h"
 #import "BrowserNavigationService.h"
 #import "BrowserPageActionCoordinator.h"
@@ -52,7 +53,7 @@ static UIColor *kTextColor(void) {
     }
 }
 
-@interface ViewController () <BrowserMenuCoordinatorHost, BrowserPageActionCoordinatorHost, BrowserRemoteInputControllerHost, BrowserTabCoordinatorHost, BrowserTabOverviewControllerHost, BrowserTopBarViewDelegate, BrowserVideoPlaybackCoordinatorHost>
+@interface ViewController () <BrowserMenuCoordinatorHost, BrowserPageActionCoordinatorHost, BrowserRemoteInputControllerHost, BrowserTabCoordinatorHost, BrowserTabOverviewControllerHost, BrowserProbeWorkbenchDelegate, BrowserTopBarViewDelegate, BrowserVideoPlaybackCoordinatorHost>
 
 @property (nonatomic) BrowserContentBlockerController *contentBlockerController;
 @property (nonatomic) BrowserDarkModeController *darkModeController;
@@ -62,6 +63,7 @@ static UIColor *kTextColor(void) {
 @property (nonatomic) BrowserNavigationService *navigationService;
 @property (nonatomic) BrowserPageActionCoordinator *pageActionCoordinator;
 @property (nonatomic) BrowserPreferencesStore *preferencesStore;
+@property (nonatomic, nullable) BrowserProbeWorkbenchViewController *probeWorkbench;
 @property (nonatomic) BrowserRemoteInputController *remoteInputController;
 @property (nonatomic) BrowserSessionStore *sessionStore;
 @property (nonatomic) BrowserTabCoordinator *tabCoordinator;
@@ -623,6 +625,177 @@ static UIColor *kTextColor(void) {
 
 - (void)browserUpdateTextFontSize {
     [self updateTextFontSize];
+}
+
+#pragma mark - Probe Workbench
+
+// A report that fills the screen hides the page it describes. The workbench
+// narrows the page instead and keeps the controls beside it, so a setting is
+// seen taking effect on the real thing. Anything that proves itself here earns
+// a place in the ordinary menus.
+- (void)browserShowProbeWorkbench {
+    if (self.probeWorkbench != nil) {
+        return;
+    }
+
+    BrowserProbeWorkbenchViewController *workbench =
+        [[BrowserProbeWorkbenchViewController alloc] initWithSections:[self workbenchSections]];
+    workbench.workbenchDelegate = self;
+    self.probeWorkbench = workbench;
+
+    [self addChildViewController:workbench];
+    workbench.view.translatesAutoresizingMaskIntoConstraints = NO;
+    [self.view addSubview:workbench.view];
+    [NSLayoutConstraint activateConstraints:@[
+        [workbench.view.leadingAnchor constraintEqualToAnchor:self.view.leadingAnchor],
+        [workbench.view.topAnchor constraintEqualToAnchor:self.view.topAnchor],
+        [workbench.view.bottomAnchor constraintEqualToAnchor:self.view.bottomAnchor],
+        [workbench.view.widthAnchor constraintEqualToAnchor:self.view.widthAnchor multiplier:0.34],
+    ]];
+    [workbench didMoveToParentViewController:self];
+
+    [self.view layoutIfNeeded];
+    self.tabCoordinator.webViewLeadingInset = CGRectGetWidth(self.view.bounds) * 0.34;
+    [self setNeedsFocusUpdate];
+    [self updateFocusIfNeeded];
+}
+
+- (void)probeWorkbenchDidRequestClose:(BrowserProbeWorkbenchViewController *)workbench {
+    if (workbench != self.probeWorkbench) {
+        return;
+    }
+    [workbench willMoveToParentViewController:nil];
+    [workbench.view removeFromSuperview];
+    [workbench removeFromParentViewController];
+    self.probeWorkbench = nil;
+    self.tabCoordinator.webViewLeadingInset = 0.0;
+    [self setNeedsFocusUpdate];
+    [self updateFocusIfNeeded];
+}
+
+- (void)refreshWorkbenchRows {
+    [self.probeWorkbench setSections:[self workbenchSections]];
+}
+
+- (NSString *)workbenchEvaluate:(NSString *)script fallback:(NSString *)fallback {
+    NSString *value = [self.webview stringByEvaluatingJavaScriptFromString:script];
+    return value.length > 0 ? value : fallback;
+}
+
+- (NSArray<BrowserWorkbenchSection *> *)workbenchSections {
+    __weak typeof(self) weakSelf = self;
+
+    BrowserWorkbenchSection *measure = [BrowserWorkbenchSection sectionWithTitle:@"측정" items:@[
+        [BrowserWorkbenchItem itemWithTitle:@"페이지 프로세스 상태" action:^NSString *{
+            BrowserWebView *webView = weakSelf.webview;
+            NSString *alive = [weakSelf workbenchEvaluate:@"'alive'" fallback:@""];
+            return [NSString stringWithFormat:@"프로세스: %@\n누적 사망: %lu회",
+                    alive.length > 0 ? @"살아있음" : @"응답 없음",
+                    (unsigned long)webView.webContentTerminationCount];
+        }],
+        [BrowserWorkbenchItem itemWithTitle:@"엔진 재생 능력" action:^NSString *{
+            NSString *script =
+                @"(function(){var v=document.createElement('video');"
+                 "function c(t){try{return v.canPlayType(t)||'no';}catch(e){return 'err';}}"
+                 "return 'MSE: '+((typeof MediaSource!=='undefined')?'yes':'no')"
+                 "+'\\nHLS: '+c('application/vnd.apple.mpegurl')"
+                 "+'\\nMP4: '+c('video/mp4');})()";
+            return [weakSelf workbenchEvaluate:script fallback:@"읽을 수 없음 (프로세스 없음)"];
+        }],
+        [BrowserWorkbenchItem itemWithTitle:@"페이지 크기 (무게)" action:^NSString *{
+            NSString *script =
+                @"(function(){try{var n=document.getElementsByTagName('*').length;"
+                 "var f=document.getElementsByTagName('iframe').length;"
+                 "var i=document.images.length;"
+                 "return '요소 '+n+'개\\n프레임 '+f+'개 · 이미지 '+i+'개'"
+                 "+((n>12000)?'\\n※ 매우 무거움':'');}catch(e){return 'err';}})()";
+            return [weakSelf workbenchEvaluate:script fallback:@"읽을 수 없음 (프로세스 없음)"];
+        }],
+        [BrowserWorkbenchItem itemWithTitle:@"현재 User Agent" action:^NSString *{
+            NSString *agent = [weakSelf.webview currentUserAgent] ?: @"(없음)";
+            NSString *mode = weakSelf.preferencesStore.mobileModeEnabled ? @"모바일" : @"데스크톱";
+            NSUInteger tail = MIN((NSUInteger)60, agent.length);
+            return [NSString stringWithFormat:@"%@\n…%@", mode,
+                    [agent substringFromIndex:agent.length - tail]];
+        }],
+    ]];
+
+    NSUInteger zoom = self.preferencesStore.pageZoomPercent;
+    BOOL reader = [self browserIsReaderModeActive];
+    BOOL dark = self.preferencesStore.forcedDarkModeEnabled;
+    BOOL blocking = self.preferencesStore.contentBlockingEnabled;
+    BOOL mobile = self.preferencesStore.mobileModeEnabled;
+
+    BrowserWorkbenchSection *apply = [BrowserWorkbenchSection sectionWithTitle:@"이 페이지에 적용" items:@[
+        [BrowserWorkbenchItem itemWithTitle:[NSString stringWithFormat:@"확대 키우기  (지금 %lu%%)", (unsigned long)zoom]
+                                     action:^NSString *{
+            weakSelf.preferencesStore.pageZoomPercent = weakSelf.preferencesStore.pageZoomPercent + 10;
+            [weakSelf applyReadingZoom];
+            [weakSelf refreshWorkbenchRows];
+            return [NSString stringWithFormat:@"확대 %lu%%", (unsigned long)weakSelf.preferencesStore.pageZoomPercent];
+        }],
+        [BrowserWorkbenchItem itemWithTitle:[NSString stringWithFormat:@"확대 줄이기  (지금 %lu%%)", (unsigned long)zoom]
+                                     action:^NSString *{
+            NSUInteger current = weakSelf.preferencesStore.pageZoomPercent;
+            weakSelf.preferencesStore.pageZoomPercent = current > 10 ? current - 10 : current;
+            [weakSelf applyReadingZoom];
+            [weakSelf refreshWorkbenchRows];
+            return [NSString stringWithFormat:@"확대 %lu%%", (unsigned long)weakSelf.preferencesStore.pageZoomPercent];
+        }],
+        [BrowserWorkbenchItem itemWithTitle:@"확대 100%로 되돌리기" action:^NSString *{
+            weakSelf.preferencesStore.pageZoomPercent = 100;
+            [weakSelf applyReadingZoom];
+            [weakSelf refreshWorkbenchRows];
+            return @"확대 100%";
+        }],
+        [BrowserWorkbenchItem itemWithTitle:reader ? @"읽기 모드 끄기" : @"읽기 모드 켜기"
+                                     action:^NSString *{
+            [weakSelf browserToggleReaderMode];
+            [weakSelf refreshWorkbenchRows];
+            return [weakSelf browserIsReaderModeActive] ? @"읽기 모드 켜짐" : @"읽기 모드 꺼짐";
+        }],
+        [BrowserWorkbenchItem itemWithTitle:blocking ? @"광고 차단 끄기" : @"광고 차단 켜기"
+                                     action:^NSString *{
+            BOOL next = !weakSelf.preferencesStore.contentBlockingEnabled;
+            weakSelf.preferencesStore.contentBlockingEnabled = next;
+            [[BrowserContentBlockerController sharedController] applyContentBlockingToWebView:weakSelf.webview
+                                                                                      enabled:next];
+            [weakSelf refreshWorkbenchRows];
+            return next ? @"광고 차단 켜짐\n(새로고침하면 완전히 적용)" : @"광고 차단 꺼짐\n(새로고침하면 완전히 적용)";
+        }],
+        [BrowserWorkbenchItem itemWithTitle:dark ? @"다크 모드 끄기" : @"다크 모드 켜기"
+                                     action:^NSString *{
+            BOOL next = !weakSelf.preferencesStore.forcedDarkModeEnabled;
+            weakSelf.preferencesStore.forcedDarkModeEnabled = next;
+            [weakSelf browserUpdateForcedDarkMode];
+            [weakSelf refreshWorkbenchRows];
+            return next ? @"다크 모드 켜짐" : @"다크 모드 꺼짐";
+        }],
+        [BrowserWorkbenchItem itemWithTitle:mobile ? @"데스크톱 화면으로 전환" : @"모바일 화면으로 전환"
+                                     action:^NSString *{
+            BOOL nextMobile = !weakSelf.preferencesStore.mobileModeEnabled;
+            weakSelf.preferencesStore.mobileModeEnabled = nextMobile;
+            weakSelf.preferencesStore.userAgent = nextMobile ? BrowserPreferencesStore.mobileUserAgent
+                                                             : BrowserPreferencesStore.desktopUserAgent;
+            [weakSelf.webview setUserAgent:weakSelf.preferencesStore.userAgent];
+            [weakSelf.webview reload];
+            [weakSelf refreshWorkbenchRows];
+            return nextMobile ? @"모바일로 다시 불러오는 중" : @"데스크톱으로 다시 불러오는 중";
+        }],
+    ]];
+
+    BrowserWorkbenchSection *recover = [BrowserWorkbenchSection sectionWithTitle:@"복구" items:@[
+        [BrowserWorkbenchItem itemWithTitle:@"새로고침" action:^NSString *{
+            [weakSelf.webview reload];
+            return @"다시 불러오는 중";
+        }],
+        [BrowserWorkbenchItem itemWithTitle:@"페이지 프로세스 재시작" action:^NSString *{
+            BOOL ok = [weakSelf.webview restartWebContentProcess];
+            return ok ? @"프로세스를 내렸습니다.\n새로고침하십시오." : @"재시작을 지원하지 않습니다.";
+        }],
+    ]];
+
+    return @[measure, apply, recover];
 }
 
 - (void)browserUpdateForcedDarkMode {
