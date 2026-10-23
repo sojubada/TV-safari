@@ -11,7 +11,6 @@
 #import "BrowserReaderModeController.h"
 #import "BrowserMenuCoordinator.h"
 #import "BrowserDiagnosticLog.h"
-#import "BrowserReportViewController.h"
 #import "BrowserProbeWorkbenchViewController.h"
 #import "BrowserDOMInteractionService.h"
 #import "BrowserNavigationService.h"
@@ -113,12 +112,16 @@ static NSString * const kBrowserReadingLayoutScriptFormat =
          "out.push('env textSizeAdjust='+(ds.webkitTextSizeAdjust||ds.textSizeAdjust||'-')"
              "+' htmlFont='+ds.fontSize+' zoom='+(ds.zoom||'-'));"
      "}catch(e){out.push('env read failed');}"
-     "var ps=document.getElementsByTagName('p'),best=null,bestLen=0;"
+     "var ps=document.getElementsByTagName('p'),best=null,bestLen=0,skipped=0;"
      "for(var i=0;i<ps.length&&i<400;i++){"
-         "var t=(ps[i].textContent||'').length;"
-         "if(t>bestLen){bestLen=t;best=ps[i];}"
+         "var el0=ps[i];"
+         "if(el0.offsetWidth<200||el0.offsetHeight<1){skipped++;continue;}"
+         "var t=(el0.textContent||'').length;"
+         "if(t>bestLen){bestLen=t;best=el0;}"
      "}"
-     "if(!best){out.push('RESULT applied=0 hidden=0 reason=no-paragraph');return out.join('\\n');}"
+     "out.push('paragraphs='+ps.length+' invisible='+skipped);"
+     "if(!best){out.push('RESULT applied=0 hidden=0 reason=no-visible-paragraph');"
+         "return out.join('\\n');}"
      "var c0=window.getComputedStyle(best),f0=parseFloat(c0.fontSize)||16;"
      "out.push('before colWidth='+best.offsetWidth+' font='+c0.fontSize"
          "+' lineHeight='+c0.lineHeight+' charsPerLine='+Math.round(best.offsetWidth/f0));"
@@ -136,7 +139,8 @@ static NSString * const kBrowserReadingLayoutScriptFormat =
          "el=el.parentElement;"
      "}"
      "var hidden=0,top=best;"
-     "for(var up=0;up<4&&top&&top.parentElement&&top.parentElement!==document.body;up++){"
+     "var mayHide=best.offsetWidth>200;"
+     "for(var up=0;mayHide&&up<4&&top&&top.parentElement&&top.parentElement!==document.body;up++){"
          "var parent=top.parentElement,kids=parent.children;"
          "for(var k=0;k<kids.length;k++){"
              "var sib=kids[k];"
@@ -851,28 +855,8 @@ static NSString * const kBrowserRestoreContentScript =
                  "+((n>12000)?'\\n※ 매우 무거움':'');}catch(e){return 'err';}})()";
             return [weakSelf workbenchEvaluate:script fallback:@"읽을 수 없음 (프로세스 없음)"];
         }],
-        [BrowserWorkbenchItem itemWithTitle:@"진단 로그 위치" action:^NSString *{
+        [BrowserWorkbenchItem itemWithTitle:@"진단 로그 위치 (파일 탐색기로 열기)" action:^NSString *{
             return [[BrowserDiagnosticLog sharedLog] statusDescription];
-        }],
-        [BrowserWorkbenchItem itemWithTitle:@"진단 로그 보기" action:^NSString *{
-            NSString *text = [[BrowserDiagnosticLog sharedLog] contentsForDisplay];
-            // Two things must not happen here. Closing the workbench releases
-            // the object whose table is still running this very selection, and
-            // presenting during a select press means presenting in the middle
-            // of a focus update. Both are left until this call has returned.
-            dispatch_async(dispatch_get_main_queue(), ^{
-                typeof(weakSelf) strongSelf = weakSelf;
-                if (strongSelf == nil) {
-                    return;
-                }
-                [strongSelf closeProbeWorkbenchIfOpen];
-                dispatch_async(dispatch_get_main_queue(), ^{
-                    [weakSelf browserPresentViewController:
-                        [[BrowserReportViewController alloc] initWithTitle:@"진단 로그"
-                                                                reportText:text]];
-                });
-            });
-            return @"로그를 띄웁니다.";
         }],
         [BrowserWorkbenchItem itemWithTitle:@"진단 로그 비우기" action:^NSString *{
             [[BrowserDiagnosticLog sharedLog] clear];
