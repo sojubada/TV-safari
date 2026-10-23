@@ -660,7 +660,11 @@ static NSString * const kBrowserRestoreContentScript =
 }
 
 - (NSArray<id<UIFocusEnvironment>> *)preferredFocusEnvironments {
-    if (self.probeWorkbench != nil) {
+    // Only while it is the thing on screen. Naming a child that a presented
+    // view controller is covering hands tvOS a focus environment it cannot
+    // reach, and it refuses — which is what was killing the app when the log
+    // was opened from the workbench.
+    if (self.probeWorkbench != nil && self.presentedViewController == nil) {
         return @[self.probeWorkbench];
     }
     if (self.topBarFocusActive) {
@@ -838,9 +842,14 @@ static NSString * const kBrowserRestoreContentScript =
         }],
         [BrowserWorkbenchItem itemWithTitle:@"진단 로그 보기" action:^NSString *{
             NSString *text = [[BrowserDiagnosticLog sharedLog] contentsForDisplay];
-            [weakSelf browserPresentViewController:
-                [[BrowserReportViewController alloc] initWithTitle:@"진단 로그" reportText:text]];
-            return @"로그를 화면에 띄웠습니다.";
+            // The workbench steps aside first: the log wants the whole screen,
+            // and nothing is left behind to argue over focus.
+            [weakSelf probeWorkbenchDidRequestClose:weakSelf.probeWorkbench];
+            dispatch_async(dispatch_get_main_queue(), ^{
+                [weakSelf browserPresentViewController:
+                    [[BrowserReportViewController alloc] initWithTitle:@"진단 로그" reportText:text]];
+            });
+            return @"로그를 띄웁니다.";
         }],
         [BrowserWorkbenchItem itemWithTitle:@"진단 로그 비우기" action:^NSString *{
             [[BrowserDiagnosticLog sharedLog] clear];
@@ -1294,7 +1303,9 @@ static NSString * const kBrowserRestoreContentScript =
 }
 
 - (BOOL)browserRemoteInputControllerWorkbenchActive {
-    return self.probeWorkbench != nil;
+    // A presented view controller owns the remote while it is up, or Menu
+    // would close the workbench underneath it instead of dismissing it.
+    return self.probeWorkbench != nil && self.presentedViewController == nil;
 }
 
 - (void)browserRemoteInputControllerCloseWorkbench {
