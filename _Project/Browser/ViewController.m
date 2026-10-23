@@ -86,13 +86,17 @@ static UIColor *kTextColor(void) {
 // the most text, walks up at most twenty ancestors, and releases the ones
 // that are narrower than the viewport and centred. Twenty elements is not
 // the whole-document walk that used to kill heavy pages.
-// The log showed three things at once: the target width was ignored because an
-// upstream layout only ever offered the column 541px, the requested type size
-// landed at exactly five sixths of what was asked for, and everything was
-// measured while the workbench held two thirds of the screen. So the script
-// now reports the environment it is working in, says what it asked for beside
-// what it got, and clears the side columns that were holding the article down
-// to 541px — on a three-column news page nothing else can give it room.
+// What this does is narrow: it caps the column a site centres its article in
+// and sets the body type. It does not rearrange the page. An earlier version
+// cleared the blocks beside the article to give it room, which on a Naver
+// article removed the article itself and left the menu and the footer — the
+// photograph of that is why nothing here hides anything any more.
+//
+// On a three-column desktop layout the column often cannot grow at all, and
+// no amount of CSS applied from outside changes that. Reader mode, which
+// lifts the text out of the page entirely, is the tool for those; this is for
+// pages whose article already has the width and only needs the measure and
+// the type size fixed.
 //
 // %lu target width, %lu target font, %@ context label.
 static NSString * const kBrowserReadingLayoutScriptFormat =
@@ -120,7 +124,7 @@ static NSString * const kBrowserReadingLayoutScriptFormat =
          "if(t>bestLen){bestLen=t;best=el0;}"
      "}"
      "out.push('paragraphs='+ps.length+' invisible='+skipped);"
-     "if(!best){out.push('RESULT applied=0 hidden=0 reason=no-visible-paragraph');"
+     "if(!best){out.push('RESULT applied=0 reason=no-visible-paragraph');"
          "return out.join('\\n');}"
      "var c0=window.getComputedStyle(best),f0=parseFloat(c0.fontSize)||16;"
      "out.push('before colWidth='+best.offsetWidth+' font='+c0.fontSize"
@@ -138,23 +142,9 @@ static NSString * const kBrowserReadingLayoutScriptFormat =
          "}"
          "el=el.parentElement;"
      "}"
-     "var hidden=0,top=best;"
-     "var mayHide=best.offsetWidth>200;"
-     "for(var up=0;mayHide&&up<4&&top&&top.parentElement&&top.parentElement!==document.body;up++){"
-         "var parent=top.parentElement,kids=parent.children;"
-         "for(var k=0;k<kids.length;k++){"
-             "var sib=kids[k];"
-             "if(sib===top||sib.contains(best)){continue;}"
-             "if(sib.offsetWidth>150&&sib.offsetHeight>300){"
-                 "sib.style.setProperty('display','none','important');"
-                 "sib.setAttribute('data-browser-hidden','1');hidden++;"
-             "}"
-         "}"
-         "top=parent;"
-     "}"
      "var st=document.getElementById('browser-reading-layout');"
      "if(!st){"
-         "if(!document.head){out.push('RESULT applied=0 hidden=0 reason=no-head');return out.join('\\n');}"
+         "if(!document.head){out.push('RESULT applied=0 reason=no-head');return out.join('\\n');}"
          "st=document.createElement('style');st.id='browser-reading-layout';"
          "document.head.appendChild(st);"
      "}"
@@ -164,7 +154,7 @@ static NSString * const kBrowserReadingLayoutScriptFormat =
      "out.push('after colWidth='+best.offsetWidth+' (asked '+TW+')'"
          "+' font='+c1.fontSize+' (asked '+TF+'px)'"
          "+' charsPerLine='+Math.round(best.offsetWidth/f1));"
-     "out.push('RESULT applied='+touched.length+' hidden='+hidden);"
+     "out.push('RESULT applied='+touched.length);"
      "return out.join('\\n');"
     "})()";
 
