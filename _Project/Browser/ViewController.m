@@ -791,10 +791,24 @@ static NSString * const kBrowserRestoreContentScript =
     [self updateFocusIfNeeded];
 }
 
+- (void)closeProbeWorkbenchIfOpen {
+    if (self.probeWorkbench != nil) {
+        [self probeWorkbenchDidRequestClose:self.probeWorkbench];
+    }
+}
+
 - (void)probeWorkbenchDidRequestClose:(BrowserProbeWorkbenchViewController *)workbench {
     if (workbench != self.probeWorkbench) {
         return;
     }
+    // Closing can be reached from inside the workbench's own table callback.
+    // Holding it until the next turn of the run loop means the call that asked
+    // for the close always returns to a live object.
+    BrowserProbeWorkbenchViewController *keepAlive = workbench;
+    dispatch_async(dispatch_get_main_queue(), ^{
+        (void)keepAlive;
+    });
+
     [workbench willMoveToParentViewController:nil];
     [workbench.view removeFromSuperview];
     [workbench removeFromParentViewController];
@@ -842,12 +856,21 @@ static NSString * const kBrowserRestoreContentScript =
         }],
         [BrowserWorkbenchItem itemWithTitle:@"진단 로그 보기" action:^NSString *{
             NSString *text = [[BrowserDiagnosticLog sharedLog] contentsForDisplay];
-            // The workbench steps aside first: the log wants the whole screen,
-            // and nothing is left behind to argue over focus.
-            [weakSelf probeWorkbenchDidRequestClose:weakSelf.probeWorkbench];
+            // Two things must not happen here. Closing the workbench releases
+            // the object whose table is still running this very selection, and
+            // presenting during a select press means presenting in the middle
+            // of a focus update. Both are left until this call has returned.
             dispatch_async(dispatch_get_main_queue(), ^{
-                [weakSelf browserPresentViewController:
-                    [[BrowserReportViewController alloc] initWithTitle:@"진단 로그" reportText:text]];
+                typeof(weakSelf) strongSelf = weakSelf;
+                if (strongSelf == nil) {
+                    return;
+                }
+                [strongSelf closeProbeWorkbenchIfOpen];
+                dispatch_async(dispatch_get_main_queue(), ^{
+                    [weakSelf browserPresentViewController:
+                        [[BrowserReportViewController alloc] initWithTitle:@"진단 로그"
+                                                                reportText:text]];
+                });
             });
             return @"로그를 띄웁니다.";
         }],
