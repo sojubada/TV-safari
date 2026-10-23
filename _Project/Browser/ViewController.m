@@ -10,6 +10,7 @@
 #import "BrowserDarkModeController.h"
 #import "BrowserReaderModeController.h"
 #import "BrowserMenuCoordinator.h"
+#import "BrowserDiagnosticLog.h"
 #import "BrowserProbeWorkbenchViewController.h"
 #import "BrowserDOMInteractionService.h"
 #import "BrowserNavigationService.h"
@@ -87,31 +88,46 @@ static UIColor *kTextColor(void) {
 // the whole-document walk that used to kill heavy pages.
 static NSString * const kBrowserWidenContentScript =
     @"(function(){"
-     "if(!document.body){return '0';}"
-     "var vw=document.documentElement.clientWidth||window.innerWidth;"
-     "if(!vw){return '0';}"
+     "var out=[];"
+     "function push(s){out.push(s);}"
+     "if(!document.body){return 'ERR no-body';}"
+     "var vw=document.documentElement.clientWidth||window.innerWidth||0;"
+     "push('url='+location.href);"
+     "push('clientWidth='+vw+' innerWidth='+window.innerWidth"
+         "+' bodyWidth='+document.body.offsetWidth"
+         "+' scrollWidth='+document.documentElement.scrollWidth);"
      "var ps=document.getElementsByTagName('p'),best=null,bestLen=0;"
+     "push('paragraphs='+ps.length);"
      "for(var i=0;i<ps.length&&i<400;i++){"
          "var t=(ps[i].textContent||'').length;"
          "if(t>bestLen){bestLen=t;best=ps[i];}"
      "}"
-     "if(!best){return '0';}"
+     "if(!best){push('RESULT released=0 reason=no-paragraph');return out.join('\\n');}"
+     "push('bestParagraph len='+bestLen+' width='+best.offsetWidth);"
      "var n=0,el=best;"
      "for(var d=0;d<20&&el&&el!==document.body;d++){"
-         "var w=el.offsetWidth;"
-         "if(w>300&&w<vw*0.92){"
-             "var cs=window.getComputedStyle(el);"
+         "var cs=window.getComputedStyle(el);"
+         "var cls=(el.className&&el.className.toString())||'-';"
+         "if(cls.length>60){cls=cls.slice(0,60);}"
+         "var line=d+' <'+el.tagName.toLowerCase()+'> id='+(el.id||'-')+' class='+cls"
+             "+' w='+el.offsetWidth+' maxW='+cs.maxWidth+' cssW='+cs.width"
+             "+' mL='+cs.marginLeft+' mR='+cs.marginRight;"
+         "if(el.offsetWidth>300&&el.offsetWidth<vw*0.92){"
              "if(cs.maxWidth&&cs.maxWidth.indexOf('px')>-1){"
                  "el.style.setProperty('max-width','none','important');"
                  "el.setAttribute('data-browser-widened','1');n++;"
+                 "line+=' => RELEASED max-width';"
              "}else if(cs.width&&cs.width.indexOf('px')>-1&&cs.marginLeft===cs.marginRight){"
                  "el.style.setProperty('width','auto','important');"
                  "el.setAttribute('data-browser-widened','1');n++;"
-             "}"
-         "}"
+                 "line+=' => RELEASED width';"
+             "}else{line+=' => skip: no px constraint';}"
+         "}else{line+=' => skip: not narrow enough';}"
+         "push(line);"
          "el=el.parentElement;"
      "}"
-     "return String(n);"
+     "push('RESULT released='+n);"
+     "return out.join('\\n');"
     "})()";
 
 static NSString * const kBrowserRestoreContentScript =
@@ -771,6 +787,13 @@ static NSString * const kBrowserRestoreContentScript =
                  "+((n>12000)?'\\n※ 매우 무거움':'');}catch(e){return 'err';}})()";
             return [weakSelf workbenchEvaluate:script fallback:@"읽을 수 없음 (프로세스 없음)"];
         }],
+        [BrowserWorkbenchItem itemWithTitle:@"진단 로그 위치" action:^NSString *{
+            return [[BrowserDiagnosticLog sharedLog] statusDescription];
+        }],
+        [BrowserWorkbenchItem itemWithTitle:@"진단 로그 비우기" action:^NSString *{
+            [[BrowserDiagnosticLog sharedLog] clear];
+            return @"로그를 비웠습니다.";
+        }],
         [BrowserWorkbenchItem itemWithTitle:@"화면 해상도" action:^NSString *{
             return [weakSelf browserDisplayReport];
         }],
@@ -993,16 +1016,37 @@ static NSString * const kBrowserRestoreContentScript =
     self.preferencesStore.widenContentEnabled = next;
 
     NSString *script = next ? kBrowserWidenContentScript : kBrowserRestoreContentScript;
-    NSString *count = [self.webview stringByEvaluatingJavaScriptFromString:script] ?: @"";
-    if (count.length == 0) {
-        return @"페이지에서 결과를 받지 못했습니다.";
+    BrowserScriptEvaluationStatus status = BrowserScriptEvaluationStatusOK;
+    NSString *reason = nil;
+    NSString *report = [self.webview stringByEvaluatingJavaScriptFromString:script
+                                                                    timeout:4.0
+                                                                     status:&status
+                                                              failureReason:&reason];
+
+    [[BrowserDiagnosticLog sharedLog] logSection:next ? @"Widen Content ON" : @"Widen Content OFF"
+                                            body:report.length > 0
+                                                 ? report
+                                                 : [NSString stringWithFormat:@"평가 실패 status=%ld reason=%@",
+                                                    (long)status, reason ?: @"(없음)"]];
+
+    if (report.length == 0) {
+        return [NSString stringWithFormat:@"스크립트가 실행되지 않았습니다.\nstatus=%ld\n%@",
+                (long)status, reason ?: @""];
     }
-    if (next) {
-        return count.integerValue > 0
-            ? [NSString stringWithFormat:@"폭 제한 %@군데를 풀었습니다.", count]
-            : @"풀 만한 폭 제한을 찾지 못했습니다.\n이 페이지는 이미 화면을 채우고 있습니다.";
+
+    if (!next) {
+        return @"원래 폭으로 되돌렸습니다.";
     }
-    return [NSString stringWithFormat:@"%@군데를 원래대로 되돌렸습니다.", count];
+
+    NSRange marker = [report rangeOfString:@"RESULT released=" options:NSBackwardsSearch];
+    if (marker.location == NSNotFound) {
+        return @"결과 표시를 찾지 못했습니다.\n로그를 확인해 주십시오.";
+    }
+    NSInteger released = [report substringFromIndex:NSMaxRange(marker)].integerValue;
+    if (released > 0) {
+        return [NSString stringWithFormat:@"폭 제한 %ld군데를 풀었습니다.", (long)released];
+    }
+    return @"풀 만한 폭 제한이 없었습니다.\n자세한 내용은 로그에 적었습니다.";
 }
 
 - (NSString *)browserDisplayReport {
