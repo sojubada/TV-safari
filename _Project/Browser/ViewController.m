@@ -78,6 +78,53 @@ static UIColor *kTextColor(void) {
 
 @end
 
+// Naming the containers a site centres its page with was a guess, and on
+// Naver it matched nothing at all: the width lives on classes like
+// .office_header and .newsct_body, not on the ids I wrote. Sites cannot be
+// memorised, so this measures instead. It starts at the paragraph carrying
+// the most text, walks up at most twenty ancestors, and releases the ones
+// that are narrower than the viewport and centred. Twenty elements is not
+// the whole-document walk that used to kill heavy pages.
+static NSString * const kBrowserWidenContentScript =
+    @"(function(){"
+     "if(!document.body){return '0';}"
+     "var vw=document.documentElement.clientWidth||window.innerWidth;"
+     "if(!vw){return '0';}"
+     "var ps=document.getElementsByTagName('p'),best=null,bestLen=0;"
+     "for(var i=0;i<ps.length&&i<400;i++){"
+         "var t=(ps[i].textContent||'').length;"
+         "if(t>bestLen){bestLen=t;best=ps[i];}"
+     "}"
+     "if(!best){return '0';}"
+     "var n=0,el=best;"
+     "for(var d=0;d<20&&el&&el!==document.body;d++){"
+         "var w=el.offsetWidth;"
+         "if(w>300&&w<vw*0.92){"
+             "var cs=window.getComputedStyle(el);"
+             "if(cs.maxWidth&&cs.maxWidth.indexOf('px')>-1){"
+                 "el.style.setProperty('max-width','none','important');"
+                 "el.setAttribute('data-browser-widened','1');n++;"
+             "}else if(cs.width&&cs.width.indexOf('px')>-1&&cs.marginLeft===cs.marginRight){"
+                 "el.style.setProperty('width','auto','important');"
+                 "el.setAttribute('data-browser-widened','1');n++;"
+             "}"
+         "}"
+         "el=el.parentElement;"
+     "}"
+     "return String(n);"
+    "})()";
+
+static NSString * const kBrowserRestoreContentScript =
+    @"(function(){"
+     "var a=document.querySelectorAll('[data-browser-widened]');"
+     "for(var i=0;i<a.length;i++){"
+         "a[i].style.removeProperty('max-width');"
+         "a[i].style.removeProperty('width');"
+         "a[i].removeAttribute('data-browser-widened');"
+     "}"
+     "return String(a.length);"
+    "})()";
+
 @implementation ViewController
 
 #pragma mark - Lifecycle
@@ -374,17 +421,6 @@ static UIColor *kTextColor(void) {
                        "text-size-adjust:%lu%%!important;}",
                       (unsigned long)self.viewModel.textFontSize,
                       (unsigned long)self.viewModel.textFontSize];
-
-    if (self.preferencesStore.widenContentEnabled) {
-        // Only the containers a site actually uses to centre its page, named
-        // in full. A substring match here would catch unrelated elements, and
-        // that mistake has cost this browser a working page three times.
-        [css appendString:
-            @"html body #ct,html body #container,html body #content,"
-             "html body #contents,html body #wrap,html body #newsct,"
-             "html body #main_content,html body main,html body article,"
-             "html body [role=main]{max-width:none!important;}"];
-    }
 
     if (self.preferencesStore.boldTextEnabled) {
         [css appendString:
@@ -932,6 +968,7 @@ static UIColor *kTextColor(void) {
 - (void)browserTabCoordinatorUpdateTextFontSize {
     [self applyReadingZoom];
     [self updateTextFontSize];
+    [self applyWidenContentIfEnabled];
 }
 
 - (void)applyReadingZoom {
@@ -944,17 +981,28 @@ static UIColor *kTextColor(void) {
     [webView applyPageScalingIfNeeded];
 }
 
-// Zoom on this engine magnifies without relaying out, so a centred column's
-// margins grow with everything else and the text is pushed off the right of
-// the screen. The margins come from the site's own max-width, so that is what
-// has to go: released, the column reflows into the full width of the display
-// and nothing is scaled at all.
+- (void)applyWidenContentIfEnabled {
+    if (self.webview == nil || !self.preferencesStore.widenContentEnabled) {
+        return;
+    }
+    [self.webview stringByEvaluatingJavaScriptFromString:kBrowserWidenContentScript];
+}
+
 - (NSString *)browserWidenContent {
     BOOL next = !self.preferencesStore.widenContentEnabled;
     self.preferencesStore.widenContentEnabled = next;
-    [self updateTextFontSize];
-    return next ? @"본문을 화면 폭까지 폅니다.\n레이아웃이 어색하면 다시 눌러 끄십시오."
-                : @"본문 폭을 원래대로 되돌렸습니다.";
+
+    NSString *script = next ? kBrowserWidenContentScript : kBrowserRestoreContentScript;
+    NSString *count = [self.webview stringByEvaluatingJavaScriptFromString:script] ?: @"";
+    if (count.length == 0) {
+        return @"페이지에서 결과를 받지 못했습니다.";
+    }
+    if (next) {
+        return count.integerValue > 0
+            ? [NSString stringWithFormat:@"폭 제한 %@군데를 풀었습니다.", count]
+            : @"풀 만한 폭 제한을 찾지 못했습니다.\n이 페이지는 이미 화면을 채우고 있습니다.";
+    }
+    return [NSString stringWithFormat:@"%@군데를 원래대로 되돌렸습니다.", count];
 }
 
 - (NSString *)browserDisplayReport {

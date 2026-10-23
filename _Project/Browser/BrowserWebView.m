@@ -823,6 +823,28 @@ static void BrowserConfigurePrivateMediaPreferences(id configuration) {
     }
 }
 
+// This engine's zoom magnifies without relaying out, so a page wider than the
+// screen keeps its left margin at the origin and the text is pushed off the
+// right. Centring the horizontal offset puts the column back in the middle
+// where it belongs. The content size is only correct after the next layout.
+- (void)centreHorizontalScrollAfterZoom {
+    __weak typeof(self) weakSelf = self;
+    dispatch_after(dispatch_time(DISPATCH_TIME_NOW, (int64_t)(0.2 * NSEC_PER_SEC)),
+                   dispatch_get_main_queue(), ^{
+        UIScrollView *scrollView = [weakSelf scrollView];
+        if (scrollView == nil) {
+            return;
+        }
+        CGFloat overflow = scrollView.contentSize.width - CGRectGetWidth(scrollView.bounds);
+        if (overflow <= 1.0) {
+            return;
+        }
+        CGPoint offset = scrollView.contentOffset;
+        offset.x = overflow / 2.0;
+        scrollView.contentOffset = offset;
+    });
+}
+
 - (void)applyPageScalingIfNeeded {
     if (self.runtimeWebView == nil) {
         return;
@@ -846,6 +868,7 @@ static void BrowserConfigurePrivateMediaPreferences(id configuration) {
     SEL pageZoomSelector = NSSelectorFromString(@"setPageZoom:");
     if ([self.runtimeWebView respondsToSelector:pageZoomSelector]) {
         ((void (*)(id, SEL, double))objc_msgSend)(self.runtimeWebView, pageZoomSelector, zoomValue);
+        [self centreHorizontalScrollAfterZoom];
         return;
     }
 
