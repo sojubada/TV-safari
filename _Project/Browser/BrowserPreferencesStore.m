@@ -19,6 +19,8 @@ static NSString * const kPageZoomPercentDefaultsKey = @"PageZoomPercent";
 static NSString * const kMinimumFontSizeDefaultsKey = @"MinimumFontSize";
 static NSString * const kBoldTextEnabledDefaultsKey = @"BoldTextEnabled";
 static NSString * const kWidenContentEnabledDefaultsKey = @"WidenContentEnabled";
+static NSString * const kReadingColumnWidthDefaultsKey = @"ReadingColumnWidth";
+static NSString * const kReadingBodyFontSizeDefaultsKey = @"ReadingBodyFontSize";
 static NSString * const kReaderFontSizeDefaultsKey = @"ReaderFontSize";
 static NSString * const kLightenHeavySitesEnabledDefaultsKey = @"LightenHeavySitesEnabled";
 
@@ -120,8 +122,12 @@ static NSUInteger const kMaximumReaderFontSize = 96;
     [[self defaults] synchronize];
 }
 
+// The last media feature left, and it has no setting any more: clicking a
+// video whose address the page exposes hands it to the system player. There
+// is nothing to configure and nothing to go wrong, so it is simply on.
 - (BOOL)fullscreenVideoPlaybackEnabled {
-    return [[self defaults] boolForKey:kEnableFullscreenVideoPlaybackDefaultsKey];
+    NSNumber *value = [[self defaults] objectForKey:kEnableFullscreenVideoPlaybackDefaultsKey];
+    return value ? value.boolValue : YES;
 }
 
 - (void)setFullscreenVideoPlaybackEnabled:(BOOL)fullscreenVideoPlaybackEnabled {
@@ -246,6 +252,31 @@ static NSUInteger const kMaximumReaderFontSize = 96;
 }
 - (void)setMinimumFontSize:(NSUInteger)minimumFontSize {
     [[self defaults] setObject:@(MIN((NSUInteger)48, minimumFontSize)) forKey:kMinimumFontSizeDefaultsKey];
+    [[self defaults] synchronize];
+}
+
+// 1500 by 34 puts roughly 44 Korean characters on a line, which is the top of
+// the comfortable range, and 34px at three metres is about the size of the
+// reader mode text that already reads well.
+- (NSUInteger)readingColumnWidth {
+    NSNumber *value = [[self defaults] objectForKey:kReadingColumnWidthDefaultsKey];
+    NSUInteger width = value ? value.unsignedIntegerValue : 1500;
+    return MIN((NSUInteger)1920, MAX((NSUInteger)700, width));
+}
+- (void)setReadingColumnWidth:(NSUInteger)readingColumnWidth {
+    NSUInteger clamped = MIN((NSUInteger)1920, MAX((NSUInteger)700, readingColumnWidth));
+    [[self defaults] setObject:@(clamped) forKey:kReadingColumnWidthDefaultsKey];
+    [[self defaults] synchronize];
+}
+
+- (NSUInteger)readingBodyFontSize {
+    NSNumber *value = [[self defaults] objectForKey:kReadingBodyFontSizeDefaultsKey];
+    NSUInteger size = value ? value.unsignedIntegerValue : 34;
+    return MIN((NSUInteger)72, MAX((NSUInteger)18, size));
+}
+- (void)setReadingBodyFontSize:(NSUInteger)readingBodyFontSize {
+    NSUInteger clamped = MIN((NSUInteger)72, MAX((NSUInteger)18, readingBodyFontSize));
+    [[self defaults] setObject:@(clamped) forKey:kReadingBodyFontSizeDefaultsKey];
     [[self defaults] synchronize];
 }
 

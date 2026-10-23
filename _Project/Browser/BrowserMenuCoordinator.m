@@ -1394,15 +1394,6 @@ withAnimationCoordinator:(UIFocusAnimationCoordinator *)coordinator {
     }];
 }
 
-- (BrowserAdvancedMenuItem *)fullscreenVideoPlaybackToggleMenuItem {
-    BOOL enabled = self.host.browserFullscreenVideoPlaybackEnabled;
-    NSString *title = enabled ? @"Disable Full Screen player" : @"Enable Full Screen player";
-    return [self settingMenuItemWithTitle:title
-                                 handler:^{
-        self.host.browserFullscreenVideoPlaybackEnabled = !enabled;
-    }];
-}
-
 - (BrowserAdvancedMenuItem *)toggleFavoriteMenuItem {
     NSURLRequest *request = [[self.host browserWebView] request];
     NSString *currentURLString = request.URL.absoluteString;
@@ -1501,7 +1492,7 @@ withAnimationCoordinator:(UIFocusAnimationCoordinator *)coordinator {
             [self increasePageZoomMenuItem],
             [self decreasePageZoomMenuItem],
             [self resetPageZoomMenuItem],
-            [self widenContentMenuItem],
+            [self readingLayoutMenuItem],
             [self boldTextToggleMenuItem],
             [self increaseMinimumFontSizeMenuItem],
             [self decreaseMinimumFontSizeMenuItem],
@@ -1513,9 +1504,9 @@ withAnimationCoordinator:(UIFocusAnimationCoordinator *)coordinator {
     ];
 }
 
-- (BrowserAdvancedMenuItem *)widenContentMenuItem {
+- (BrowserAdvancedMenuItem *)readingLayoutMenuItem {
     BOOL enabled = self.preferencesStore.widenContentEnabled;
-    NSString *title = enabled ? @"Widen Content: On" : @"Widen Content: Off";
+    NSString *title = enabled ? @"TV Reading Layout: On" : @"TV Reading Layout: Off";
     __weak typeof(self) weakSelf = self;
     return [self settingMenuItemWithTitle:title handler:^{
         [weakSelf.host browserWidenContent];
@@ -1654,7 +1645,7 @@ withAnimationCoordinator:(UIFocusAnimationCoordinator *)coordinator {
             [self increasePageZoomMenuItem],
             [self decreasePageZoomMenuItem],
             [self resetPageZoomMenuItem],
-            [self widenContentMenuItem],
+            [self readingLayoutMenuItem],
             [self boldTextToggleMenuItem],
             [self increaseMinimumFontSizeMenuItem],
             [self decreaseMinimumFontSizeMenuItem],
@@ -1662,7 +1653,6 @@ withAnimationCoordinator:(UIFocusAnimationCoordinator *)coordinator {
         [BrowserAdvancedMenuSection sectionWithTitle:@"Page" items:@[
             [self lightenHeavySitesToggleMenuItem],
             [self userAgentModeMenuItem],
-            [self fullscreenVideoPlaybackToggleMenuItem],
             [self topNavigationVisibilityMenuItem],
         ]],
         [BrowserAdvancedMenuSection sectionWithTitle:@"Help" items:@[
@@ -1826,7 +1816,7 @@ withAnimationCoordinator:(UIFocusAnimationCoordinator *)coordinator {
             [self increasePageZoomMenuItem],
             [self decreasePageZoomMenuItem],
             [self resetPageZoomMenuItem],
-            [self widenContentMenuItem],
+            [self readingLayoutMenuItem],
             increaseFontSizeItem,
             decreaseFontSizeItem,
             resetFontSizeItem,
@@ -1834,10 +1824,6 @@ withAnimationCoordinator:(UIFocusAnimationCoordinator *)coordinator {
         [BrowserAdvancedMenuSection sectionWithTitle:@"Privacy & Blocking"
                                                items:@[
             [self contentBlockingToggleMenuItem],
-        ]],
-        [BrowserAdvancedMenuSection sectionWithTitle:@"Video Playback"
-                                               items:@[
-            [self fullscreenVideoPlaybackToggleMenuItem],
         ]],
         [BrowserAdvancedMenuSection sectionWithTitle:@"Compatibility"
                                                items:@[

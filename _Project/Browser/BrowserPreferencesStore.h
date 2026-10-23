@@ -36,6 +36,13 @@ NS_ASSUME_NONNULL_BEGIN
 /// Releases the max-width on a page's main column so a centred desktop
 /// layout uses the whole width of a television.
 @property (nonatomic) BOOL widenContentEnabled;
+
+/// Target width of the reading column in CSS pixels. A line wants 35-45
+/// Korean characters; the whole 1920 holds more than seventy.
+@property (nonatomic) NSUInteger readingColumnWidth;
+
+/// Target body text size in CSS pixels inside that column.
+@property (nonatomic) NSUInteger readingBodyFontSize;
 @property (nonatomic) BOOL lightenHeavySitesEnabled;
 
 - (void)ensureUserAgentConsistency;

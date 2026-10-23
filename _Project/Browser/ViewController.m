@@ -87,56 +87,66 @@ static UIColor *kTextColor(void) {
 // the most text, walks up at most twenty ancestors, and releases the ones
 // that are narrower than the viewport and centred. Twenty elements is not
 // the whole-document walk that used to kill heavy pages.
-static NSString * const kBrowserWidenContentScript =
+// Releasing the column to the full 1920 made reading worse, not better: a line
+// then carries over seventy Korean characters where thirty-five to forty-five
+// is comfortable. So the column is set to a measured width and the body type
+// to a size that puts the character count back in range, and both numbers are
+// written to the log before and after so they can be tuned from evidence.
+static NSString * const kBrowserReadingLayoutScriptFormat =
     @"(function(){"
      "var out=[];"
-     "function push(s){out.push(s);}"
      "if(!document.body){return 'ERR no-body';}"
      "var vw=document.documentElement.clientWidth||window.innerWidth||0;"
-     "push('url='+location.href);"
-     "push('clientWidth='+vw+' innerWidth='+window.innerWidth"
-         "+' bodyWidth='+document.body.offsetWidth"
-         "+' scrollWidth='+document.documentElement.scrollWidth);"
+     "var TW=%lu,TF=%lu;"
+     "out.push('url='+location.href);"
+     "out.push('viewport='+vw+' target width='+TW+' target font='+TF);"
      "var ps=document.getElementsByTagName('p'),best=null,bestLen=0;"
-     "push('paragraphs='+ps.length);"
      "for(var i=0;i<ps.length&&i<400;i++){"
          "var t=(ps[i].textContent||'').length;"
          "if(t>bestLen){bestLen=t;best=ps[i];}"
      "}"
-     "if(!best){push('RESULT released=0 reason=no-paragraph');return out.join('\\n');}"
-     "push('bestParagraph len='+bestLen+' width='+best.offsetWidth);"
+     "if(!best){out.push('RESULT applied=0 reason=no-paragraph');return out.join('\\n');}"
+     "var c0=window.getComputedStyle(best),f0=parseFloat(c0.fontSize)||16;"
+     "out.push('before width='+best.offsetWidth+' font='+c0.fontSize"
+         "+' lineHeight='+c0.lineHeight"
+         "+' charsPerLine='+Math.round(best.offsetWidth/f0));"
      "var n=0,el=best;"
      "for(var d=0;d<20&&el&&el!==document.body;d++){"
          "var cs=window.getComputedStyle(el);"
-         "var cls=(el.className&&el.className.toString())||'-';"
-         "if(cls.length>60){cls=cls.slice(0,60);}"
-         "var line=d+' <'+el.tagName.toLowerCase()+'> id='+(el.id||'-')+' class='+cls"
-             "+' w='+el.offsetWidth+' maxW='+cs.maxWidth+' cssW='+cs.width"
-             "+' mL='+cs.marginLeft+' mR='+cs.marginRight;"
-         "if(el.offsetWidth>300&&el.offsetWidth<vw*0.92){"
-             "if(cs.maxWidth&&cs.maxWidth.indexOf('px')>-1){"
-                 "el.style.setProperty('max-width','none','important');"
-                 "el.setAttribute('data-browser-widened','1');n++;"
-                 "line+=' => RELEASED max-width';"
-             "}else if(cs.width&&cs.width.indexOf('px')>-1&&cs.marginLeft===cs.marginRight){"
-                 "el.style.setProperty('width','auto','important');"
-                 "el.setAttribute('data-browser-widened','1');n++;"
-                 "line+=' => RELEASED width';"
-             "}else{line+=' => skip: no px constraint';}"
-         "}else{line+=' => skip: not narrow enough';}"
-         "push(line);"
+         "if(el.offsetWidth>300&&"
+            "((cs.maxWidth&&cs.maxWidth.indexOf('px')>-1)||el.offsetWidth>TW)){"
+             "el.style.setProperty('max-width',TW+'px','important');"
+             "el.style.setProperty('margin-left','auto','important');"
+             "el.style.setProperty('margin-right','auto','important');"
+             "el.setAttribute('data-browser-widened','1');n++;"
+         "}"
          "el=el.parentElement;"
      "}"
-     "push('RESULT released='+n);"
+     "var st=document.getElementById('browser-reading-layout');"
+     "if(!st){"
+         "if(!document.head){out.push('RESULT applied=0 reason=no-head');return out.join('\\n');}"
+         "st=document.createElement('style');st.id='browser-reading-layout';"
+         "document.head.appendChild(st);"
+     "}"
+     "st.textContent='html body p,html body li,html body dd,html body blockquote'"
+         "+'{font-size:'+TF+'px!important;line-height:1.7!important;}';"
+     "var c1=window.getComputedStyle(best),f1=parseFloat(c1.fontSize)||16;"
+     "out.push('after width='+best.offsetWidth+' font='+c1.fontSize"
+         "+' charsPerLine='+Math.round(best.offsetWidth/f1));"
+     "out.push('RESULT applied='+n);"
      "return out.join('\\n');"
     "})()";
 
 static NSString * const kBrowserRestoreContentScript =
     @"(function(){"
+     "var st=document.getElementById('browser-reading-layout');"
+     "if(st&&st.parentNode){st.parentNode.removeChild(st);}"
      "var a=document.querySelectorAll('[data-browser-widened]');"
      "for(var i=0;i<a.length;i++){"
          "a[i].style.removeProperty('max-width');"
          "a[i].style.removeProperty('width');"
+         "a[i].style.removeProperty('margin-left');"
+         "a[i].style.removeProperty('margin-right');"
          "a[i].removeAttribute('data-browser-widened');"
      "}"
      "return String(a.length);"
@@ -778,15 +788,6 @@ static NSString * const kBrowserRestoreContentScript =
                     alive.length > 0 ? @"살아있음" : @"응답 없음",
                     (unsigned long)webView.webContentTerminationCount];
         }],
-        [BrowserWorkbenchItem itemWithTitle:@"엔진 재생 능력" action:^NSString *{
-            NSString *script =
-                @"(function(){var v=document.createElement('video');"
-                 "function c(t){try{return v.canPlayType(t)||'no';}catch(e){return 'err';}}"
-                 "return 'MSE: '+((typeof MediaSource!=='undefined')?'yes':'no')"
-                 "+'\\nHLS: '+c('application/vnd.apple.mpegurl')"
-                 "+'\\nMP4: '+c('video/mp4');})()";
-            return [weakSelf workbenchEvaluate:script fallback:@"읽을 수 없음 (프로세스 없음)"];
-        }],
         [BrowserWorkbenchItem itemWithTitle:@"페이지 크기 (무게)" action:^NSString *{
             NSString *script =
                 @"(function(){try{var n=document.getElementsByTagName('*').length;"
@@ -829,6 +830,8 @@ static NSString * const kBrowserRestoreContentScript =
     BOOL bold = self.preferencesStore.boldTextEnabled;
     NSUInteger minimumFont = self.preferencesStore.minimumFontSize;
     BOOL widen = self.preferencesStore.widenContentEnabled;
+    NSUInteger columnWidth = self.preferencesStore.readingColumnWidth;
+    NSUInteger bodyFont = self.preferencesStore.readingBodyFontSize;
 
     BrowserWorkbenchSection *apply = [BrowserWorkbenchSection sectionWithTitle:@"이 페이지에 적용" items:@[
         [BrowserWorkbenchItem itemWithTitle:[NSString stringWithFormat:@"확대 키우기  (지금 %lu%%)", (unsigned long)zoom]
@@ -846,11 +849,39 @@ static NSString * const kBrowserRestoreContentScript =
             [weakSelf refreshWorkbenchRows];
             return [NSString stringWithFormat:@"확대 %lu%%", (unsigned long)weakSelf.preferencesStore.pageZoomPercent];
         }],
-        [BrowserWorkbenchItem itemWithTitle:widen ? @"본문 넓게 펴기 끄기" : @"본문 넓게 펴기"
+        [BrowserWorkbenchItem itemWithTitle:widen ? @"TV 읽기 배치 끄기" : @"TV 읽기 배치 켜기"
                                      action:^NSString *{
             NSString *result = [weakSelf browserWidenContent];
             [weakSelf refreshWorkbenchRows];
             return result;
+        }],
+        [BrowserWorkbenchItem itemWithTitle:[NSString stringWithFormat:@"읽기 폭 넓히기  (%lupx)", (unsigned long)columnWidth]
+                                     action:^NSString *{
+            weakSelf.preferencesStore.readingColumnWidth =
+                weakSelf.preferencesStore.readingColumnWidth + 100;
+            [weakSelf refreshWorkbenchRows];
+            return [weakSelf reapplyReadingLayoutSummary];
+        }],
+        [BrowserWorkbenchItem itemWithTitle:[NSString stringWithFormat:@"읽기 폭 좁히기  (%lupx)", (unsigned long)columnWidth]
+                                     action:^NSString *{
+            NSUInteger current = weakSelf.preferencesStore.readingColumnWidth;
+            weakSelf.preferencesStore.readingColumnWidth = current > 100 ? current - 100 : current;
+            [weakSelf refreshWorkbenchRows];
+            return [weakSelf reapplyReadingLayoutSummary];
+        }],
+        [BrowserWorkbenchItem itemWithTitle:[NSString stringWithFormat:@"읽기 글자 키우기  (%lupx)", (unsigned long)bodyFont]
+                                     action:^NSString *{
+            weakSelf.preferencesStore.readingBodyFontSize =
+                weakSelf.preferencesStore.readingBodyFontSize + 2;
+            [weakSelf refreshWorkbenchRows];
+            return [weakSelf reapplyReadingLayoutSummary];
+        }],
+        [BrowserWorkbenchItem itemWithTitle:[NSString stringWithFormat:@"읽기 글자 줄이기  (%lupx)", (unsigned long)bodyFont]
+                                     action:^NSString *{
+            NSUInteger current = weakSelf.preferencesStore.readingBodyFontSize;
+            weakSelf.preferencesStore.readingBodyFontSize = current > 2 ? current - 2 : current;
+            [weakSelf refreshWorkbenchRows];
+            return [weakSelf reapplyReadingLayoutSummary];
         }],
         [BrowserWorkbenchItem itemWithTitle:@"확대 100%로 되돌리기" action:^NSString *{
             weakSelf.preferencesStore.pageZoomPercent = 100;
@@ -1019,11 +1050,45 @@ static NSString * const kBrowserRestoreContentScript =
     [webView applyPageScalingIfNeeded];
 }
 
+// Changing a number is only useful if the page shows it at once, with the
+// measured characters-per-line said back.
+- (NSString *)reapplyReadingLayoutSummary {
+    if (!self.preferencesStore.widenContentEnabled) {
+        self.preferencesStore.widenContentEnabled = YES;
+    }
+    NSString *report = [self.webview stringByEvaluatingJavaScriptFromString:[self readingLayoutScript]
+                                                                    timeout:4.0
+                                                                     status:NULL
+                                                              failureReason:NULL];
+    [[BrowserDiagnosticLog sharedLog] logSection:@"Reading Layout adjusted" body:report];
+
+    NSUInteger width = self.preferencesStore.readingColumnWidth;
+    NSUInteger font = self.preferencesStore.readingBodyFontSize;
+    NSString *measured = @"";
+    NSRange after = [report rangeOfString:@"after width=" options:NSBackwardsSearch];
+    if (after.location != NSNotFound) {
+        NSRange marker = [report rangeOfString:@"charsPerLine=" options:0 range:
+                          NSMakeRange(after.location, report.length - after.location)];
+        if (marker.location != NSNotFound) {
+            measured = [NSString stringWithFormat:@"\n실제 한 줄 %ld자",
+                        (long)[report substringFromIndex:NSMaxRange(marker)].integerValue];
+        }
+    }
+    return [NSString stringWithFormat:@"폭 %lupx · 글자 %lupx%@",
+            (unsigned long)width, (unsigned long)font, measured];
+}
+
+- (NSString *)readingLayoutScript {
+    return [NSString stringWithFormat:kBrowserReadingLayoutScriptFormat,
+            (unsigned long)self.preferencesStore.readingColumnWidth,
+            (unsigned long)self.preferencesStore.readingBodyFontSize];
+}
+
 - (void)applyWidenContentIfEnabled {
     if (self.webview == nil || !self.preferencesStore.widenContentEnabled) {
         return;
     }
-    NSString *report = [self.webview stringByEvaluatingJavaScriptFromString:kBrowserWidenContentScript
+    NSString *report = [self.webview stringByEvaluatingJavaScriptFromString:[self readingLayoutScript]
                                                                     timeout:4.0
                                                                      status:NULL
                                                               failureReason:NULL];
@@ -1032,7 +1097,7 @@ static NSString * const kBrowserRestoreContentScript =
         ? [report substringFromIndex:marker.location]
         : @"RESULT 없음";
     [[BrowserDiagnosticLog sharedLog] logLine:
-        [NSString stringWithFormat:@"auto-widen %@ url=%@",
+        [NSString stringWithFormat:@"auto-layout %@ url=%@",
          summary, self.webview.request.URL.absoluteString ?: @"-"]];
 }
 
@@ -1040,7 +1105,7 @@ static NSString * const kBrowserRestoreContentScript =
     BOOL next = !self.preferencesStore.widenContentEnabled;
     self.preferencesStore.widenContentEnabled = next;
 
-    NSString *script = next ? kBrowserWidenContentScript : kBrowserRestoreContentScript;
+    NSString *script = next ? [self readingLayoutScript] : kBrowserRestoreContentScript;
     BrowserScriptEvaluationStatus status = BrowserScriptEvaluationStatusOK;
     NSString *reason = nil;
     NSString *report = [self.webview stringByEvaluatingJavaScriptFromString:script
@@ -1048,7 +1113,7 @@ static NSString * const kBrowserRestoreContentScript =
                                                                      status:&status
                                                               failureReason:&reason];
 
-    [[BrowserDiagnosticLog sharedLog] logSection:next ? @"Widen Content ON" : @"Widen Content OFF"
+    [[BrowserDiagnosticLog sharedLog] logSection:next ? @"Reading Layout ON" : @"Reading Layout OFF"
                                             body:report.length > 0
                                                  ? report
                                                  : [NSString stringWithFormat:@"평가 실패 status=%ld reason=%@",
@@ -1060,7 +1125,7 @@ static NSString * const kBrowserRestoreContentScript =
     }
 
     if (!next) {
-        return @"원래 폭으로 되돌렸습니다.";
+        return @"원래 배치로 되돌렸습니다.";
     }
 
     NSRange marker = [report rangeOfString:@"RESULT released=" options:NSBackwardsSearch];
@@ -1068,10 +1133,11 @@ static NSString * const kBrowserRestoreContentScript =
         return @"결과 표시를 찾지 못했습니다.\n로그를 확인해 주십시오.";
     }
     NSInteger released = [report substringFromIndex:NSMaxRange(marker)].integerValue;
-    if (released > 0) {
-        return [NSString stringWithFormat:@"폭 제한 %ld군데를 풀었습니다.", (long)released];
-    }
-    return @"풀 만한 폭 제한이 없었습니다.\n자세한 내용은 로그에 적었습니다.";
+    NSUInteger width = self.preferencesStore.readingColumnWidth;
+    NSUInteger font = self.preferencesStore.readingBodyFontSize;
+    NSUInteger chars = font > 0 ? width / font : 0;
+    return [NSString stringWithFormat:@"폭 %lupx · 글자 %lupx\n한 줄에 한글 약 %lu자 (%ld군데 적용)",
+            (unsigned long)width, (unsigned long)font, (unsigned long)chars, (long)released];
 }
 
 - (NSString *)browserDisplayReport {
