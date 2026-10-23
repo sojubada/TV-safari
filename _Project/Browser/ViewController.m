@@ -87,53 +87,80 @@ static UIColor *kTextColor(void) {
 // the most text, walks up at most twenty ancestors, and releases the ones
 // that are narrower than the viewport and centred. Twenty elements is not
 // the whole-document walk that used to kill heavy pages.
-// Releasing the column to the full 1920 made reading worse, not better: a line
-// then carries over seventy Korean characters where thirty-five to forty-five
-// is comfortable. So the column is set to a measured width and the body type
-// to a size that puts the character count back in range, and both numbers are
-// written to the log before and after so they can be tuned from evidence.
+// The log showed three things at once: the target width was ignored because an
+// upstream layout only ever offered the column 541px, the requested type size
+// landed at exactly five sixths of what was asked for, and everything was
+// measured while the workbench held two thirds of the screen. So the script
+// now reports the environment it is working in, says what it asked for beside
+// what it got, and clears the side columns that were holding the article down
+// to 541px — on a three-column news page nothing else can give it room.
+//
+// %lu target width, %lu target font, %@ context label.
 static NSString * const kBrowserReadingLayoutScriptFormat =
     @"(function(){"
      "var out=[];"
      "if(!document.body){return 'ERR no-body';}"
-     "var vw=document.documentElement.clientWidth||window.innerWidth||0;"
+     "var de=document.documentElement;"
+     "var vw=de.clientWidth||window.innerWidth||0;"
      "var TW=%lu,TF=%lu;"
      "out.push('url='+location.href);"
-     "out.push('viewport='+vw+' target width='+TW+' target font='+TF);"
+     "out.push('context=%@');"
+     "out.push('env clientWidth='+vw+' innerWidth='+window.innerWidth"
+         "+' outerWidth='+window.outerWidth+' dpr='+(window.devicePixelRatio||1)"
+         "+' bodyWidth='+document.body.offsetWidth"
+         "+' scrollWidth='+de.scrollWidth);"
+     "try{var ds=window.getComputedStyle(de);"
+         "out.push('env textSizeAdjust='+(ds.webkitTextSizeAdjust||ds.textSizeAdjust||'-')"
+             "+' htmlFont='+ds.fontSize+' zoom='+(ds.zoom||'-'));"
+     "}catch(e){out.push('env read failed');}"
      "var ps=document.getElementsByTagName('p'),best=null,bestLen=0;"
      "for(var i=0;i<ps.length&&i<400;i++){"
          "var t=(ps[i].textContent||'').length;"
          "if(t>bestLen){bestLen=t;best=ps[i];}"
      "}"
-     "if(!best){out.push('RESULT applied=0 reason=no-paragraph');return out.join('\\n');}"
+     "if(!best){out.push('RESULT applied=0 hidden=0 reason=no-paragraph');return out.join('\\n');}"
      "var c0=window.getComputedStyle(best),f0=parseFloat(c0.fontSize)||16;"
-     "out.push('before width='+best.offsetWidth+' font='+c0.fontSize"
-         "+' lineHeight='+c0.lineHeight"
-         "+' charsPerLine='+Math.round(best.offsetWidth/f0));"
-     "var n=0,el=best;"
+     "out.push('before colWidth='+best.offsetWidth+' font='+c0.fontSize"
+         "+' lineHeight='+c0.lineHeight+' charsPerLine='+Math.round(best.offsetWidth/f0));"
+     "var touched=[],el=best;"
      "for(var d=0;d<20&&el&&el!==document.body;d++){"
          "var cs=window.getComputedStyle(el);"
          "if(el.offsetWidth>300&&"
             "((cs.maxWidth&&cs.maxWidth.indexOf('px')>-1)||el.offsetWidth>TW)){"
              "el.style.setProperty('max-width',TW+'px','important');"
+             "el.style.setProperty('width','auto','important');"
              "el.style.setProperty('margin-left','auto','important');"
              "el.style.setProperty('margin-right','auto','important');"
-             "el.setAttribute('data-browser-widened','1');n++;"
+             "el.setAttribute('data-browser-widened','1');touched.push(el);"
          "}"
          "el=el.parentElement;"
      "}"
+     "var hidden=0,top=best;"
+     "for(var up=0;up<4&&top&&top.parentElement&&top.parentElement!==document.body;up++){"
+         "var parent=top.parentElement,kids=parent.children;"
+         "for(var k=0;k<kids.length;k++){"
+             "var sib=kids[k];"
+             "if(sib===top||sib.contains(best)){continue;}"
+             "if(sib.offsetWidth>150&&sib.offsetHeight>300){"
+                 "sib.style.setProperty('display','none','important');"
+                 "sib.setAttribute('data-browser-hidden','1');hidden++;"
+             "}"
+         "}"
+         "top=parent;"
+     "}"
      "var st=document.getElementById('browser-reading-layout');"
      "if(!st){"
-         "if(!document.head){out.push('RESULT applied=0 reason=no-head');return out.join('\\n');}"
+         "if(!document.head){out.push('RESULT applied=0 hidden=0 reason=no-head');return out.join('\\n');}"
          "st=document.createElement('style');st.id='browser-reading-layout';"
          "document.head.appendChild(st);"
      "}"
      "st.textContent='html body p,html body li,html body dd,html body blockquote'"
          "+'{font-size:'+TF+'px!important;line-height:1.7!important;}';"
      "var c1=window.getComputedStyle(best),f1=parseFloat(c1.fontSize)||16;"
-     "out.push('after width='+best.offsetWidth+' font='+c1.fontSize"
+     "out.push('after colWidth='+best.offsetWidth+' (asked '+TW+')'"
+         "+' font='+c1.fontSize+' (asked '+TF+'px)'"
          "+' charsPerLine='+Math.round(best.offsetWidth/f1));"
-     "out.push('RESULT applied='+n);"
+     "out.push('RESULT applied='+touched.length+' hidden='+hidden);"
      "return out.join('\\n');"
     "})()";
 
@@ -141,6 +168,11 @@ static NSString * const kBrowserRestoreContentScript =
     @"(function(){"
      "var st=document.getElementById('browser-reading-layout');"
      "if(st&&st.parentNode){st.parentNode.removeChild(st);}"
+     "var h=document.querySelectorAll('[data-browser-hidden]');"
+     "for(var j=0;j<h.length;j++){"
+         "h[j].style.removeProperty('display');"
+         "h[j].removeAttribute('data-browser-hidden');"
+     "}"
      "var a=document.querySelectorAll('[data-browser-widened]');"
      "for(var i=0;i<a.length;i++){"
          "a[i].style.removeProperty('max-width');"
@@ -764,6 +796,10 @@ static NSString * const kBrowserRestoreContentScript =
     [workbench removeFromParentViewController];
     self.probeWorkbench = nil;
     self.tabCoordinator.webViewLeadingInset = 0.0;
+    // Everything tuned while this was open was measured against two thirds of
+    // the screen. The page is full width again now, so the layout is redone
+    // against the width it will actually be read at.
+    [self scheduleReadingLayoutApplication];
     [self setNeedsFocusUpdate];
     [self updateFocusIfNeeded];
 }
@@ -1037,7 +1073,26 @@ static NSString * const kBrowserRestoreContentScript =
 - (void)browserTabCoordinatorUpdateTextFontSize {
     [self applyReadingZoom];
     [self updateTextFontSize];
-    [self applyWidenContentIfEnabled];
+    [self scheduleReadingLayoutApplication];
+}
+
+// Every automatic application in the log failed, because this ran from the
+// tab UI refresh, before the page had a document to query. It waits for the
+// document now, and tries once more if the first attempt finds nothing.
+- (void)scheduleReadingLayoutApplication {
+    if (!self.preferencesStore.widenContentEnabled) {
+        return;
+    }
+    __weak typeof(self) weakSelf = self;
+    dispatch_after(dispatch_time(DISPATCH_TIME_NOW, (int64_t)(0.6 * NSEC_PER_SEC)),
+                   dispatch_get_main_queue(), ^{
+        if (![weakSelf applyWidenContentIfEnabled]) {
+            dispatch_after(dispatch_time(DISPATCH_TIME_NOW, (int64_t)(1.5 * NSEC_PER_SEC)),
+                           dispatch_get_main_queue(), ^{
+                [weakSelf applyWidenContentIfEnabled];
+            });
+        }
+    });
 }
 
 - (void)applyReadingZoom {
@@ -1056,7 +1111,7 @@ static NSString * const kBrowserRestoreContentScript =
     if (!self.preferencesStore.widenContentEnabled) {
         self.preferencesStore.widenContentEnabled = YES;
     }
-    NSString *report = [self.webview stringByEvaluatingJavaScriptFromString:[self readingLayoutScript]
+    NSString *report = [self.webview stringByEvaluatingJavaScriptFromString:[self readingLayoutScriptForContext:[self readingLayoutContextLabel]]
                                                                     timeout:4.0
                                                                      status:NULL
                                                               failureReason:NULL];
@@ -1065,7 +1120,7 @@ static NSString * const kBrowserRestoreContentScript =
     NSUInteger width = self.preferencesStore.readingColumnWidth;
     NSUInteger font = self.preferencesStore.readingBodyFontSize;
     NSString *measured = @"";
-    NSRange after = [report rangeOfString:@"after width=" options:NSBackwardsSearch];
+    NSRange after = [report rangeOfString:@"after colWidth=" options:NSBackwardsSearch];
     if (after.location != NSNotFound) {
         NSRange marker = [report rangeOfString:@"charsPerLine=" options:0 range:
                           NSMakeRange(after.location, report.length - after.location)];
@@ -1078,34 +1133,50 @@ static NSString * const kBrowserRestoreContentScript =
             (unsigned long)width, (unsigned long)font, measured];
 }
 
-- (NSString *)readingLayoutScript {
+- (NSString *)readingLayoutScriptForContext:(NSString *)context {
     return [NSString stringWithFormat:kBrowserReadingLayoutScriptFormat,
             (unsigned long)self.preferencesStore.readingColumnWidth,
-            (unsigned long)self.preferencesStore.readingBodyFontSize];
+            (unsigned long)self.preferencesStore.readingBodyFontSize,
+            context ?: @"-"];
 }
 
-- (void)applyWidenContentIfEnabled {
+- (NSString *)readingLayoutContextLabel {
+    return [NSString stringWithFormat:@"workbench=%@ zoom=%lu%% minFont=%lu textSize=%lu scaleToFit=%@",
+            self.probeWorkbench != nil ? @"open" : @"closed",
+            (unsigned long)self.preferencesStore.pageZoomPercent,
+            (unsigned long)self.preferencesStore.minimumFontSize,
+            (unsigned long)self.viewModel.textFontSize,
+            self.preferencesStore.scalePagesToFit ? @"on" : @"off"];
+}
+
+- (BOOL)applyWidenContentIfEnabled {
     if (self.webview == nil || !self.preferencesStore.widenContentEnabled) {
-        return;
+        return YES;
     }
-    NSString *report = [self.webview stringByEvaluatingJavaScriptFromString:[self readingLayoutScript]
+    NSString *report = [self.webview stringByEvaluatingJavaScriptFromString:
+                        [self readingLayoutScriptForContext:[self readingLayoutContextLabel]]
                                                                     timeout:4.0
                                                                      status:NULL
                                                               failureReason:NULL];
-    NSRange marker = [report rangeOfString:@"RESULT released=" options:NSBackwardsSearch];
-    NSString *summary = marker.location != NSNotFound
-        ? [report substringFromIndex:marker.location]
-        : @"RESULT 없음";
+    NSRange marker = [report rangeOfString:@"RESULT applied=" options:NSBackwardsSearch];
+    if (marker.location == NSNotFound) {
+        [[BrowserDiagnosticLog sharedLog] logLine:
+            [NSString stringWithFormat:@"auto-layout failed url=%@",
+             self.webview.request.URL.absoluteString ?: @"-"]];
+        return NO;
+    }
     [[BrowserDiagnosticLog sharedLog] logLine:
         [NSString stringWithFormat:@"auto-layout %@ url=%@",
-         summary, self.webview.request.URL.absoluteString ?: @"-"]];
+         [report substringFromIndex:marker.location],
+         self.webview.request.URL.absoluteString ?: @"-"]];
+    return YES;
 }
 
 - (NSString *)browserWidenContent {
     BOOL next = !self.preferencesStore.widenContentEnabled;
     self.preferencesStore.widenContentEnabled = next;
 
-    NSString *script = next ? [self readingLayoutScript] : kBrowserRestoreContentScript;
+    NSString *script = next ? [self readingLayoutScriptForContext:[self readingLayoutContextLabel]] : kBrowserRestoreContentScript;
     BrowserScriptEvaluationStatus status = BrowserScriptEvaluationStatusOK;
     NSString *reason = nil;
     NSString *report = [self.webview stringByEvaluatingJavaScriptFromString:script
