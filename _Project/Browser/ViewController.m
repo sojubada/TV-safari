@@ -154,6 +154,14 @@ static NSString * const kBrowserRestoreContentScript =
     self.preferencesStore = [BrowserPreferencesStore new];
     [self.preferencesStore ensureUserAgentConsistency];
 
+    // A line at launch, so an empty log always means the writing failed
+    // rather than that nothing has been tried yet.
+    [[BrowserDiagnosticLog sharedLog] logLine:
+        [NSString stringWithFormat:@"launch version=%@ build=%@ widen=%@",
+         [NSBundle.mainBundle objectForInfoDictionaryKey:@"CFBundleShortVersionString"] ?: @"?",
+         [NSBundle.mainBundle objectForInfoDictionaryKey:@"CFBundleVersion"] ?: @"?",
+         self.preferencesStore.widenContentEnabled ? @"on" : @"off"]];
+
     self.viewModel = [BrowserViewModel new];
     self.viewModel.topNavigationBarVisible = self.preferencesStore.topNavigationBarVisible;
     self.viewModel.textFontSize = self.preferencesStore.textFontSize;

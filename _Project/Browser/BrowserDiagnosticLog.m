@@ -11,6 +11,7 @@ static unsigned long long const kTrimToBytes = 192 * 1024;
 @interface BrowserDiagnosticLog ()
 
 @property (nonatomic, copy, readwrite) NSString *logPath;
+@property (nonatomic, copy, readwrite) NSString *resolvedDirectoryLabel;
 @property (nonatomic, readwrite) BOOL usingFallbackPath;
 @property (nonatomic, strong) dispatch_queue_t queue;
 
@@ -36,32 +37,53 @@ static unsigned long long const kTrimToBytes = 192 * 1024;
     return self;
 }
 
+// tvOS has no writable Documents directory. NSSearchPathForDirectoriesInDomains
+// still returns a path for it, the write silently fails, and the log stays at
+// zero bytes — which is exactly what happened. Caches is the directory tvOS
+// actually gives an app, so every candidate is tried by writing to it.
 - (void)resolveLogPath {
     NSFileManager *manager = NSFileManager.defaultManager;
 
-    // isWritableFileAtPath: answered yes on a path the app could not actually
-    // write to, so this tries the write instead of asking about it.
-    [manager createDirectoryAtPath:kPreferredDirectory
-       withIntermediateDirectories:YES
-                        attributes:nil
-                             error:NULL];
+    NSString *caches = NSSearchPathForDirectoriesInDomains(NSCachesDirectory,
+                                                           NSUserDomainMask,
+                                                           YES).firstObject;
+    NSMutableArray<NSString *> *candidates = [NSMutableArray array];
+    [candidates addObject:kPreferredDirectory];
+    if (caches.length > 0) {
+        [candidates addObject:caches];
+    }
+    [candidates addObject:NSTemporaryDirectory()];
 
-    NSString *candidate = [kPreferredDirectory stringByAppendingPathComponent:kLogFileName];
-    NSString *probe = [kPreferredDirectory stringByAppendingPathComponent:@".write-probe"];
-    BOOL wrote = [@"ok" writeToFile:probe atomically:YES encoding:NSUTF8StringEncoding error:NULL];
-    if (wrote) {
-        // Removing only the probe this method just created.
+    for (NSString *directory in candidates) {
+        if (directory.length == 0) {
+            continue;
+        }
+        if (![manager fileExistsAtPath:directory]) {
+            [manager createDirectoryAtPath:directory
+               withIntermediateDirectories:YES
+                                attributes:nil
+                                     error:NULL];
+        }
+
+        NSString *probe = [directory stringByAppendingPathComponent:@".tvsafari-write-probe"];
+        BOOL wrote = [@"ok" writeToFile:probe atomically:YES encoding:NSUTF8StringEncoding error:NULL];
+        if (!wrote) {
+            continue;
+        }
+        // Removing only the probe the line above just created.
         [manager removeItemAtPath:probe error:NULL];
-        self.logPath = candidate;
-        self.usingFallbackPath = NO;
+
+        self.logPath = [directory stringByAppendingPathComponent:kLogFileName];
+        self.usingFallbackPath = ![directory isEqualToString:kPreferredDirectory];
+        self.resolvedDirectoryLabel = [directory isEqualToString:kPreferredDirectory]
+            ? @"미디어 폴더"
+            : ([directory isEqualToString:caches] ? @"앱 캐시 폴더" : @"임시 폴더");
         return;
     }
 
-    NSString *documents = NSSearchPathForDirectoriesInDomains(NSDocumentDirectory,
-                                                              NSUserDomainMask,
-                                                              YES).firstObject ?: NSTemporaryDirectory();
-    self.logPath = [documents stringByAppendingPathComponent:kLogFileName];
+    self.logPath = [NSTemporaryDirectory() stringByAppendingPathComponent:kLogFileName];
     self.usingFallbackPath = YES;
+    self.resolvedDirectoryLabel = @"쓸 수 있는 폴더를 찾지 못함";
 }
 
 - (NSString *)timestamp {
@@ -140,28 +162,15 @@ static unsigned long long const kTrimToBytes = 192 * 1024;
 }
 
 - (NSString *)statusDescription {
-    NSDictionary *attributes = [NSFileManager.defaultManager attributesOfItemAtPath:self.logPath error:NULL];
+    NSFileManager *manager = NSFileManager.defaultManager;
+    BOOL exists = [manager fileExistsAtPath:self.logPath];
+    NSDictionary *attributes = [manager attributesOfItemAtPath:self.logPath error:NULL];
     unsigned long long size = attributes.fileSize;
-    NSString *where = self.usingFallbackPath ? @"앱 내부 (미디어 폴더에 못 씀)" : @"미디어 폴더";
-    return [NSString stringWithFormat:@"%@\n%@\n%llu바이트", where, self.logPath, size];
-}
-
-// Reading it back so it can be shown on screen: moving a file off the device
-// turned out to be the hard part, and a report view needs no file at all.
-- (NSString *)contentsForDisplay {
-    NSString *text = [NSString stringWithContentsOfFile:self.logPath
-                                               encoding:NSUTF8StringEncoding
-                                                  error:NULL];
-    if (text.length == 0) {
-        return [NSString stringWithFormat:@"로그가 비어 있습니다.\n\n%@", [self statusDescription]];
-    }
-    // Newest last, so the tail is what matters when it is long.
-    NSUInteger limit = 12000;
-    if (text.length > limit) {
-        text = [NSString stringWithFormat:@"(앞부분 생략)\n%@",
-                [text substringFromIndex:text.length - limit]];
-    }
-    return text;
+    return [NSString stringWithFormat:@"%@\n%@\n파일 %@ · %llu바이트",
+            self.resolvedDirectoryLabel ?: @"-",
+            self.logPath,
+            exists ? @"있음" : @"없음",
+            size];
 }
 
 - (void)clear {

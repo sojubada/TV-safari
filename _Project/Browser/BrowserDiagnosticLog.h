@@ -15,6 +15,9 @@ NS_ASSUME_NONNULL_BEGIN
 @property (nonatomic, readonly, copy) NSString *logPath;
 @property (nonatomic, readonly) BOOL usingFallbackPath;
 
+/// Plain-words name of the directory the log ended up in.
+@property (nonatomic, readonly, copy) NSString *resolvedDirectoryLabel;
+
 - (void)logSection:(NSString *)title body:(nullable NSString *)body;
 - (void)logLine:(NSString *)line;
 
