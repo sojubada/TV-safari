@@ -11,6 +11,7 @@
 #import "BrowserReaderModeController.h"
 #import "BrowserMenuCoordinator.h"
 #import "BrowserDiagnosticLog.h"
+#import "BrowserReportViewController.h"
 #import "BrowserProbeWorkbenchViewController.h"
 #import "BrowserDOMInteractionService.h"
 #import "BrowserNavigationService.h"
@@ -790,6 +791,12 @@ static NSString * const kBrowserRestoreContentScript =
         [BrowserWorkbenchItem itemWithTitle:@"진단 로그 위치" action:^NSString *{
             return [[BrowserDiagnosticLog sharedLog] statusDescription];
         }],
+        [BrowserWorkbenchItem itemWithTitle:@"진단 로그 보기" action:^NSString *{
+            NSString *text = [[BrowserDiagnosticLog sharedLog] contentsForDisplay];
+            [weakSelf browserPresentViewController:
+                [[BrowserReportViewController alloc] initWithTitle:@"진단 로그" reportText:text]];
+            return @"로그를 화면에 띄웠습니다.";
+        }],
         [BrowserWorkbenchItem itemWithTitle:@"진단 로그 비우기" action:^NSString *{
             [[BrowserDiagnosticLog sharedLog] clear];
             return @"로그를 비웠습니다.";
@@ -1008,7 +1015,17 @@ static NSString * const kBrowserRestoreContentScript =
     if (self.webview == nil || !self.preferencesStore.widenContentEnabled) {
         return;
     }
-    [self.webview stringByEvaluatingJavaScriptFromString:kBrowserWidenContentScript];
+    NSString *report = [self.webview stringByEvaluatingJavaScriptFromString:kBrowserWidenContentScript
+                                                                    timeout:4.0
+                                                                     status:NULL
+                                                              failureReason:NULL];
+    NSRange marker = [report rangeOfString:@"RESULT released=" options:NSBackwardsSearch];
+    NSString *summary = marker.location != NSNotFound
+        ? [report substringFromIndex:marker.location]
+        : @"RESULT 없음";
+    [[BrowserDiagnosticLog sharedLog] logLine:
+        [NSString stringWithFormat:@"auto-widen %@ url=%@",
+         summary, self.webview.request.URL.absoluteString ?: @"-"]];
 }
 
 - (NSString *)browserWidenContent {

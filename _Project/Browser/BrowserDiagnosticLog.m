@@ -39,15 +39,20 @@ static unsigned long long const kTrimToBytes = 192 * 1024;
 - (void)resolveLogPath {
     NSFileManager *manager = NSFileManager.defaultManager;
 
-    if (![manager fileExistsAtPath:kPreferredDirectory]) {
-        [manager createDirectoryAtPath:kPreferredDirectory
-           withIntermediateDirectories:YES
-                            attributes:nil
-                                 error:NULL];
-    }
+    // isWritableFileAtPath: answered yes on a path the app could not actually
+    // write to, so this tries the write instead of asking about it.
+    [manager createDirectoryAtPath:kPreferredDirectory
+       withIntermediateDirectories:YES
+                        attributes:nil
+                             error:NULL];
 
-    if ([manager isWritableFileAtPath:kPreferredDirectory]) {
-        self.logPath = [kPreferredDirectory stringByAppendingPathComponent:kLogFileName];
+    NSString *candidate = [kPreferredDirectory stringByAppendingPathComponent:kLogFileName];
+    NSString *probe = [kPreferredDirectory stringByAppendingPathComponent:@".write-probe"];
+    BOOL wrote = [@"ok" writeToFile:probe atomically:YES encoding:NSUTF8StringEncoding error:NULL];
+    if (wrote) {
+        // Removing only the probe this method just created.
+        [manager removeItemAtPath:probe error:NULL];
+        self.logPath = candidate;
         self.usingFallbackPath = NO;
         return;
     }
@@ -139,6 +144,24 @@ static unsigned long long const kTrimToBytes = 192 * 1024;
     unsigned long long size = attributes.fileSize;
     NSString *where = self.usingFallbackPath ? @"앱 내부 (미디어 폴더에 못 씀)" : @"미디어 폴더";
     return [NSString stringWithFormat:@"%@\n%@\n%llu바이트", where, self.logPath, size];
+}
+
+// Reading it back so it can be shown on screen: moving a file off the device
+// turned out to be the hard part, and a report view needs no file at all.
+- (NSString *)contentsForDisplay {
+    NSString *text = [NSString stringWithContentsOfFile:self.logPath
+                                               encoding:NSUTF8StringEncoding
+                                                  error:NULL];
+    if (text.length == 0) {
+        return [NSString stringWithFormat:@"로그가 비어 있습니다.\n\n%@", [self statusDescription]];
+    }
+    // Newest last, so the tail is what matters when it is long.
+    NSUInteger limit = 12000;
+    if (text.length > limit) {
+        text = [NSString stringWithFormat:@"(앞부분 생략)\n%@",
+                [text substringFromIndex:text.length - limit]];
+    }
+    return text;
 }
 
 - (void)clear {

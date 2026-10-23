@@ -21,6 +21,9 @@ NS_ASSUME_NONNULL_BEGIN
 /// A short human-readable statement of where the log is and how big it is.
 - (NSString *)statusDescription;
 
+/// The log as text, newest last, trimmed so it fits a report screen.
+- (NSString *)contentsForDisplay;
+
 - (void)clear;
 
 @end
