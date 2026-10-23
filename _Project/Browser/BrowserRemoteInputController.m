@@ -164,7 +164,7 @@ static NSString *BrowserPressPhaseString(UIPressPhase phase) {
 - (BOOL)canPerformCustomScroll {
     return [self.host browserRemoteInputControllerPresentedViewController] == nil &&
         ![self.host browserRemoteInputControllerTabOverviewVisible] &&
-        ![self.host browserRemoteInputControllerTopBarFocusActive];
+        ![self.host browserRemoteInputControllerFocusNavigationActive];
 }
 
 - (void)setCursorModeEnabled:(BOOL)cursorModeEnabled {
@@ -184,7 +184,7 @@ static NSString *BrowserPressPhaseString(UIPressPhase phase) {
 
 - (void)refreshInteractionState {
     UIScrollView *scrollView = [self.host browserRemoteInputControllerActiveScrollView];
-    BOOL topBarFocusActive = [self.host browserRemoteInputControllerTopBarFocusActive];
+    BOOL topBarFocusActive = [self.host browserRemoteInputControllerFocusNavigationActive];
     BOOL tabOverviewVisible = [self.host browserRemoteInputControllerTabOverviewVisible];
     BOOL presentedActive = ([self.host browserRemoteInputControllerPresentedViewController] != nil);
 
@@ -315,7 +315,7 @@ static NSString *BrowserPressPhaseString(UIPressPhase phase) {
 - (void)handleManualScrollDisplayLink:(CADisplayLink *)displayLink {
     if (self.cursorModeEnabled ||
         [self.host browserRemoteInputControllerTabOverviewVisible] ||
-        [self.host browserRemoteInputControllerTopBarFocusActive]) {
+        [self.host browserRemoteInputControllerFocusNavigationActive]) {
         [self stopManualScrollInertia];
         return;
     }
@@ -568,7 +568,7 @@ static const CFTimeInterval kBrowserCursorIdleHideDelay = 3.0;
     if (!self.cursorModeEnabled ||
         self.cursorView.hidden ||
         [self.host browserRemoteInputControllerTabOverviewVisible] ||
-        [self.host browserRemoteInputControllerTopBarFocusActive]) {
+        [self.host browserRemoteInputControllerFocusNavigationActive]) {
         return;
     }
 
@@ -588,7 +588,7 @@ static const CFTimeInterval kBrowserCursorIdleHideDelay = 3.0;
         return;
     }
 
-    if ([self.host browserRemoteInputControllerTopBarFocusActive]) {
+    if ([self.host browserRemoteInputControllerFocusNavigationActive]) {
         return;
     }
 
@@ -642,7 +642,7 @@ static const CFTimeInterval kBrowserCursorIdleHideDelay = 3.0;
     if (sender.state != UIGestureRecognizerStateEnded) {
         return;
     }
-    if ([self.host browserRemoteInputControllerTopBarFocusActive]) {
+    if ([self.host browserRemoteInputControllerFocusNavigationActive]) {
         return;
     }
     if ([self.host browserRemoteInputControllerTabOverviewVisible]) {
@@ -656,7 +656,7 @@ static const CFTimeInterval kBrowserCursorIdleHideDelay = 3.0;
     [self noteCursorActivity];
     if (self.cursorModeEnabled ||
         [self.host browserRemoteInputControllerTabOverviewVisible] ||
-        [self.host browserRemoteInputControllerTopBarFocusActive]) {
+        [self.host browserRemoteInputControllerFocusNavigationActive]) {
         return;
     }
 
@@ -771,7 +771,21 @@ static const CFTimeInterval kBrowserCursorIdleHideDelay = 3.0;
         }
     }
 
-    if ([self.host browserRemoteInputControllerTopBarFocusActive]) {
+    // The workbench owns the pad outright while it is open: the focus engine
+    // moves between its rows, and Menu is the way out. Down must not fall
+    // through to the top bar's own exit.
+    if ([self.host browserRemoteInputControllerWorkbenchActive]) {
+        if (press.type == UIPressTypeMenu) {
+            [self.host browserRemoteInputControllerCloseWorkbench];
+            return YES;
+        }
+        if (press.type == UIPressTypePlayPause) {
+            return YES;
+        }
+        return NO;
+    }
+
+    if ([self.host browserRemoteInputControllerFocusNavigationActive]) {
         if (press.type == UIPressTypeMenu || press.type == UIPressTypeDownArrow) {
             [self.host browserRemoteInputControllerDeactivateTopBarFocus];
             return YES;
@@ -864,7 +878,7 @@ static const CFTimeInterval kBrowserCursorIdleHideDelay = 3.0;
 
     if ((press.type == UIPressTypeLeftArrow || press.type == UIPressTypeRightArrow) &&
         ![self.host browserRemoteInputControllerTabOverviewVisible] &&
-        ![self.host browserRemoteInputControllerTopBarFocusActive] &&
+        ![self.host browserRemoteInputControllerFocusNavigationActive] &&
         [self.host browserRemoteInputControllerPresentedViewController] == nil) {
         if (press.type == UIPressTypeLeftArrow) {
             [self.host browserRemoteInputControllerGoBack];
@@ -900,7 +914,7 @@ static const CFTimeInterval kBrowserCursorIdleHideDelay = 3.0;
     (void)touches;
     (void)event;
     [self noteCursorActivity];
-    if ([self.host browserRemoteInputControllerTopBarFocusActive]) {
+    if ([self.host browserRemoteInputControllerFocusNavigationActive]) {
         return NO;
     }
     if ([self.host browserRemoteInputControllerTabOverviewVisible]) {
@@ -921,7 +935,7 @@ static const CFTimeInterval kBrowserCursorIdleHideDelay = 3.0;
 - (BOOL)handleTouchesMoved:(NSSet<UITouch *> *)touches withEvent:(UIEvent *)event {
     (void)event;
     [self noteCursorActivity];
-    if ([self.host browserRemoteInputControllerTopBarFocusActive]) {
+    if ([self.host browserRemoteInputControllerFocusNavigationActive]) {
         return NO;
     }
     if ([self.host browserRemoteInputControllerTabOverviewVisible]) {
@@ -1008,7 +1022,7 @@ static const CFTimeInterval kBrowserCursorIdleHideDelay = 3.0;
 
     if (self.cursorModeEnabled &&
         ![self.host browserRemoteInputControllerTabOverviewVisible] &&
-        ![self.host browserRemoteInputControllerTopBarFocusActive] &&
+        ![self.host browserRemoteInputControllerFocusNavigationActive] &&
         [self.host browserRemoteInputControllerPresentedViewController] == nil &&
         [self.host browserRemoteInputControllerTapToClickEnabled] &&
         touchDuration > 0.0 &&

@@ -13,7 +13,12 @@ NS_ASSUME_NONNULL_BEGIN
 
 - (nullable UIScrollView *)browserRemoteInputControllerActiveScrollView;
 - (nullable UIViewController *)browserRemoteInputControllerPresentedViewController;
-- (BOOL)browserRemoteInputControllerTopBarFocusActive;
+/// True whenever the remote drives focus rather than the pointer: the top
+/// bar, and the probe workbench. The pointer and the focus engine cannot
+/// both own the direction pad.
+- (BOOL)browserRemoteInputControllerFocusNavigationActive;
+- (BOOL)browserRemoteInputControllerWorkbenchActive;
+- (void)browserRemoteInputControllerCloseWorkbench;
 - (BOOL)browserRemoteInputControllerCanActivateTopBarFocus;
 - (void)browserRemoteInputControllerActivateTopBarFocus;
 - (void)browserRemoteInputControllerDeactivateTopBarFocus;

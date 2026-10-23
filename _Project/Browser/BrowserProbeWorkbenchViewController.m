@@ -122,14 +122,6 @@ static CGFloat const kWorkbenchHeaderHeight = 50.0;
         [self.resultLabel.bottomAnchor constraintEqualToAnchor:resultBackground.bottomAnchor constant:-14.0],
     ]];
 
-    UITapGestureRecognizer *menuRecognizer =
-        [[UITapGestureRecognizer alloc] initWithTarget:self action:@selector(handleMenuPress)];
-    menuRecognizer.allowedPressTypes = @[@(UIPressTypeMenu)];
-    [self.view addGestureRecognizer:menuRecognizer];
-}
-
-- (void)handleMenuPress {
-    [self.workbenchDelegate probeWorkbenchDidRequestClose:self];
 }
 
 - (NSArray<id<UIFocusEnvironment>> *)preferredFocusEnvironments {

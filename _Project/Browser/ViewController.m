@@ -546,6 +546,9 @@ static UIColor *kTextColor(void) {
 }
 
 - (NSArray<id<UIFocusEnvironment>> *)preferredFocusEnvironments {
+    if (self.probeWorkbench != nil) {
+        return @[self.probeWorkbench];
+    }
     if (self.topBarFocusActive) {
         UIView *preferredFocusItem = [self.topMenuView preferredFocusItem];
         if (preferredFocusItem != nil) {
@@ -1051,8 +1054,16 @@ static UIColor *kTextColor(void) {
     return self.presentedViewController;
 }
 
-- (BOOL)browserRemoteInputControllerTopBarFocusActive {
-    return self.topBarFocusActive;
+- (BOOL)browserRemoteInputControllerFocusNavigationActive {
+    return self.topBarFocusActive || self.probeWorkbench != nil;
+}
+
+- (BOOL)browserRemoteInputControllerWorkbenchActive {
+    return self.probeWorkbench != nil;
+}
+
+- (void)browserRemoteInputControllerCloseWorkbench {
+    [self probeWorkbenchDidRequestClose:self.probeWorkbench];
 }
 
 - (BOOL)browserRemoteInputControllerCanActivateTopBarFocus {
