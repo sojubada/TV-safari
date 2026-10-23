@@ -18,6 +18,7 @@ static NSString * const kContentBlockingEnabledDefaultsKey = @"ContentBlockingEn
 static NSString * const kPageZoomPercentDefaultsKey = @"PageZoomPercent";
 static NSString * const kMinimumFontSizeDefaultsKey = @"MinimumFontSize";
 static NSString * const kBoldTextEnabledDefaultsKey = @"BoldTextEnabled";
+static NSString * const kWidenContentEnabledDefaultsKey = @"WidenContentEnabled";
 static NSString * const kReaderFontSizeDefaultsKey = @"ReaderFontSize";
 static NSString * const kLightenHeavySitesEnabledDefaultsKey = @"LightenHeavySitesEnabled";
 
@@ -245,6 +246,14 @@ static NSUInteger const kMaximumReaderFontSize = 96;
 }
 - (void)setMinimumFontSize:(NSUInteger)minimumFontSize {
     [[self defaults] setObject:@(MIN((NSUInteger)48, minimumFontSize)) forKey:kMinimumFontSizeDefaultsKey];
+    [[self defaults] synchronize];
+}
+
+- (BOOL)widenContentEnabled {
+    return [[self defaults] boolForKey:kWidenContentEnabledDefaultsKey];
+}
+- (void)setWidenContentEnabled:(BOOL)widenContentEnabled {
+    [[self defaults] setBool:widenContentEnabled forKey:kWidenContentEnabledDefaultsKey];
     [[self defaults] synchronize];
 }
 

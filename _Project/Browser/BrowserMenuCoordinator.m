@@ -1501,7 +1501,7 @@ withAnimationCoordinator:(UIFocusAnimationCoordinator *)coordinator {
             [self increasePageZoomMenuItem],
             [self decreasePageZoomMenuItem],
             [self resetPageZoomMenuItem],
-            [self fitPageWidthMenuItem],
+            [self widenContentMenuItem],
             [self boldTextToggleMenuItem],
             [self increaseMinimumFontSizeMenuItem],
             [self decreaseMinimumFontSizeMenuItem],
@@ -1513,10 +1513,12 @@ withAnimationCoordinator:(UIFocusAnimationCoordinator *)coordinator {
     ];
 }
 
-- (BrowserAdvancedMenuItem *)fitPageWidthMenuItem {
+- (BrowserAdvancedMenuItem *)widenContentMenuItem {
+    BOOL enabled = self.preferencesStore.widenContentEnabled;
+    NSString *title = enabled ? @"Widen Content: On" : @"Widen Content: Off";
     __weak typeof(self) weakSelf = self;
-    return [self settingMenuItemWithTitle:@"Fit Page Width" handler:^{
-        [weakSelf.host browserFitPageWidth];
+    return [self settingMenuItemWithTitle:title handler:^{
+        [weakSelf.host browserWidenContent];
     }];
 }
 
@@ -1652,7 +1654,7 @@ withAnimationCoordinator:(UIFocusAnimationCoordinator *)coordinator {
             [self increasePageZoomMenuItem],
             [self decreasePageZoomMenuItem],
             [self resetPageZoomMenuItem],
-            [self fitPageWidthMenuItem],
+            [self widenContentMenuItem],
             [self boldTextToggleMenuItem],
             [self increaseMinimumFontSizeMenuItem],
             [self decreaseMinimumFontSizeMenuItem],
@@ -1824,7 +1826,7 @@ withAnimationCoordinator:(UIFocusAnimationCoordinator *)coordinator {
             [self increasePageZoomMenuItem],
             [self decreasePageZoomMenuItem],
             [self resetPageZoomMenuItem],
-            [self fitPageWidthMenuItem],
+            [self widenContentMenuItem],
             increaseFontSizeItem,
             decreaseFontSizeItem,
             resetFontSizeItem,

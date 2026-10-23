@@ -32,6 +32,10 @@ NS_ASSUME_NONNULL_BEGIN
 
 /// Thickens page text. Thin strokes wash out at television viewing distance.
 @property (nonatomic) BOOL boldTextEnabled;
+
+/// Releases the max-width on a page's main column so a centred desktop
+/// layout uses the whole width of a television.
+@property (nonatomic) BOOL widenContentEnabled;
 @property (nonatomic) BOOL lightenHeavySitesEnabled;
 
 - (void)ensureUserAgentConsistency;

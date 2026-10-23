@@ -375,6 +375,17 @@ static UIColor *kTextColor(void) {
                       (unsigned long)self.viewModel.textFontSize,
                       (unsigned long)self.viewModel.textFontSize];
 
+    if (self.preferencesStore.widenContentEnabled) {
+        // Only the containers a site actually uses to centre its page, named
+        // in full. A substring match here would catch unrelated elements, and
+        // that mistake has cost this browser a working page three times.
+        [css appendString:
+            @"html body #ct,html body #container,html body #content,"
+             "html body #contents,html body #wrap,html body #newsct,"
+             "html body #main_content,html body main,html body article,"
+             "html body [role=main]{max-width:none!important;}"];
+    }
+
     if (self.preferencesStore.boldTextEnabled) {
         [css appendString:
             @"html body,html body p,html body li,html body td,html body dd,"
@@ -743,6 +754,7 @@ static UIColor *kTextColor(void) {
     BOOL mobile = self.preferencesStore.mobileModeEnabled;
     BOOL bold = self.preferencesStore.boldTextEnabled;
     NSUInteger minimumFont = self.preferencesStore.minimumFontSize;
+    BOOL widen = self.preferencesStore.widenContentEnabled;
 
     BrowserWorkbenchSection *apply = [BrowserWorkbenchSection sectionWithTitle:@"이 페이지에 적용" items:@[
         [BrowserWorkbenchItem itemWithTitle:[NSString stringWithFormat:@"확대 키우기  (지금 %lu%%)", (unsigned long)zoom]
@@ -760,8 +772,9 @@ static UIColor *kTextColor(void) {
             [weakSelf refreshWorkbenchRows];
             return [NSString stringWithFormat:@"확대 %lu%%", (unsigned long)weakSelf.preferencesStore.pageZoomPercent];
         }],
-        [BrowserWorkbenchItem itemWithTitle:@"본문 폭에 맞추기" action:^NSString *{
-            NSString *result = [weakSelf browserFitPageWidth];
+        [BrowserWorkbenchItem itemWithTitle:widen ? @"본문 넓게 펴기 끄기" : @"본문 넓게 펴기"
+                                     action:^NSString *{
+            NSString *result = [weakSelf browserWidenContent];
             [weakSelf refreshWorkbenchRows];
             return result;
         }],
@@ -931,49 +944,17 @@ static UIColor *kTextColor(void) {
     [webView applyPageScalingIfNeeded];
 }
 
-// A fixed-width desktop column centred in a 1920-point viewport leaves the
-// sides of a television empty. Zoom shrinks the CSS viewport, so raising it
-// until the viewport matches the column makes the column fill the screen —
-// the same control that enlarges the text also closes the margins.
-- (NSUInteger)fitPageWidthZoomPercent {
-    NSString *script =
-        @"(function(){"
-         "var best=0;"
-         "function consider(el){if(!el){return;}var w=el.offsetWidth;"
-         "if(w>best&&w<1700){best=w;}}"
-         "var sel='article,main,[role=main],#content,#container,#ct,#newsct,"
-         ".article,.content,#wrap,#contents';"
-         "var c=document.querySelectorAll(sel);"
-         "for(var i=0;i<c.length&&i<40;i++){consider(c[i]);}"
-         "if(!best){var p=document.getElementsByTagName('p');"
-         "for(var j=0;j<p.length&&j<80;j++){consider(p[j]);}}"
-         "return best+','+window.innerWidth;"
-        "})()";
-    NSString *raw = [self.webview stringByEvaluatingJavaScriptFromString:script];
-    NSArray<NSString *> *parts = [raw componentsSeparatedByString:@","];
-    if (parts.count != 2) {
-        return 0;
-    }
-    CGFloat content = (CGFloat)parts[0].doubleValue;
-    CGFloat viewport = (CGFloat)parts[1].doubleValue;
-    if (content < 200.0 || viewport < 200.0) {
-        return 0;
-    }
-
-    CGFloat current = (CGFloat)self.preferencesStore.pageZoomPercent;
-    // A little slack so the column is not pressed against both edges.
-    CGFloat target = current * (viewport / content) * 0.97;
-    return (NSUInteger)MIN(250.0, MAX(100.0, round(target / 5.0) * 5.0));
-}
-
-- (NSString *)browserFitPageWidth {
-    NSUInteger target = [self fitPageWidthZoomPercent];
-    if (target == 0) {
-        return @"본문 폭을 찾지 못했습니다.\n확대를 직접 조절해 주십시오.";
-    }
-    self.preferencesStore.pageZoomPercent = target;
-    [self applyReadingZoom];
-    return [NSString stringWithFormat:@"확대 %lu%%로 맞췄습니다.", (unsigned long)target];
+// Zoom on this engine magnifies without relaying out, so a centred column's
+// margins grow with everything else and the text is pushed off the right of
+// the screen. The margins come from the site's own max-width, so that is what
+// has to go: released, the column reflows into the full width of the display
+// and nothing is scaled at all.
+- (NSString *)browserWidenContent {
+    BOOL next = !self.preferencesStore.widenContentEnabled;
+    self.preferencesStore.widenContentEnabled = next;
+    [self updateTextFontSize];
+    return next ? @"본문을 화면 폭까지 폅니다.\n레이아웃이 어색하면 다시 눌러 끄십시오."
+                : @"본문 폭을 원래대로 되돌렸습니다.";
 }
 
 - (NSString *)browserDisplayReport {
