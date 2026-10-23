@@ -721,6 +721,9 @@ static UIColor *kTextColor(void) {
                  "+((n>12000)?'\\n※ 매우 무거움':'');}catch(e){return 'err';}})()";
             return [weakSelf workbenchEvaluate:script fallback:@"읽을 수 없음 (프로세스 없음)"];
         }],
+        [BrowserWorkbenchItem itemWithTitle:@"화면 해상도" action:^NSString *{
+            return [weakSelf browserDisplayReport];
+        }],
         [BrowserWorkbenchItem itemWithTitle:@"현재 User Agent" action:^NSString *{
             NSString *agent = [weakSelf.webview currentUserAgent] ?: @"(없음)";
             NSString *mode = weakSelf.preferencesStore.mobileModeEnabled ? @"모바일" : @"데스크톱";
@@ -753,6 +756,11 @@ static UIColor *kTextColor(void) {
             [weakSelf applyReadingZoom];
             [weakSelf refreshWorkbenchRows];
             return [NSString stringWithFormat:@"확대 %lu%%", (unsigned long)weakSelf.preferencesStore.pageZoomPercent];
+        }],
+        [BrowserWorkbenchItem itemWithTitle:@"본문 폭에 맞추기" action:^NSString *{
+            NSString *result = [weakSelf browserFitPageWidth];
+            [weakSelf refreshWorkbenchRows];
+            return result;
         }],
         [BrowserWorkbenchItem itemWithTitle:@"확대 100%로 되돌리기" action:^NSString *{
             weakSelf.preferencesStore.pageZoomPercent = 100;
@@ -918,6 +926,65 @@ static UIColor *kTextColor(void) {
     webView.userPageZoom = (CGFloat)self.preferencesStore.pageZoomPercent / 100.0;
     [webView setMinimumFontSize:(CGFloat)self.preferencesStore.minimumFontSize];
     [webView applyPageScalingIfNeeded];
+}
+
+// A fixed-width desktop column centred in a 1920-point viewport leaves the
+// sides of a television empty. Zoom shrinks the CSS viewport, so raising it
+// until the viewport matches the column makes the column fill the screen —
+// the same control that enlarges the text also closes the margins.
+- (NSUInteger)fitPageWidthZoomPercent {
+    NSString *script =
+        @"(function(){"
+         "var best=0;"
+         "function consider(el){if(!el){return;}var w=el.offsetWidth;"
+         "if(w>best&&w<1700){best=w;}}"
+         "var sel='article,main,[role=main],#content,#container,#ct,#newsct,"
+         ".article,.content,#wrap,#contents';"
+         "var c=document.querySelectorAll(sel);"
+         "for(var i=0;i<c.length&&i<40;i++){consider(c[i]);}"
+         "if(!best){var p=document.getElementsByTagName('p');"
+         "for(var j=0;j<p.length&&j<80;j++){consider(p[j]);}}"
+         "return best+','+window.innerWidth;"
+        "})()";
+    NSString *raw = [self.webview stringByEvaluatingJavaScriptFromString:script];
+    NSArray<NSString *> *parts = [raw componentsSeparatedByString:@","];
+    if (parts.count != 2) {
+        return 0;
+    }
+    CGFloat content = (CGFloat)parts[0].doubleValue;
+    CGFloat viewport = (CGFloat)parts[1].doubleValue;
+    if (content < 200.0 || viewport < 200.0) {
+        return 0;
+    }
+
+    CGFloat current = (CGFloat)self.preferencesStore.pageZoomPercent;
+    // A little slack so the column is not pressed against both edges.
+    CGFloat target = current * (viewport / content) * 0.97;
+    return (NSUInteger)MIN(250.0, MAX(100.0, round(target / 5.0) * 5.0));
+}
+
+- (NSString *)browserFitPageWidth {
+    NSUInteger target = [self fitPageWidthZoomPercent];
+    if (target == 0) {
+        return @"본문 폭을 찾지 못했습니다.\n확대를 직접 조절해 주십시오.";
+    }
+    self.preferencesStore.pageZoomPercent = target;
+    [self applyReadingZoom];
+    return [NSString stringWithFormat:@"확대 %lu%%로 맞췄습니다.", (unsigned long)target];
+}
+
+- (NSString *)browserDisplayReport {
+    UIScreen *screen = UIScreen.mainScreen;
+    NSString *web = [self.webview stringByEvaluatingJavaScriptFromString:
+        @"(function(){try{return window.innerWidth+'x'+window.innerHeight"
+         "+' dpr'+(window.devicePixelRatio||1);}catch(e){return '?';}})()"] ?: @"?";
+    return [NSString stringWithFormat:
+            @"화면 %.0fx%.0f pt (scale %.1f)\n"
+             "실제 %.0fx%.0f px (native %.1f)\n"
+             "웹 %@",
+            screen.bounds.size.width, screen.bounds.size.height, screen.scale,
+            screen.nativeBounds.size.width, screen.nativeBounds.size.height, screen.nativeScale,
+            web];
 }
 
 - (void)browserReloadActivePage {

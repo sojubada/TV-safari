@@ -22,6 +22,7 @@
 - (void)browserApplyReadingZoom;
 - (void)browserShowProbeWorkbench;
 - (void)browserReloadActivePage;
+- (NSString *)browserFitPageWidth;
 - (void)browserUpdateForcedDarkMode;
 - (void)browserCaptureSnapshotForCurrentTab;
 - (void)browserRecreateActiveWebViewPreservingCurrentURL;

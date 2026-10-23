@@ -1501,6 +1501,7 @@ withAnimationCoordinator:(UIFocusAnimationCoordinator *)coordinator {
             [self increasePageZoomMenuItem],
             [self decreasePageZoomMenuItem],
             [self resetPageZoomMenuItem],
+            [self fitPageWidthMenuItem],
             [self boldTextToggleMenuItem],
             [self increaseMinimumFontSizeMenuItem],
             [self decreaseMinimumFontSizeMenuItem],
@@ -1510,6 +1511,13 @@ withAnimationCoordinator:(UIFocusAnimationCoordinator *)coordinator {
             [self pageScalingMenuItem],
         ]],
     ];
+}
+
+- (BrowserAdvancedMenuItem *)fitPageWidthMenuItem {
+    __weak typeof(self) weakSelf = self;
+    return [self settingMenuItemWithTitle:@"Fit Page Width" handler:^{
+        [weakSelf.host browserFitPageWidth];
+    }];
 }
 
 - (BrowserAdvancedMenuItem *)boldTextToggleMenuItem {
@@ -1644,6 +1652,7 @@ withAnimationCoordinator:(UIFocusAnimationCoordinator *)coordinator {
             [self increasePageZoomMenuItem],
             [self decreasePageZoomMenuItem],
             [self resetPageZoomMenuItem],
+            [self fitPageWidthMenuItem],
             [self boldTextToggleMenuItem],
             [self increaseMinimumFontSizeMenuItem],
             [self decreaseMinimumFontSizeMenuItem],
@@ -1815,6 +1824,7 @@ withAnimationCoordinator:(UIFocusAnimationCoordinator *)coordinator {
             [self increasePageZoomMenuItem],
             [self decreasePageZoomMenuItem],
             [self resetPageZoomMenuItem],
+            [self fitPageWidthMenuItem],
             increaseFontSizeItem,
             decreaseFontSizeItem,
             resetFontSizeItem,
