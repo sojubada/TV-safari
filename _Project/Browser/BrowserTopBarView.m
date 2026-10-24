@@ -216,11 +216,10 @@ static CGFloat const kTopBarSeparatorSpacing = 20.0;
         _homeFocusButton,
         _tabsFocusButton,
         _URLFocusButton,
-        _settingsFocusButton,
-        _privacyFocusButton,
-        _readingFocusButton,
         _bookmarksFocusButton,
-        _fullscreenFocusButton,
+        _readingFocusButton,
+        _privacyFocusButton,
+        _settingsFocusButton,
         _menuFocusButton
     ];
     for (BrowserTopBarFocusButton *button in _focusButtons) {
@@ -351,26 +350,31 @@ static CGFloat const kTopBarSeparatorSpacing = 20.0;
         leftX += kTopBarIconSize + kTopBarIconSpacing;
     }
 
+    // Reading left to right: star, text size, shield, gear, then the menu at
+    // the far right. The top navigation toggle is gone from the bar; it lives
+    // in the menu, and five icons sit more calmly than six.
+    self.fullscreenImageView.hidden = YES;
+    self.fullscreenFocusButton.hidden = YES;
+
     CGFloat rightX = CGRectGetWidth(chromeFrame) - kTopBarTrailingPadding - kTopBarIconSize;
     self.menuImageView.frame = CGRectMake(rightX, iconY, kTopBarIconSize, kTopBarIconSize);
 
     rightX = CGRectGetMinX(self.menuImageView.frame) - kTopBarIconSpacing - kTopBarIconSize;
-    self.fullscreenImageView.frame = CGRectMake(rightX, iconY, kTopBarIconSize, kTopBarIconSize);
+    self.settingsImageView.frame = CGRectMake(rightX, iconY, kTopBarIconSize, kTopBarIconSize);
 
-    rightX = CGRectGetMinX(self.fullscreenImageView.frame) - kTopBarIconSpacing - kTopBarIconSize;
-    self.bookmarksImageView.frame = CGRectMake(rightX, iconY, kTopBarIconSize, kTopBarIconSize);
-
-    rightX = CGRectGetMinX(self.bookmarksImageView.frame) - kTopBarIconSpacing - kTopBarIconSize;
-    self.readingImageView.frame = CGRectMake(rightX, iconY, kTopBarIconSize, kTopBarIconSize);
-
-    rightX = CGRectGetMinX(self.readingImageView.frame) - kTopBarIconSpacing - kTopBarIconSize;
+    rightX = CGRectGetMinX(self.settingsImageView.frame) - kTopBarIconSpacing - kTopBarIconSize;
     self.privacyImageView.frame = CGRectMake(rightX, iconY, kTopBarIconSize, kTopBarIconSize);
 
     rightX = CGRectGetMinX(self.privacyImageView.frame) - kTopBarIconSpacing - kTopBarIconSize;
-    self.settingsImageView.frame = CGRectMake(rightX, iconY, kTopBarIconSize, kTopBarIconSize);
+    self.readingImageView.frame = CGRectMake(rightX, iconY, kTopBarIconSize, kTopBarIconSize);
+
+    rightX = CGRectGetMinX(self.readingImageView.frame) - kTopBarIconSpacing - kTopBarIconSize;
+    self.bookmarksImageView.frame = CGRectMake(rightX, iconY, kTopBarIconSize, kTopBarIconSize);
+
+    self.fullscreenImageView.frame = CGRectZero;
 
     CGFloat spinnerSide = 34.0;
-    rightX = CGRectGetMinX(self.settingsImageView.frame) - kTopBarSpinnerSpacing - spinnerSide;
+    rightX = CGRectGetMinX(self.bookmarksImageView.frame) - kTopBarSpinnerSpacing - spinnerSide;
     self.loadingSpinner.frame = CGRectMake(rightX,
                                            floor((CGRectGetHeight(chromeFrame) - spinnerSide) / 2.0),
                                            spinnerSide,
@@ -395,7 +399,6 @@ static CGFloat const kTopBarSeparatorSpacing = 20.0;
     self.privacyFocusButton.frame = [self focusFrameForIconView:self.privacyImageView];
     self.readingFocusButton.frame = [self focusFrameForIconView:self.readingImageView];
     self.bookmarksFocusButton.frame = [self focusFrameForIconView:self.bookmarksImageView];
-    self.fullscreenFocusButton.frame = [self focusFrameForIconView:self.fullscreenImageView];
     self.menuFocusButton.frame = [self focusFrameForMenuIconView:self.menuImageView];
 
     if (!self.focusModeActive) {

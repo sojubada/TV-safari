@@ -1,6 +1,5 @@
 #import "BrowserWebView.h"
 #import "BrowserContentBlockerController.h"
-#import "BrowserWebPlatformProbe.h"
 
 #import <dlfcn.h>
 #import <objc/message.h>

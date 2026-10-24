@@ -4,7 +4,6 @@ static NSString * const kUserAgentDefaultsKey = @"UserAgent";
 static NSString * const kMobileModeDefaultsKey = @"MobileMode";
 static NSString * const kShowTopNavigationBarDefaultsKey = @"ShowTopNavigationBar";
 static NSString * const kTextFontSizeDefaultsKey = @"TextFontSize";
-static NSString * const kEnableFullscreenVideoPlaybackDefaultsKey = @"EnableFullscreenVideoPlayback";
 static NSString * const kScalePagesToFitDefaultsKey = @"ScalePagesToFit";
 static NSString * const kDontShowHintsOnLaunchDefaultsKey = @"DontShowHintsOnLaunch";
 static NSString * const kHomepageDefaultsKey = @"homepage";
@@ -119,19 +118,6 @@ static NSUInteger const kMaximumReaderFontSize = 96;
 - (void)setTextFontSize:(NSUInteger)textFontSize {
     textFontSize = MIN(kMaximumTextFontSize, MAX(kMinimumTextFontSize, textFontSize));
     [[self defaults] setObject:@(textFontSize) forKey:kTextFontSizeDefaultsKey];
-    [[self defaults] synchronize];
-}
-
-// The last media feature left, and it has no setting any more: clicking a
-// video whose address the page exposes hands it to the system player. There
-// is nothing to configure and nothing to go wrong, so it is simply on.
-- (BOOL)fullscreenVideoPlaybackEnabled {
-    NSNumber *value = [[self defaults] objectForKey:kEnableFullscreenVideoPlaybackDefaultsKey];
-    return value ? value.boolValue : YES;
-}
-
-- (void)setFullscreenVideoPlaybackEnabled:(BOOL)fullscreenVideoPlaybackEnabled {
-    [[self defaults] setBool:fullscreenVideoPlaybackEnabled forKey:kEnableFullscreenVideoPlaybackDefaultsKey];
     [[self defaults] synchronize];
 }
 

@@ -6,7 +6,6 @@
 @class BrowserDOMInteractionService;
 @class BrowserNavigationService;
 @class BrowserPreferencesStore;
-@class BrowserVideoPlaybackCoordinator;
 @class BrowserWebView;
 
 NS_ASSUME_NONNULL_BEGIN
@@ -23,7 +22,6 @@ NS_ASSUME_NONNULL_BEGIN
 - (instancetype)initWithHost:(id<BrowserPageActionCoordinatorHost>)host
        domInteractionService:(BrowserDOMInteractionService *)domInteractionService
            navigationService:(BrowserNavigationService *)navigationService
-    videoPlaybackCoordinator:(BrowserVideoPlaybackCoordinator *)videoPlaybackCoordinator
             preferencesStore:(BrowserPreferencesStore *)preferencesStore NS_DESIGNATED_INITIALIZER;
 
 - (instancetype)init NS_UNAVAILABLE;

@@ -771,20 +771,6 @@ static const CFTimeInterval kBrowserCursorIdleHideDelay = 3.0;
         }
     }
 
-    // The workbench owns the pad outright while it is open: the focus engine
-    // moves between its rows, and Menu is the way out. Down must not fall
-    // through to the top bar's own exit.
-    if ([self.host browserRemoteInputControllerWorkbenchActive]) {
-        if (press.type == UIPressTypeMenu) {
-            [self.host browserRemoteInputControllerCloseWorkbench];
-            return YES;
-        }
-        if (press.type == UIPressTypePlayPause) {
-            return YES;
-        }
-        return NO;
-    }
-
     if ([self.host browserRemoteInputControllerFocusNavigationActive]) {
         if (press.type == UIPressTypeMenu || press.type == UIPressTypeDownArrow) {
             [self.host browserRemoteInputControllerDeactivateTopBarFocus];

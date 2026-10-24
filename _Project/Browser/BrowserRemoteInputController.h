@@ -17,8 +17,6 @@ NS_ASSUME_NONNULL_BEGIN
 /// bar, and the probe workbench. The pointer and the focus engine cannot
 /// both own the direction pad.
 - (BOOL)browserRemoteInputControllerFocusNavigationActive;
-- (BOOL)browserRemoteInputControllerWorkbenchActive;
-- (void)browserRemoteInputControllerCloseWorkbench;
 - (BOOL)browserRemoteInputControllerCanActivateTopBarFocus;
 - (void)browserRemoteInputControllerActivateTopBarFocus;
 - (void)browserRemoteInputControllerDeactivateTopBarFocus;

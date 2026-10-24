@@ -11,7 +11,6 @@ NS_ASSUME_NONNULL_BEGIN
 @property (nonatomic) BOOL mobileModeEnabled;
 @property (nonatomic) BOOL topNavigationBarVisible;
 @property (nonatomic) NSUInteger textFontSize;
-@property (nonatomic) BOOL fullscreenVideoPlaybackEnabled;
 @property (nonatomic) BOOL scalePagesToFit;
 @property (nonatomic) BOOL dontShowHintsOnLaunch;
 @property (nonatomic, copy) NSString *homePageURLString;

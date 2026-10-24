@@ -1,8 +1,6 @@
 #import "BrowserMenuCoordinator.h"
 #import "BrowserPreferencesStore.h"
 #import "BrowserContentBlockerController.h"
-#import "BrowserWebPlatformProbe.h"
-#import "BrowserReportViewController.h"
 #import "BrowserWebView.h"
 #import "BrowserFavoritesStore.h"
 
@@ -14,9 +12,7 @@ static UIColor *MenuTextColor(void) {
     }
 }
 
-static NSString * const kBrowserMediaDiagnosticsLogPrefix = @"[MediaDiagnostics]";
 static NSString * const kBrowserWebKitMediaPrefsLogPrefix = @"[WebKitMediaPrefs]";
-static NSString * const kBrowserScrollDiagnosticsLogPrefix = @"[ScrollDiagnostics]";
 
 typedef void (^BrowserAdvancedMenuItemHandler)(void);
 
@@ -886,307 +882,6 @@ withAnimationCoordinator:(UIFocusAnimationCoordinator *)coordinator {
     }];
 }
 
-- (NSString *)mediaDiagnosticsJavaScript {
-    return @"(function(){"
-            "function canPlay(type){"
-                "try {"
-                    "var video=document.createElement('video');"
-                    "if (!video || typeof video.canPlayType!=='function') { return 'n/a'; }"
-                    "var value=video.canPlayType(type);"
-                    "return value ? String(value) : '';"
-                "} catch (error) { return 'error'; }"
-            "}"
-            "function mse(type){"
-                "try {"
-                    "if (typeof MediaSource==='undefined' || typeof MediaSource.isTypeSupported!=='function') { return 'n/a'; }"
-                    "return MediaSource.isTypeSupported(type) ? 'yes' : 'no';"
-                "} catch (error) { return 'error'; }"
-            "}"
-            "function probeGlobal(name){"
-                "try {"
-                    "var value=window[name];"
-                    "if (typeof value==='undefined') { return 'undefined'; }"
-                    "if (value === null) { return 'null'; }"
-                    "return typeof value;"
-                "} catch (error) { return 'error'; }"
-            "}"
-            "var video=document.querySelector('video');"
-            "var result={"
-                "href:(window.location && window.location.href) ? String(window.location.href) : '',"
-                "title:(document && document.title) ? String(document.title) : '',"
-                "userAgent:(navigator && navigator.userAgent) ? String(navigator.userAgent) : '',"
-                "platform:(navigator && navigator.platform) ? String(navigator.platform) : '',"
-                "mediaSource:(typeof MediaSource!=='undefined') ? 'yes' : 'no',"
-                "managedMediaSource:(typeof ManagedMediaSource!=='undefined') ? 'yes' : 'no',"
-                "mediaCapabilities:(typeof navigator.mediaCapabilities!=='undefined') ? 'yes' : 'no',"
-                "videoElement:video ? 'yes' : 'no',"
-                "videoSrc:video ? String(video.currentSrc||video.src||'') : '',"
-                "globalMediaSource:probeGlobal('MediaSource'),"
-                "globalManagedMediaSource:probeGlobal('ManagedMediaSource'),"
-                "globalWebKitMediaSource:probeGlobal('WebKitMediaSource'),"
-                "globalSourceBuffer:probeGlobal('SourceBuffer'),"
-                "globalManagedSourceBuffer:probeGlobal('ManagedSourceBuffer'),"
-                "globalWebKitSourceBuffer:probeGlobal('WebKitSourceBuffer'),"
-                "hls:canPlay('application/vnd.apple.mpegurl'),"
-                "mp4H264:canPlay('video/mp4; codecs=\"avc1.42E01E, mp4a.40.2\"'),"
-                "mp4Hevc:canPlay('video/mp4; codecs=\"hvc1.1.6.L93.B0, mp4a.40.2\"'),"
-                "webmVp9:canPlay('video/webm; codecs=\"vp9\"'),"
-                "mp4Av1:canPlay('video/mp4; codecs=\"av01.0.05M.08, mp4a.40.2\"'),"
-                "webmAv1:canPlay('video/webm; codecs=\"av01.0.05M.08\"'),"
-                "mseMp4H264:mse('video/mp4; codecs=\"avc1.42E01E, mp4a.40.2\"'),"
-                "mseWebmVp9:mse('video/webm; codecs=\"vp9\"'),"
-                "mseMp4Av1:mse('video/mp4; codecs=\"av01.0.05M.08, mp4a.40.2\"'),"
-                "mseWebmAv1:mse('video/webm; codecs=\"av01.0.05M.08\"')"
-            "};"
-            "return JSON.stringify(result);"
-           "})()";
-}
-
-- (NSDictionary *)mediaDiagnosticsDictionary {
-    NSString *resultString = [[self.host browserWebView] stringByEvaluatingJavaScriptFromString:[self mediaDiagnosticsJavaScript]];
-    if (![self stringHasVisibleContent:resultString]) {
-        return nil;
-    }
-
-    NSData *resultData = [resultString dataUsingEncoding:NSUTF8StringEncoding];
-    if (resultData == nil) {
-        return nil;
-    }
-
-    id object = [NSJSONSerialization JSONObjectWithData:resultData options:0 error:nil];
-    if (![object isKindOfClass:[NSDictionary class]]) {
-        return nil;
-    }
-    return object;
-}
-
-- (NSString *)stringValueForDiagnosticsKey:(NSString *)key dictionary:(NSDictionary *)dictionary fallback:(NSString *)fallback {
-    id value = dictionary[key];
-    if ([value isKindOfClass:[NSString class]] && [self stringHasVisibleContent:value]) {
-        return value;
-    }
-    if ([value respondsToSelector:@selector(stringValue)]) {
-        NSString *stringValue = [value stringValue];
-        if ([self stringHasVisibleContent:stringValue]) {
-            return stringValue;
-        }
-    }
-    return fallback;
-}
-
-- (void)presentMediaDiagnostics {
-    NSDictionary *diagnostics = [self mediaDiagnosticsDictionary];
-    if (diagnostics == nil) {
-        UIAlertController *alertController = [self browserAlertControllerWithTitle:@"Media Diagnostics"
-                                                                           message:@"The page did not return diagnostics data."];
-        [alertController addAction:[self browserCancelAction]];
-        [self.host browserPresentViewController:alertController];
-        return;
-    }
-
-    BOOL mobileModeEnabled = self.preferencesStore.mobileModeEnabled;
-    NSString *message = [NSString stringWithFormat:
-                         @"Mode: %@\n"
-                          "URL: %@\n"
-                          "UA: %@\n\n"
-                          "MediaSource: %@\n"
-                          "ManagedMediaSource: %@\n"
-                          "MediaCapabilities: %@\n"
-                          "Video Element: %@\n"
-                          "Video Src: %@\n\n"
-                          "Global MediaSource: %@\n"
-                          "Global ManagedMediaSource: %@\n"
-                          "Global WebKitMediaSource: %@\n"
-                          "Global SourceBuffer: %@\n"
-                          "Global ManagedSourceBuffer: %@\n"
-                          "Global WebKitSourceBuffer: %@\n\n"
-                          "canPlay HLS: %@\n"
-                          "canPlay MP4 H.264: %@\n"
-                          "canPlay MP4 HEVC: %@\n"
-                          "canPlay WebM VP9: %@\n"
-                          "canPlay MP4 AV1: %@\n"
-                          "canPlay WebM AV1: %@\n\n"
-                          "MSE MP4 H.264: %@\n"
-                          "MSE WebM VP9: %@\n"
-                          "MSE MP4 AV1: %@\n"
-                          "MSE WebM AV1: %@",
-                         mobileModeEnabled ? @"Mobile" : @"Desktop",
-                         [self stringValueForDiagnosticsKey:@"href" dictionary:diagnostics fallback:@"Unavailable"],
-                         [self stringValueForDiagnosticsKey:@"userAgent" dictionary:diagnostics fallback:@"Unavailable"],
-                         [self stringValueForDiagnosticsKey:@"mediaSource" dictionary:diagnostics fallback:@"n/a"],
-                         [self stringValueForDiagnosticsKey:@"managedMediaSource" dictionary:diagnostics fallback:@"n/a"],
-                         [self stringValueForDiagnosticsKey:@"mediaCapabilities" dictionary:diagnostics fallback:@"n/a"],
-                         [self stringValueForDiagnosticsKey:@"videoElement" dictionary:diagnostics fallback:@"n/a"],
-                         [self stringValueForDiagnosticsKey:@"videoSrc" dictionary:diagnostics fallback:@"Unavailable"],
-                         [self stringValueForDiagnosticsKey:@"globalMediaSource" dictionary:diagnostics fallback:@"n/a"],
-                         [self stringValueForDiagnosticsKey:@"globalManagedMediaSource" dictionary:diagnostics fallback:@"n/a"],
-                         [self stringValueForDiagnosticsKey:@"globalWebKitMediaSource" dictionary:diagnostics fallback:@"n/a"],
-                         [self stringValueForDiagnosticsKey:@"globalSourceBuffer" dictionary:diagnostics fallback:@"n/a"],
-                         [self stringValueForDiagnosticsKey:@"globalManagedSourceBuffer" dictionary:diagnostics fallback:@"n/a"],
-                         [self stringValueForDiagnosticsKey:@"globalWebKitSourceBuffer" dictionary:diagnostics fallback:@"n/a"],
-                         [self stringValueForDiagnosticsKey:@"hls" dictionary:diagnostics fallback:@"n/a"],
-                         [self stringValueForDiagnosticsKey:@"mp4H264" dictionary:diagnostics fallback:@"n/a"],
-                         [self stringValueForDiagnosticsKey:@"mp4Hevc" dictionary:diagnostics fallback:@"n/a"],
-                         [self stringValueForDiagnosticsKey:@"webmVp9" dictionary:diagnostics fallback:@"n/a"],
-                         [self stringValueForDiagnosticsKey:@"mp4Av1" dictionary:diagnostics fallback:@"n/a"],
-                         [self stringValueForDiagnosticsKey:@"webmAv1" dictionary:diagnostics fallback:@"n/a"],
-                         [self stringValueForDiagnosticsKey:@"mseMp4H264" dictionary:diagnostics fallback:@"n/a"],
-                         [self stringValueForDiagnosticsKey:@"mseWebmVp9" dictionary:diagnostics fallback:@"n/a"],
-                         [self stringValueForDiagnosticsKey:@"mseMp4Av1" dictionary:diagnostics fallback:@"n/a"],
-                         [self stringValueForDiagnosticsKey:@"mseWebmAv1" dictionary:diagnostics fallback:@"n/a"]];
-
-    NSLog(@"%@ %@", kBrowserMediaDiagnosticsLogPrefix, message);
-
-    UIAlertController *alertController = [self browserAlertControllerWithTitle:@"Media Diagnostics"
-                                                                       message:message];
-    [alertController addAction:[self browserCancelAction]];
-    [self.host browserPresentViewController:alertController];
-}
-
-- (void)presentWebKitRuntimeMediaPreferences {
-    NSString *report = [[self.host browserWebView] runtimeMediaPreferenceReport];
-    if (![self stringHasVisibleContent:report]) {
-        report = @"No runtime WebKit media preference information was returned.";
-    }
-
-    NSLog(@"%@ %@", kBrowserWebKitMediaPrefsLogPrefix, report);
-
-    NSString *message = report;
-    if (message.length > 1800) {
-        message = [[message substringToIndex:1800] stringByAppendingString:@"\n\nFull report logged to console."];
-    }
-
-    UIAlertController *alertController = [self browserAlertControllerWithTitle:@"WebKit Media Prefs"
-                                                                       message:message];
-    [alertController addAction:[self browserCancelAction]];
-    [self.host browserPresentViewController:alertController];
-}
-
-- (NSString *)pageScrollDiagnosticsJavaScript {
-    return @"(function(){"
-            "var docEl = document.documentElement;"
-            "var body = document.body;"
-            "var docScrollHeight = docEl ? (docEl.scrollHeight || 0) : 0;"
-            "var bodyScrollHeight = body ? (body.scrollHeight || 0) : 0;"
-            "var winInnerHeight = window.innerHeight || 0;"
-            "var winInnerWidth = window.innerWidth || 0;"
-            "var count = 0;"
-            "var maxScrollHeight = 0;"
-            "var maxContainerDesc = 'none';"
-            "if (document.querySelectorAll && window.getComputedStyle) {"
-                "var all = document.querySelectorAll('*');"
-                "for (var i = 0; i < all.length; i++) {"
-                    "var el = all[i];"
-                    "if (el === docEl || el === body) { continue; }"
-                    "var sh = el.scrollHeight || 0;"
-                    "var ch = el.clientHeight || 0;"
-                    "if (sh > ch + 1) {"
-                        "var st = window.getComputedStyle(el);"
-                        "var oy = st ? (st.overflowY || st.overflow || '') : '';"
-                        "if (oy === 'auto' || oy === 'scroll' || oy === 'overlay') {"
-                            "count++;"
-                            "if (sh > maxScrollHeight) {"
-                                "maxScrollHeight = sh;"
-                                "var tag = el.tagName ? el.tagName.toLowerCase() : 'el';"
-                                "var idStr = el.id ? ('#' + el.id) : '';"
-                                "maxContainerDesc = tag + idStr;"
-                            "}"
-                        "}"
-                    "}"
-                "}"
-            "}"
-            "return JSON.stringify({"
-                "docScrollHeight: docScrollHeight,"
-                "bodyScrollHeight: bodyScrollHeight,"
-                "innerHeight: winInnerHeight,"
-                "innerWidth: winInnerWidth,"
-                "scrollableCount: count,"
-                "maxContainerScrollHeight: maxScrollHeight,"
-                "maxContainerDesc: maxContainerDesc"
-            "});"
-           "})()";
-}
-
-- (void)presentPageScrollDiagnostics {
-    BrowserWebView *webView = [self.host browserWebView];
-    UIScrollView *scrollView = webView.scrollView;
-    CGFloat contentSizeHeight = scrollView ? scrollView.contentSize.height : 0.0;
-    CGFloat boundsHeight = scrollView ? CGRectGetHeight(scrollView.bounds) : 0.0;
-    CGFloat offsetY = scrollView ? scrollView.contentOffset.y : 0.0;
-
-    NSString *jsResult = [webView stringByEvaluatingJavaScriptFromString:[self pageScrollDiagnosticsJavaScript]];
-    NSDictionary *dict = nil;
-    if ([self stringHasVisibleContent:jsResult]) {
-        NSData *data = [jsResult dataUsingEncoding:NSUTF8StringEncoding];
-        if (data != nil) {
-            id obj = [NSJSONSerialization JSONObjectWithData:data options:0 error:nil];
-            if ([obj isKindOfClass:[NSDictionary class]]) {
-                dict = obj;
-            }
-        }
-    }
-
-    CGFloat pageZoom = 1.0;
-    @try {
-        id zoomVal = [webView valueForKey:@"pageZoom"];
-        if ([zoomVal respondsToSelector:@selector(doubleValue)]) {
-            pageZoom = (CGFloat)[zoomVal doubleValue];
-        }
-    } @catch (__unused NSException *exception) {
-        NSInteger innerWidth = [dict[@"innerWidth"] respondsToSelector:@selector(integerValue)] ? [dict[@"innerWidth"] integerValue] : 0;
-        if (innerWidth > 0 && CGRectGetWidth(webView.frame) > 0.0) {
-            pageZoom = CGRectGetWidth(webView.frame) / (CGFloat)innerWidth;
-        }
-    }
-
-    NSString *message = [NSString stringWithFormat:
-                         @"documentElement.scrollHeight: %@\n"
-                          "body.scrollHeight: %@\n"
-                          "window.innerHeight: %@\n\n"
-                          "scrollView.contentSize.height: %.1f\n"
-                          "scrollView.bounds.size.height: %.1f\n"
-                          "scrollView.contentOffset.y: %.1f\n\n"
-                          "Scrollable Containers: %@\n"
-                          "Largest Container scrollHeight: %@ (%@)\n\n"
-                          "pageZoom: %.2f (scalesPageToFit: %@)",
-                         [self stringValueForDiagnosticsKey:@"docScrollHeight" dictionary:dict fallback:@"0"],
-                         [self stringValueForDiagnosticsKey:@"bodyScrollHeight" dictionary:dict fallback:@"0"],
-                         [self stringValueForDiagnosticsKey:@"innerHeight" dictionary:dict fallback:@"0"],
-                         contentSizeHeight,
-                         boundsHeight,
-                         offsetY,
-                         [self stringValueForDiagnosticsKey:@"scrollableCount" dictionary:dict fallback:@"0"],
-                         [self stringValueForDiagnosticsKey:@"maxContainerScrollHeight" dictionary:dict fallback:@"0"],
-                         [self stringValueForDiagnosticsKey:@"maxContainerDesc" dictionary:dict fallback:@"none"],
-                         pageZoom,
-                         webView.scalesPageToFit ? @"YES" : @"NO"];
-
-    NSLog(@"%@ %@", kBrowserScrollDiagnosticsLogPrefix, message);
-
-    UIAlertController *alertController = [self browserAlertControllerWithTitle:@"Page Scroll Diagnostics"
-                                                                       message:message];
-    [alertController addAction:[self browserCancelAction]];
-    [self.host browserPresentViewController:alertController];
-}
-
-- (void)presentWebPlatformRuntimeReport {
-    NSString *report = [BrowserWebPlatformProbe runtimeReportForWebView:[self.host browserWebView]];
-    [self.host browserPresentViewController:
-        [[BrowserReportViewController alloc] initWithTitle:@"WebKit Runtime" reportText:report]];
-}
-
-- (void)presentWebPlatformEngineReport {
-    NSString *report = [BrowserWebPlatformProbe engineReportForWebView:[self.host browserWebView]];
-    [self.host browserPresentViewController:
-        [[BrowserReportViewController alloc] initWithTitle:@"Engine Capabilities" reportText:report]];
-}
-
-- (void)presentContentBlockerDiagnostics {
-    NSString *report = [[BrowserContentBlockerController sharedController] diagnosticsReport];
-    [self.host browserPresentViewController:
-        [[BrowserReportViewController alloc] initWithTitle:@"Content Blocker Diagnostics" reportText:report]];
-}
-
 - (BrowserAdvancedMenuItem *)contentBlockingToggleMenuItem {
     BOOL enabled = self.preferencesStore.contentBlockingEnabled;
     NSString *title = enabled ? @"Content Blocking: On" : @"Content Blocking: Off";
@@ -1312,25 +1007,6 @@ withAnimationCoordinator:(UIFocusAnimationCoordinator *)coordinator {
     }];
 }
 
-- (UIAlertAction *)wkWebViewProofOfConceptAction {
-    return [self browserActionWithTitle:@"Open WKWebView PoC"
-                                  style:UIAlertActionStyleDefault
-                                handler:^(__unused UIAlertAction *action) {
-        Class proofOfConceptControllerClass = NSClassFromString(@"BrowserWKWebViewProofOfConceptViewController");
-        UIViewController *viewController = nil;
-        if (proofOfConceptControllerClass != Nil) {
-            viewController = [proofOfConceptControllerClass new];
-            viewController.modalPresentationStyle = UIModalPresentationFullScreen;
-        } else {
-            viewController = [UIAlertController alertControllerWithTitle:@"WKWebView PoC Missing"
-                                                                 message:@"The proof-of-concept controller was not compiled into this build."
-                                                          preferredStyle:UIAlertControllerStyleAlert];
-            [(UIAlertController *)viewController addAction:[self browserCancelAction]];
-        }
-        [self.host browserPresentViewController:viewController];
-    }];
-}
-
 - (BrowserAdvancedMenuItem *)showTabsMenuItem {
     return [self advancedMenuItemWithTitle:@"Show Tabs"
                                      style:UIAlertActionStyleDefault
@@ -1381,16 +1057,6 @@ withAnimationCoordinator:(UIFocusAnimationCoordinator *)coordinator {
     return [self settingMenuItemWithTitle:title
                                  handler:^{
         [self setPageScalingEnabled:!scalesPageToFit];
-    }];
-}
-
-- (UIAlertAction *)playVideoUnderCursorAction {
-    return [self browserActionWithTitle:@"Play Active Video"
-                                  style:UIAlertActionStyleDefault
-                                handler:^(__unused UIAlertAction *action) {
-        dispatch_async(dispatch_get_main_queue(), ^{
-            [self.host browserPlayVideoUnderCursorIfAvailable];
-        });
     }];
 }
 
@@ -1462,20 +1128,139 @@ withAnimationCoordinator:(UIFocusAnimationCoordinator *)coordinator {
     [self.host browserPresentViewController:menuViewController];
 }
 
+// The star holds four things and nothing else: add or remove this page,
+// delete one from the list, the folders, and the list itself.
 - (NSArray<BrowserAdvancedMenuSection *> *)bookmarksMenuSections {
     NSMutableArray<BrowserAdvancedMenuItem *> *items = [NSMutableArray array];
     BrowserAdvancedMenuItem *toggleFavoriteItem = [self toggleFavoriteMenuItem];
     if (toggleFavoriteItem != nil) {
         [items addObject:toggleFavoriteItem];
     }
-    [items addObjectsFromArray:@[
-        [self favoritesMenuItem],
-        [self historyMenuItem],
-        [self homePageMenuItem],
-        [self setCurrentPageAsHomePageMenuItem],
-    ]];
+    [items addObject:[self deleteFavoriteMenuItem]];
+    [items addObject:[self favoriteFoldersMenuItem]];
+    [items addObject:[self favoritesMenuItem]];
 
-    return @[[BrowserAdvancedMenuSection sectionWithTitle:@"Favorites & History" items:items]];
+    return @[[BrowserAdvancedMenuSection sectionWithTitle:@"즐겨찾기" items:items]];
+}
+
+- (BrowserAdvancedMenuItem *)deleteFavoriteMenuItem {
+    __weak typeof(self) weakSelf = self;
+    NSString *title = [NSString stringWithFormat:@"즐겨찾기 삭제  (%lu개)",
+                       (unsigned long)[self.favoritesStore count]];
+    return [self advancedMenuItemWithTitle:title style:UIAlertActionStyleDestructive handler:^{
+        [weakSelf presentDeleteFavoriteMenu];
+    }];
+}
+
+- (BrowserAdvancedMenuItem *)favoriteFoldersMenuItem {
+    __weak typeof(self) weakSelf = self;
+    NSString *title = [NSString stringWithFormat:@"폴더  (%lu개)",
+                       (unsigned long)[self.favoritesStore folderNames].count];
+    return [self advancedMenuItemWithTitle:title style:UIAlertActionStyleDefault handler:^{
+        [weakSelf presentFavoriteFoldersMenu];
+    }];
+}
+
+- (void)presentFavoriteFoldersMenu {
+    __weak typeof(self) weakSelf = self;
+    NSArray<NSString *> *folders = [self.favoritesStore folderNames];
+    UIAlertController *alertController = [self browserAlertControllerWithTitle:@"즐겨찾기 폴더" message:@""];
+
+    for (NSString *folder in folders) {
+        NSUInteger count = [self.favoritesStore favoritesInFolder:folder].count;
+        NSString *title = [NSString stringWithFormat:@"%@  (%lu)", folder, (unsigned long)count];
+        [alertController addAction:[self browserActionWithTitle:title
+                                                          style:UIAlertActionStyleDefault
+                                                        handler:^(__unused UIAlertAction *action) {
+            [weakSelf presentFavoritesInFolder:folder];
+        }]];
+    }
+
+    NSString *currentURL = [self.host browserWebView].request.URL.absoluteString;
+    if ([self.favoritesStore isFavoriteURLString:currentURL]) {
+        [alertController addAction:[self browserActionWithTitle:@"이 페이지를 폴더에 넣기"
+                                                          style:UIAlertActionStyleDefault
+                                                        handler:^(__unused UIAlertAction *action) {
+            [weakSelf presentMoveCurrentFavoriteToFolderMenu];
+        }]];
+    }
+
+    [alertController addAction:[self browserActionWithTitle:@"새 폴더 만들기"
+                                                      style:UIAlertActionStyleDefault
+                                                    handler:^(__unused UIAlertAction *action) {
+        [weakSelf presentCreateFolderPrompt];
+    }]];
+    [alertController addAction:[self browserCancelAction]];
+    [self.host browserPresentViewController:alertController];
+}
+
+- (void)presentFavoritesInFolder:(NSString *)folderName {
+    __weak typeof(self) weakSelf = self;
+    NSArray<NSArray<NSString *> *> *entries = [self.favoritesStore favoritesInFolder:folderName];
+    UIAlertController *alertController = [self browserAlertControllerWithTitle:folderName message:@""];
+
+    for (NSArray<NSString *> *entry in entries) {
+        NSString *URLString = entry.count > 0 ? entry[0] : @"";
+        NSString *stored = entry.count > 1 ? entry[1] : @"";
+        NSString *displayTitle = [self displayTitleForStoredTitle:stored URLString:URLString includeURL:NO];
+        if (![self stringHasVisibleContent:displayTitle]) {
+            continue;
+        }
+        [alertController addAction:[self browserActionWithTitle:displayTitle
+                                                          style:UIAlertActionStyleDefault
+                                                        handler:^(__unused UIAlertAction *action) {
+            [weakSelf loadStoredURLString:URLString];
+        }]];
+    }
+
+    // Removing a folder keeps its favorites; they go back to the top level.
+    [alertController addAction:[self browserActionWithTitle:@"이 폴더 없애기 (즐겨찾기는 유지)"
+                                                      style:UIAlertActionStyleDestructive
+                                                    handler:^(__unused UIAlertAction *action) {
+        [weakSelf.favoritesStore removeFolderNamed:folderName];
+    }]];
+    [alertController addAction:[self browserCancelAction]];
+    [self.host browserPresentViewController:alertController];
+}
+
+- (void)presentMoveCurrentFavoriteToFolderMenu {
+    __weak typeof(self) weakSelf = self;
+    NSString *currentURL = [self.host browserWebView].request.URL.absoluteString;
+    UIAlertController *alertController = [self browserAlertControllerWithTitle:@"어느 폴더에 넣을까요" message:@""];
+
+    for (NSString *folder in [self.favoritesStore folderNames]) {
+        [alertController addAction:[self browserActionWithTitle:folder
+                                                          style:UIAlertActionStyleDefault
+                                                        handler:^(__unused UIAlertAction *action) {
+            [weakSelf.favoritesStore setFolder:folder forURLString:currentURL];
+        }]];
+    }
+    [alertController addAction:[self browserActionWithTitle:@"폴더에서 꺼내기"
+                                                      style:UIAlertActionStyleDefault
+                                                    handler:^(__unused UIAlertAction *action) {
+        [weakSelf.favoritesStore setFolder:nil forURLString:currentURL];
+    }]];
+    [alertController addAction:[self browserCancelAction]];
+    [self.host browserPresentViewController:alertController];
+}
+
+- (void)presentCreateFolderPrompt {
+    __weak typeof(self) weakSelf = self;
+    UIAlertController *alertController = [self browserAlertControllerWithTitle:@"새 폴더" message:@"폴더 이름"];
+    [alertController addTextFieldWithConfigurationHandler:^(UITextField *textField) {
+        textField.placeholder = @"폴더 이름";
+    }];
+    [alertController addAction:[self browserActionWithTitle:@"만들기"
+                                                      style:UIAlertActionStyleDefault
+                                                    handler:^(__unused UIAlertAction *action) {
+        NSString *name = alertController.textFields.firstObject.text;
+        name = [name stringByTrimmingCharactersInSet:NSCharacterSet.whitespaceAndNewlineCharacterSet];
+        if (name.length > 0) {
+            [weakSelf.favoritesStore createFolderNamed:name];
+        }
+    }]];
+    [alertController addAction:[self browserCancelAction]];
+    [self.host browserPresentViewController:alertController];
 }
 
 - (NSArray<BrowserAdvancedMenuSection *> *)readingMenuSections {
@@ -1492,7 +1277,6 @@ withAnimationCoordinator:(UIFocusAnimationCoordinator *)coordinator {
             [self increasePageZoomMenuItem],
             [self decreasePageZoomMenuItem],
             [self resetPageZoomMenuItem],
-            [self readingLayoutMenuItem],
             [self boldTextToggleMenuItem],
             [self increaseMinimumFontSizeMenuItem],
             [self decreaseMinimumFontSizeMenuItem],
@@ -1502,15 +1286,6 @@ withAnimationCoordinator:(UIFocusAnimationCoordinator *)coordinator {
             [self pageScalingMenuItem],
         ]],
     ];
-}
-
-- (BrowserAdvancedMenuItem *)readingLayoutMenuItem {
-    BOOL enabled = self.preferencesStore.widenContentEnabled;
-    NSString *title = enabled ? @"TV Reading Layout: On" : @"TV Reading Layout: Off";
-    __weak typeof(self) weakSelf = self;
-    return [self settingMenuItemWithTitle:title handler:^{
-        [weakSelf.host browserWidenContent];
-    }];
 }
 
 - (BrowserAdvancedMenuItem *)boldTextToggleMenuItem {
@@ -1621,12 +1396,6 @@ withAnimationCoordinator:(UIFocusAnimationCoordinator *)coordinator {
             [self clearCacheMenuItem],
             [self clearCookiesMenuItem],
         ]],
-        [BrowserAdvancedMenuSection sectionWithTitle:@"Page Process" items:@[
-            [self restartWebProcessMenuItem],
-        ]],
-        [BrowserAdvancedMenuSection sectionWithTitle:@"Diagnostics" items:@[
-            [self contentBlockerDiagnosticsMenuItem],
-        ]],
     ];
 }
 
@@ -1645,7 +1414,6 @@ withAnimationCoordinator:(UIFocusAnimationCoordinator *)coordinator {
             [self increasePageZoomMenuItem],
             [self decreasePageZoomMenuItem],
             [self resetPageZoomMenuItem],
-            [self readingLayoutMenuItem],
             [self boldTextToggleMenuItem],
             [self increaseMinimumFontSizeMenuItem],
             [self decreaseMinimumFontSizeMenuItem],
@@ -1708,15 +1476,6 @@ withAnimationCoordinator:(UIFocusAnimationCoordinator *)coordinator {
     }];
 }
 
-- (BrowserAdvancedMenuItem *)restartWebProcessMenuItem {
-    __weak typeof(self) weakSelf = self;
-    return [self advancedMenuItemWithTitle:@"Restart Page Process"
-                                     style:UIAlertActionStyleDestructive
-                                   handler:^{
-        [[weakSelf.host browserWebView] restartWebContentProcess];
-    }];
-}
-
 - (BrowserAdvancedMenuItem *)clearCacheMenuItem {
     __weak typeof(self) weakSelf = self;
     return [self advancedMenuItemWithTitle:@"Clear Cache"
@@ -1735,127 +1494,24 @@ withAnimationCoordinator:(UIFocusAnimationCoordinator *)coordinator {
     }];
 }
 
-- (BrowserAdvancedMenuItem *)contentBlockerDiagnosticsMenuItem {
-    __weak typeof(self) weakSelf = self;
-    return [self advancedMenuItemWithTitle:@"Content Blocker Diagnostics"
-                                     style:UIAlertActionStyleDefault
-                                   handler:^{
-        [weakSelf presentContentBlockerDiagnostics];
-    }];
-}
-
 - (NSArray<BrowserAdvancedMenuSection *> *)advancedMenuSections {
-    BrowserAdvancedMenuItem *increaseFontSizeItem = [self increaseFontSizeMenuItem];
-    BrowserAdvancedMenuItem *decreaseFontSizeItem = [self decreaseFontSizeMenuItem];
-    BrowserAdvancedMenuItem *resetFontSizeItem = [self resetFontSizeMenuItem];
-    BrowserAdvancedMenuItem *contentBlockerDiagnosticsItem = [self advancedMenuItemWithTitle:@"Content Blocker Diagnostics"
-                                                                                       style:UIAlertActionStyleDefault
-                                                                                     handler:^{
-        [self presentContentBlockerDiagnostics];
-    }];
-    BrowserAdvancedMenuItem *pageScrollDiagnosticsItem = [self advancedMenuItemWithTitle:@"Page Scroll Diagnostics"
-                                                                                   style:UIAlertActionStyleDefault
-                                                                                 handler:^{
-        [self presentPageScrollDiagnostics];
-    }];
-    BrowserAdvancedMenuItem *mediaDiagnosticsItem = [self advancedMenuItemWithTitle:@"Media Diagnostics"
-                                                                               style:UIAlertActionStyleDefault
-                                                                             handler:^{
-        [self presentMediaDiagnostics];
-    }];
-    BrowserAdvancedMenuItem *webkitMediaPrefsItem = [self advancedMenuItemWithTitle:@"Inspect WebKit Media Prefs"
-                                                                                style:UIAlertActionStyleDefault
-                                                                              handler:^{
-        [self presentWebKitRuntimeMediaPreferences];
-    }];
-    BrowserAdvancedMenuItem *clearCacheItem = [self advancedMenuItemWithTitle:@"Clear Cache"
-                                                                         style:UIAlertActionStyleDestructive
-                                                                       handler:^{
-        [self clearCacheAndReload];
-    }];
-    BrowserAdvancedMenuItem *clearCookiesItem = [self advancedMenuItemWithTitle:@"Clear Cookies"
-                                                                           style:UIAlertActionStyleDestructive
-                                                                         handler:^{
-        [self clearCookiesAndReload];
-    }];
-
-    NSMutableArray<BrowserAdvancedMenuItem *> *navigationItems = [NSMutableArray arrayWithArray:@[
-        [self homePageMenuItem],
-        [self setCurrentPageAsHomePageMenuItem]
-    ]];
-    
-    BrowserAdvancedMenuItem *toggleFavoriteItem = [self toggleFavoriteMenuItem];
-    if (toggleFavoriteItem != nil) {
-        [navigationItems addObject:toggleFavoriteItem];
-    }
-    
-    [navigationItems addObjectsFromArray:@[
-        [self favoritesMenuItem],
-        [self historyMenuItem],
-        [self showTabsMenuItem],
-        [self newTabMenuItem],
-    ]];
-
     return @[
-        [BrowserAdvancedMenuSection sectionWithTitle:@"Navigation"
-                                               items:navigationItems],
-        [BrowserAdvancedMenuSection sectionWithTitle:@"Scrolling & Input"
-                                               items:@[
-            [self tapToClickToggleMenuItem],
-            [self openLinksInNewTabToggleMenuItem],
-            [self dpadScrollToggleMenuItem],
-            [self edgeAutoScrollToggleMenuItem],
-            [self jsScrollFallbackToggleMenuItem],
+        [BrowserAdvancedMenuSection sectionWithTitle:@"Tabs" items:@[
+            [self showTabsMenuItem],
+            [self newTabMenuItem],
         ]],
-        [BrowserAdvancedMenuSection sectionWithTitle:@"Appearance"
-                                               items:@[
-            [self readerModeToggleMenuItem],
-            [self forcedDarkModeToggleMenuItem],
-            [self topNavigationVisibilityMenuItem],
-            [self pageScalingMenuItem],
-            [self increasePageZoomMenuItem],
-            [self decreasePageZoomMenuItem],
-            [self resetPageZoomMenuItem],
-            [self readingLayoutMenuItem],
-            increaseFontSizeItem,
-            decreaseFontSizeItem,
-            resetFontSizeItem,
-        ]],
-        [BrowserAdvancedMenuSection sectionWithTitle:@"Privacy & Blocking"
-                                               items:@[
-            [self contentBlockingToggleMenuItem],
-        ]],
-        [BrowserAdvancedMenuSection sectionWithTitle:@"Compatibility"
-                                               items:@[
-            [self lightenHeavySitesToggleMenuItem],
+        [BrowserAdvancedMenuSection sectionWithTitle:@"Page" items:@[
+            [self historyMenuItem],
+            [self homePageMenuItem],
+            [self setCurrentPageAsHomePageMenuItem],
             [self userAgentModeMenuItem],
+            [self topNavigationVisibilityMenuItem],
         ]],
-        [BrowserAdvancedMenuSection sectionWithTitle:@"Probe Workbench"
-                                               items:@[
-            [self advancedMenuItemWithTitle:@"탐침 작업대 열기" style:UIAlertActionStyleDefault handler:^{
-                [self.host browserShowProbeWorkbench];
-            }],
-            [self advancedMenuItemWithTitle:@"WebKit Runtime (전체 리포트)" style:UIAlertActionStyleDefault handler:^{
-                [self presentWebPlatformRuntimeReport];
-            }],
-            [self advancedMenuItemWithTitle:@"Engine Capabilities (전체 리포트)" style:UIAlertActionStyleDefault handler:^{
-                [self presentWebPlatformEngineReport];
-            }],
+        [BrowserAdvancedMenuSection sectionWithTitle:@"Maintenance" items:@[
+            [self clearCacheMenuItem],
+            [self clearCookiesMenuItem],
         ]],
-        [BrowserAdvancedMenuSection sectionWithTitle:@"Diagnostics"
-                                               items:@[
-            contentBlockerDiagnosticsItem,
-            pageScrollDiagnosticsItem,
-            mediaDiagnosticsItem,
-            webkitMediaPrefsItem,
-        ]],
-        [BrowserAdvancedMenuSection sectionWithTitle:@"Maintenance"
-                                               items:@[
-            clearCacheItem,
-            clearCookiesItem,
-        ]],
-        [BrowserAdvancedMenuSection sectionWithTitle:@"Help"
-                                               items:@[
+        [BrowserAdvancedMenuSection sectionWithTitle:@"Help" items:@[
             [self usageGuideMenuItem],
         ]],
     ];

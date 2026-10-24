@@ -15,7 +15,6 @@ static NSUInteger const kMaximumTabCount = 5;
         _activeTabIndex = NSNotFound;
         _topNavigationBarVisible = YES;
         _textFontSize = kDefaultTextFontSize;
-        _fullscreenVideoPlaybackEnabled = NO;
     }
     return self;
 }
@@ -100,8 +99,5 @@ static NSUInteger const kMaximumTabCount = 5;
     _textFontSize = textFontSize;
 }
 
-- (void)setFullscreenVideoPlaybackEnabled:(BOOL)fullscreenVideoPlaybackEnabled {
-    _fullscreenVideoPlaybackEnabled = fullscreenVideoPlaybackEnabled;
-}
 
 @end

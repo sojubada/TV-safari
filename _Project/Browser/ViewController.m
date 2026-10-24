@@ -10,8 +10,6 @@
 #import "BrowserDarkModeController.h"
 #import "BrowserReaderModeController.h"
 #import "BrowserMenuCoordinator.h"
-#import "BrowserDiagnosticLog.h"
-#import "BrowserProbeWorkbenchViewController.h"
 #import "BrowserDOMInteractionService.h"
 #import "BrowserNavigationService.h"
 #import "BrowserPageActionCoordinator.h"
@@ -21,7 +19,6 @@
 #import "BrowserTabViewModel.h"
 #import "BrowserTabCoordinator.h"
 #import "BrowserTabOverviewController.h"
-#import "BrowserVideoPlaybackCoordinator.h"
 #import "BrowserViewModel.h"
 #import "ViewController.h"
 
@@ -54,7 +51,7 @@ static UIColor *kTextColor(void) {
     }
 }
 
-@interface ViewController () <BrowserMenuCoordinatorHost, BrowserPageActionCoordinatorHost, BrowserRemoteInputControllerHost, BrowserTabCoordinatorHost, BrowserTabOverviewControllerHost, BrowserProbeWorkbenchDelegate, BrowserTopBarViewDelegate, BrowserVideoPlaybackCoordinatorHost>
+@interface ViewController () <BrowserMenuCoordinatorHost, BrowserPageActionCoordinatorHost, BrowserRemoteInputControllerHost, BrowserTabCoordinatorHost, BrowserTabOverviewControllerHost, BrowserTopBarViewDelegate>
 
 @property (nonatomic) BrowserContentBlockerController *contentBlockerController;
 @property (nonatomic) BrowserDarkModeController *darkModeController;
@@ -64,12 +61,10 @@ static UIColor *kTextColor(void) {
 @property (nonatomic) BrowserNavigationService *navigationService;
 @property (nonatomic) BrowserPageActionCoordinator *pageActionCoordinator;
 @property (nonatomic) BrowserPreferencesStore *preferencesStore;
-@property (nonatomic, nullable) BrowserProbeWorkbenchViewController *probeWorkbench;
 @property (nonatomic) BrowserRemoteInputController *remoteInputController;
 @property (nonatomic) BrowserSessionStore *sessionStore;
 @property (nonatomic) BrowserTabCoordinator *tabCoordinator;
 @property (nonatomic) BrowserTabOverviewController *tabOverviewController;
-@property (nonatomic) BrowserVideoPlaybackCoordinator *videoPlaybackCoordinator;
 @property (nonatomic) BrowserViewModel *viewModel;
 @property (nonatomic) BOOL displayedHintsOnLaunch;
 @property (nonatomic) BOOL scrollViewAllowBounces;
@@ -78,105 +73,6 @@ static UIColor *kTextColor(void) {
 @property (nonatomic) NSUInteger consecutiveWebContentCrashes;
 
 @end
-
-// Naming the containers a site centres its page with was a guess, and on
-// Naver it matched nothing at all: the width lives on classes like
-// .office_header and .newsct_body, not on the ids I wrote. Sites cannot be
-// memorised, so this measures instead. It starts at the paragraph carrying
-// the most text, walks up at most twenty ancestors, and releases the ones
-// that are narrower than the viewport and centred. Twenty elements is not
-// the whole-document walk that used to kill heavy pages.
-// What this does is narrow: it caps the column a site centres its article in
-// and sets the body type. It does not rearrange the page. An earlier version
-// cleared the blocks beside the article to give it room, which on a Naver
-// article removed the article itself and left the menu and the footer — the
-// photograph of that is why nothing here hides anything any more.
-//
-// On a three-column desktop layout the column often cannot grow at all, and
-// no amount of CSS applied from outside changes that. Reader mode, which
-// lifts the text out of the page entirely, is the tool for those; this is for
-// pages whose article already has the width and only needs the measure and
-// the type size fixed.
-//
-// %lu target width, %lu target font, %@ context label.
-static NSString * const kBrowserReadingLayoutScriptFormat =
-    @"(function(){"
-     "var out=[];"
-     "if(!document.body){return 'ERR no-body';}"
-     "var de=document.documentElement;"
-     "var vw=de.clientWidth||window.innerWidth||0;"
-     "var TW=%lu,TF=%lu;"
-     "out.push('url='+location.href);"
-     "out.push('context=%@');"
-     "out.push('env clientWidth='+vw+' innerWidth='+window.innerWidth"
-         "+' outerWidth='+window.outerWidth+' dpr='+(window.devicePixelRatio||1)"
-         "+' bodyWidth='+document.body.offsetWidth"
-         "+' scrollWidth='+de.scrollWidth);"
-     "try{var ds=window.getComputedStyle(de);"
-         "out.push('env textSizeAdjust='+(ds.webkitTextSizeAdjust||ds.textSizeAdjust||'-')"
-             "+' htmlFont='+ds.fontSize+' zoom='+(ds.zoom||'-'));"
-     "}catch(e){out.push('env read failed');}"
-     "var ps=document.getElementsByTagName('p'),best=null,bestLen=0,skipped=0;"
-     "for(var i=0;i<ps.length&&i<400;i++){"
-         "var el0=ps[i];"
-         "if(el0.offsetWidth<200||el0.offsetHeight<1){skipped++;continue;}"
-         "var t=(el0.textContent||'').length;"
-         "if(t>bestLen){bestLen=t;best=el0;}"
-     "}"
-     "out.push('paragraphs='+ps.length+' invisible='+skipped);"
-     "if(!best){out.push('RESULT applied=0 reason=no-visible-paragraph');"
-         "return out.join('\\n');}"
-     "var c0=window.getComputedStyle(best),f0=parseFloat(c0.fontSize)||16;"
-     "out.push('before colWidth='+best.offsetWidth+' font='+c0.fontSize"
-         "+' lineHeight='+c0.lineHeight+' charsPerLine='+Math.round(best.offsetWidth/f0));"
-     "var touched=[],el=best;"
-     "for(var d=0;d<20&&el&&el!==document.body;d++){"
-         "var cs=window.getComputedStyle(el);"
-         "if(el.offsetWidth>300&&"
-            "((cs.maxWidth&&cs.maxWidth.indexOf('px')>-1)||el.offsetWidth>TW)){"
-             "el.style.setProperty('max-width',TW+'px','important');"
-             "el.style.setProperty('width','auto','important');"
-             "el.style.setProperty('margin-left','auto','important');"
-             "el.style.setProperty('margin-right','auto','important');"
-             "el.setAttribute('data-browser-widened','1');touched.push(el);"
-         "}"
-         "el=el.parentElement;"
-     "}"
-     "var st=document.getElementById('browser-reading-layout');"
-     "if(!st){"
-         "if(!document.head){out.push('RESULT applied=0 reason=no-head');return out.join('\\n');}"
-         "st=document.createElement('style');st.id='browser-reading-layout';"
-         "document.head.appendChild(st);"
-     "}"
-     "st.textContent='html body p,html body li,html body dd,html body blockquote'"
-         "+'{font-size:'+TF+'px!important;line-height:1.7!important;}';"
-     "var c1=window.getComputedStyle(best),f1=parseFloat(c1.fontSize)||16;"
-     "out.push('after colWidth='+best.offsetWidth+' (asked '+TW+')'"
-         "+' font='+c1.fontSize+' (asked '+TF+'px)'"
-         "+' charsPerLine='+Math.round(best.offsetWidth/f1));"
-     "out.push('RESULT applied='+touched.length);"
-     "return out.join('\\n');"
-    "})()";
-
-static NSString * const kBrowserRestoreContentScript =
-    @"(function(){"
-     "var st=document.getElementById('browser-reading-layout');"
-     "if(st&&st.parentNode){st.parentNode.removeChild(st);}"
-     "var h=document.querySelectorAll('[data-browser-hidden]');"
-     "for(var j=0;j<h.length;j++){"
-         "h[j].style.removeProperty('display');"
-         "h[j].removeAttribute('data-browser-hidden');"
-     "}"
-     "var a=document.querySelectorAll('[data-browser-widened]');"
-     "for(var i=0;i<a.length;i++){"
-         "a[i].style.removeProperty('max-width');"
-         "a[i].style.removeProperty('width');"
-         "a[i].style.removeProperty('margin-left');"
-         "a[i].style.removeProperty('margin-right');"
-         "a[i].removeAttribute('data-browser-widened');"
-     "}"
-     "return String(a.length);"
-    "})()";
 
 @implementation ViewController
 
@@ -190,18 +86,9 @@ static NSString * const kBrowserRestoreContentScript =
     self.preferencesStore = [BrowserPreferencesStore new];
     [self.preferencesStore ensureUserAgentConsistency];
 
-    // A line at launch, so an empty log always means the writing failed
-    // rather than that nothing has been tried yet.
-    [[BrowserDiagnosticLog sharedLog] logLine:
-        [NSString stringWithFormat:@"launch version=%@ build=%@ widen=%@",
-         [NSBundle.mainBundle objectForInfoDictionaryKey:@"CFBundleShortVersionString"] ?: @"?",
-         [NSBundle.mainBundle objectForInfoDictionaryKey:@"CFBundleVersion"] ?: @"?",
-         self.preferencesStore.widenContentEnabled ? @"on" : @"off"]];
-
     self.viewModel = [BrowserViewModel new];
     self.viewModel.topNavigationBarVisible = self.preferencesStore.topNavigationBarVisible;
     self.viewModel.textFontSize = self.preferencesStore.textFontSize;
-    self.viewModel.fullscreenVideoPlaybackEnabled = self.preferencesStore.fullscreenVideoPlaybackEnabled;
 
 
     self.contentBlockerController = [BrowserContentBlockerController sharedController];
@@ -215,8 +102,6 @@ static NSString * const kBrowserRestoreContentScript =
     self.menuCoordinator = [[BrowserMenuCoordinator alloc] initWithHost:self preferencesStore:self.preferencesStore];
     self.remoteInputController = [[BrowserRemoteInputController alloc] initWithHost:self rootView:self.view];
     [self.view addSubview:self.remoteInputController.cursorView];
-    self.videoPlaybackCoordinator = [[BrowserVideoPlaybackCoordinator alloc] initWithHost:self
-                                                                      domInteractionService:self.domInteractionService];
     self.tabCoordinator = [[BrowserTabCoordinator alloc] initWithHost:self
                                                              viewModel:self.viewModel
                                                       preferencesStore:self.preferencesStore
@@ -237,7 +122,6 @@ static NSString * const kBrowserRestoreContentScript =
     self.pageActionCoordinator = [[BrowserPageActionCoordinator alloc] initWithHost:self
                                                                domInteractionService:self.domInteractionService
                                                                    navigationService:self.navigationService
-                                                            videoPlaybackCoordinator:self.videoPlaybackCoordinator
                                                                     preferencesStore:self.preferencesStore];
 
     self.topMenuView.delegate = self;
@@ -654,13 +538,6 @@ static NSString * const kBrowserRestoreContentScript =
 }
 
 - (NSArray<id<UIFocusEnvironment>> *)preferredFocusEnvironments {
-    // Only while it is the thing on screen. Naming a child that a presented
-    // view controller is covering hands tvOS a focus environment it cannot
-    // reach, and it refuses — which is what was killing the app when the log
-    // was opened from the workbench.
-    if (self.probeWorkbench != nil && self.presentedViewController == nil) {
-        return @[self.probeWorkbench];
-    }
     if (self.topBarFocusActive) {
         UIView *preferredFocusItem = [self.topMenuView preferredFocusItem];
         if (preferredFocusItem != nil) {
@@ -703,15 +580,6 @@ static NSString * const kBrowserRestoreContentScript =
     return self.viewModel.topNavigationBarVisible;
 }
 
-- (BOOL)browserFullscreenVideoPlaybackEnabled {
-    return self.viewModel.fullscreenVideoPlaybackEnabled;
-}
-
-- (void)setBrowserFullscreenVideoPlaybackEnabled:(BOOL)browserFullscreenVideoPlaybackEnabled {
-    self.viewModel.fullscreenVideoPlaybackEnabled = browserFullscreenVideoPlaybackEnabled;
-    self.preferencesStore.fullscreenVideoPlaybackEnabled = browserFullscreenVideoPlaybackEnabled;
-}
-
 - (void)browserPresentViewController:(UIViewController *)viewController {
     [self deactivateTopBarFocusMode];
     [self presentViewController:viewController animated:YES completion:nil];
@@ -752,261 +620,6 @@ static NSString * const kBrowserRestoreContentScript =
     [self updateTextFontSize];
 }
 
-#pragma mark - Probe Workbench
-
-// A report that fills the screen hides the page it describes. The workbench
-// narrows the page instead and keeps the controls beside it, so a setting is
-// seen taking effect on the real thing. Anything that proves itself here earns
-// a place in the ordinary menus.
-- (void)browserShowProbeWorkbench {
-    if (self.probeWorkbench != nil) {
-        return;
-    }
-
-    BrowserProbeWorkbenchViewController *workbench =
-        [[BrowserProbeWorkbenchViewController alloc] initWithSections:[self workbenchSections]];
-    workbench.workbenchDelegate = self;
-    self.probeWorkbench = workbench;
-
-    [self addChildViewController:workbench];
-    workbench.view.translatesAutoresizingMaskIntoConstraints = NO;
-    [self.view addSubview:workbench.view];
-    [NSLayoutConstraint activateConstraints:@[
-        [workbench.view.leadingAnchor constraintEqualToAnchor:self.view.leadingAnchor],
-        [workbench.view.topAnchor constraintEqualToAnchor:self.view.topAnchor],
-        [workbench.view.bottomAnchor constraintEqualToAnchor:self.view.bottomAnchor],
-        [workbench.view.widthAnchor constraintEqualToAnchor:self.view.widthAnchor multiplier:0.34],
-    ]];
-    [workbench didMoveToParentViewController:self];
-
-    [self.view layoutIfNeeded];
-    self.tabCoordinator.webViewLeadingInset = CGRectGetWidth(self.view.bounds) * 0.34;
-    [self setNeedsFocusUpdate];
-    [self updateFocusIfNeeded];
-}
-
-- (void)closeProbeWorkbenchIfOpen {
-    if (self.probeWorkbench != nil) {
-        [self probeWorkbenchDidRequestClose:self.probeWorkbench];
-    }
-}
-
-- (void)probeWorkbenchDidRequestClose:(BrowserProbeWorkbenchViewController *)workbench {
-    if (workbench != self.probeWorkbench) {
-        return;
-    }
-    // Closing can be reached from inside the workbench's own table callback.
-    // Holding it until the next turn of the run loop means the call that asked
-    // for the close always returns to a live object.
-    BrowserProbeWorkbenchViewController *keepAlive = workbench;
-    dispatch_async(dispatch_get_main_queue(), ^{
-        (void)keepAlive;
-    });
-
-    [workbench willMoveToParentViewController:nil];
-    [workbench.view removeFromSuperview];
-    [workbench removeFromParentViewController];
-    self.probeWorkbench = nil;
-    self.tabCoordinator.webViewLeadingInset = 0.0;
-    // Everything tuned while this was open was measured against two thirds of
-    // the screen. The page is full width again now, so the layout is redone
-    // against the width it will actually be read at.
-    [self scheduleReadingLayoutApplication];
-    [self setNeedsFocusUpdate];
-    [self updateFocusIfNeeded];
-}
-
-- (void)refreshWorkbenchRows {
-    [self.probeWorkbench setSections:[self workbenchSections]];
-}
-
-- (NSString *)workbenchEvaluate:(NSString *)script fallback:(NSString *)fallback {
-    NSString *value = [self.webview stringByEvaluatingJavaScriptFromString:script];
-    return value.length > 0 ? value : fallback;
-}
-
-- (NSArray<BrowserWorkbenchSection *> *)workbenchSections {
-    __weak typeof(self) weakSelf = self;
-
-    BrowserWorkbenchSection *measure = [BrowserWorkbenchSection sectionWithTitle:@"측정" items:@[
-        [BrowserWorkbenchItem itemWithTitle:@"페이지 프로세스 상태" action:^NSString *{
-            BrowserWebView *webView = weakSelf.webview;
-            NSString *alive = [weakSelf workbenchEvaluate:@"'alive'" fallback:@""];
-            return [NSString stringWithFormat:@"프로세스: %@\n누적 사망: %lu회",
-                    alive.length > 0 ? @"살아있음" : @"응답 없음",
-                    (unsigned long)webView.webContentTerminationCount];
-        }],
-        [BrowserWorkbenchItem itemWithTitle:@"페이지 크기 (무게)" action:^NSString *{
-            NSString *script =
-                @"(function(){try{var n=document.getElementsByTagName('*').length;"
-                 "var f=document.getElementsByTagName('iframe').length;"
-                 "var i=document.images.length;"
-                 "return '요소 '+n+'개\\n프레임 '+f+'개 · 이미지 '+i+'개'"
-                 "+((n>12000)?'\\n※ 매우 무거움':'');}catch(e){return 'err';}})()";
-            return [weakSelf workbenchEvaluate:script fallback:@"읽을 수 없음 (프로세스 없음)"];
-        }],
-        [BrowserWorkbenchItem itemWithTitle:@"진단 로그 위치 (파일 탐색기로 열기)" action:^NSString *{
-            return [[BrowserDiagnosticLog sharedLog] statusDescription];
-        }],
-        [BrowserWorkbenchItem itemWithTitle:@"진단 로그 비우기" action:^NSString *{
-            [[BrowserDiagnosticLog sharedLog] clear];
-            return @"로그를 비웠습니다.";
-        }],
-        [BrowserWorkbenchItem itemWithTitle:@"화면 해상도" action:^NSString *{
-            return [weakSelf browserDisplayReport];
-        }],
-        [BrowserWorkbenchItem itemWithTitle:@"현재 User Agent" action:^NSString *{
-            NSString *agent = [weakSelf.webview currentUserAgent] ?: @"(없음)";
-            NSString *mode = weakSelf.preferencesStore.mobileModeEnabled ? @"모바일" : @"데스크톱";
-            NSUInteger tail = MIN((NSUInteger)60, agent.length);
-            return [NSString stringWithFormat:@"%@\n…%@", mode,
-                    [agent substringFromIndex:agent.length - tail]];
-        }],
-    ]];
-
-    NSUInteger zoom = self.preferencesStore.pageZoomPercent;
-    BOOL reader = [self browserIsReaderModeActive];
-    BOOL dark = self.preferencesStore.forcedDarkModeEnabled;
-    BOOL blocking = self.preferencesStore.contentBlockingEnabled;
-    BOOL mobile = self.preferencesStore.mobileModeEnabled;
-    BOOL bold = self.preferencesStore.boldTextEnabled;
-    NSUInteger minimumFont = self.preferencesStore.minimumFontSize;
-    BOOL widen = self.preferencesStore.widenContentEnabled;
-    NSUInteger columnWidth = self.preferencesStore.readingColumnWidth;
-    NSUInteger bodyFont = self.preferencesStore.readingBodyFontSize;
-
-    BrowserWorkbenchSection *apply = [BrowserWorkbenchSection sectionWithTitle:@"이 페이지에 적용" items:@[
-        [BrowserWorkbenchItem itemWithTitle:[NSString stringWithFormat:@"확대 키우기  (지금 %lu%%)", (unsigned long)zoom]
-                                     action:^NSString *{
-            weakSelf.preferencesStore.pageZoomPercent = weakSelf.preferencesStore.pageZoomPercent + 10;
-            [weakSelf applyReadingZoom];
-            [weakSelf refreshWorkbenchRows];
-            return [NSString stringWithFormat:@"확대 %lu%%", (unsigned long)weakSelf.preferencesStore.pageZoomPercent];
-        }],
-        [BrowserWorkbenchItem itemWithTitle:[NSString stringWithFormat:@"확대 줄이기  (지금 %lu%%)", (unsigned long)zoom]
-                                     action:^NSString *{
-            NSUInteger current = weakSelf.preferencesStore.pageZoomPercent;
-            weakSelf.preferencesStore.pageZoomPercent = current > 10 ? current - 10 : current;
-            [weakSelf applyReadingZoom];
-            [weakSelf refreshWorkbenchRows];
-            return [NSString stringWithFormat:@"확대 %lu%%", (unsigned long)weakSelf.preferencesStore.pageZoomPercent];
-        }],
-        [BrowserWorkbenchItem itemWithTitle:widen ? @"TV 읽기 배치 끄기" : @"TV 읽기 배치 켜기"
-                                     action:^NSString *{
-            NSString *result = [weakSelf browserWidenContent];
-            [weakSelf refreshWorkbenchRows];
-            return result;
-        }],
-        [BrowserWorkbenchItem itemWithTitle:[NSString stringWithFormat:@"읽기 폭 넓히기  (%lupx)", (unsigned long)columnWidth]
-                                     action:^NSString *{
-            weakSelf.preferencesStore.readingColumnWidth =
-                weakSelf.preferencesStore.readingColumnWidth + 100;
-            [weakSelf refreshWorkbenchRows];
-            return [weakSelf reapplyReadingLayoutSummary];
-        }],
-        [BrowserWorkbenchItem itemWithTitle:[NSString stringWithFormat:@"읽기 폭 좁히기  (%lupx)", (unsigned long)columnWidth]
-                                     action:^NSString *{
-            NSUInteger current = weakSelf.preferencesStore.readingColumnWidth;
-            weakSelf.preferencesStore.readingColumnWidth = current > 100 ? current - 100 : current;
-            [weakSelf refreshWorkbenchRows];
-            return [weakSelf reapplyReadingLayoutSummary];
-        }],
-        [BrowserWorkbenchItem itemWithTitle:[NSString stringWithFormat:@"읽기 글자 키우기  (%lupx)", (unsigned long)bodyFont]
-                                     action:^NSString *{
-            weakSelf.preferencesStore.readingBodyFontSize =
-                weakSelf.preferencesStore.readingBodyFontSize + 2;
-            [weakSelf refreshWorkbenchRows];
-            return [weakSelf reapplyReadingLayoutSummary];
-        }],
-        [BrowserWorkbenchItem itemWithTitle:[NSString stringWithFormat:@"읽기 글자 줄이기  (%lupx)", (unsigned long)bodyFont]
-                                     action:^NSString *{
-            NSUInteger current = weakSelf.preferencesStore.readingBodyFontSize;
-            weakSelf.preferencesStore.readingBodyFontSize = current > 2 ? current - 2 : current;
-            [weakSelf refreshWorkbenchRows];
-            return [weakSelf reapplyReadingLayoutSummary];
-        }],
-        [BrowserWorkbenchItem itemWithTitle:@"확대 100%로 되돌리기" action:^NSString *{
-            weakSelf.preferencesStore.pageZoomPercent = 100;
-            [weakSelf applyReadingZoom];
-            [weakSelf refreshWorkbenchRows];
-            return @"확대 100%";
-        }],
-        [BrowserWorkbenchItem itemWithTitle:bold ? @"글자 굵게 끄기" : @"글자 굵게 켜기"
-                                     action:^NSString *{
-            weakSelf.preferencesStore.boldTextEnabled = !weakSelf.preferencesStore.boldTextEnabled;
-            [weakSelf updateTextFontSize];
-            [weakSelf refreshWorkbenchRows];
-            return weakSelf.preferencesStore.boldTextEnabled ? @"굵게 켜짐" : @"굵게 꺼짐";
-        }],
-        [BrowserWorkbenchItem itemWithTitle:[NSString stringWithFormat:@"최소 글자 크기 키우기  (%lupt)", (unsigned long)minimumFont]
-                                     action:^NSString *{
-            weakSelf.preferencesStore.minimumFontSize = weakSelf.preferencesStore.minimumFontSize + 2;
-            [weakSelf applyReadingZoom];
-            [weakSelf.webview reload];
-            [weakSelf refreshWorkbenchRows];
-            return [NSString stringWithFormat:@"최소 %lupt\n다시 불러오는 중",
-                    (unsigned long)weakSelf.preferencesStore.minimumFontSize];
-        }],
-        [BrowserWorkbenchItem itemWithTitle:[NSString stringWithFormat:@"최소 글자 크기 줄이기  (%lupt)", (unsigned long)minimumFont]
-                                     action:^NSString *{
-            NSUInteger current = weakSelf.preferencesStore.minimumFontSize;
-            weakSelf.preferencesStore.minimumFontSize = current >= 2 ? current - 2 : 0;
-            [weakSelf applyReadingZoom];
-            [weakSelf.webview reload];
-            [weakSelf refreshWorkbenchRows];
-            return [NSString stringWithFormat:@"최소 %lupt\n다시 불러오는 중",
-                    (unsigned long)weakSelf.preferencesStore.minimumFontSize];
-        }],
-        [BrowserWorkbenchItem itemWithTitle:reader ? @"읽기 모드 끄기" : @"읽기 모드 켜기"
-                                     action:^NSString *{
-            [weakSelf browserToggleReaderMode];
-            [weakSelf refreshWorkbenchRows];
-            return [weakSelf browserIsReaderModeActive] ? @"읽기 모드 켜짐" : @"읽기 모드 꺼짐";
-        }],
-        [BrowserWorkbenchItem itemWithTitle:blocking ? @"광고 차단 끄기" : @"광고 차단 켜기"
-                                     action:^NSString *{
-            BOOL next = !weakSelf.preferencesStore.contentBlockingEnabled;
-            weakSelf.preferencesStore.contentBlockingEnabled = next;
-            [[BrowserContentBlockerController sharedController] applyContentBlockingToWebView:weakSelf.webview
-                                                                                      enabled:next];
-            [weakSelf refreshWorkbenchRows];
-            return next ? @"광고 차단 켜짐\n(새로고침하면 완전히 적용)" : @"광고 차단 꺼짐\n(새로고침하면 완전히 적용)";
-        }],
-        [BrowserWorkbenchItem itemWithTitle:dark ? @"다크 모드 끄기" : @"다크 모드 켜기"
-                                     action:^NSString *{
-            BOOL next = !weakSelf.preferencesStore.forcedDarkModeEnabled;
-            weakSelf.preferencesStore.forcedDarkModeEnabled = next;
-            [weakSelf browserUpdateForcedDarkMode];
-            [weakSelf refreshWorkbenchRows];
-            return next ? @"다크 모드 켜짐" : @"다크 모드 꺼짐";
-        }],
-        [BrowserWorkbenchItem itemWithTitle:mobile ? @"데스크톱 화면으로 전환" : @"모바일 화면으로 전환"
-                                     action:^NSString *{
-            BOOL nextMobile = !weakSelf.preferencesStore.mobileModeEnabled;
-            weakSelf.preferencesStore.mobileModeEnabled = nextMobile;
-            weakSelf.preferencesStore.userAgent = nextMobile ? BrowserPreferencesStore.mobileUserAgent
-                                                             : BrowserPreferencesStore.desktopUserAgent;
-            [weakSelf.webview setUserAgent:weakSelf.preferencesStore.userAgent];
-            [weakSelf.webview reload];
-            [weakSelf refreshWorkbenchRows];
-            return nextMobile ? @"모바일로 다시 불러오는 중" : @"데스크톱으로 다시 불러오는 중";
-        }],
-    ]];
-
-    BrowserWorkbenchSection *recover = [BrowserWorkbenchSection sectionWithTitle:@"복구" items:@[
-        [BrowserWorkbenchItem itemWithTitle:@"새로고침" action:^NSString *{
-            [weakSelf.webview reload];
-            return @"다시 불러오는 중";
-        }],
-        [BrowserWorkbenchItem itemWithTitle:@"페이지 프로세스 재시작" action:^NSString *{
-            BOOL ok = [weakSelf.webview restartWebContentProcess];
-            return ok ? @"프로세스를 내렸습니다.\n새로고침하십시오." : @"재시작을 지원하지 않습니다.";
-        }],
-    ]];
-
-    return @[measure, apply, recover];
-}
-
 - (void)browserUpdateForcedDarkMode {
     BOOL enabled = self.preferencesStore.forcedDarkModeEnabled;
     [self.darkModeController syncDarkModeState:enabled forWebView:self.webview];
@@ -1025,7 +638,6 @@ static NSString * const kBrowserRestoreContentScript =
 }
 
 - (void)browserPlayVideoUnderCursorIfAvailable {
-    [self.videoPlaybackCoordinator playVideoUnderCursorIfAvailable];
 }
 
 - (BOOL)browserIsReaderModeActive {
@@ -1048,28 +660,6 @@ static NSString * const kBrowserRestoreContentScript =
     }
 }
 
-#pragma mark - BrowserVideoPlaybackCoordinatorHost
-
-- (BOOL)browserIsCursorModeEnabled {
-    return self.remoteInputController.cursorModeEnabled;
-}
-
-- (CGPoint)browserDOMCursorPoint {
-    return [self browserDOMPointForCursor];
-}
-
-- (UIViewController *)browserPresentedViewController {
-    return self.presentedViewController;
-}
-
-- (NSString *)browserCurrentPageTitle {
-    return self.webview.title;
-}
-
-- (void)browserSetFullscreenVideoPlaybackEnabled:(BOOL)enabled {
-    [self setBrowserFullscreenVideoPlaybackEnabled:enabled];
-}
-
 #pragma mark - BrowserTabCoordinatorHost
 
 - (void)browserTabCoordinatorPresentViewController:(UIViewController *)viewController {
@@ -1079,26 +669,6 @@ static NSString * const kBrowserRestoreContentScript =
 - (void)browserTabCoordinatorUpdateTextFontSize {
     [self applyReadingZoom];
     [self updateTextFontSize];
-    [self scheduleReadingLayoutApplication];
-}
-
-// Every automatic application in the log failed, because this ran from the
-// tab UI refresh, before the page had a document to query. It waits for the
-// document now, and tries once more if the first attempt finds nothing.
-- (void)scheduleReadingLayoutApplication {
-    if (!self.preferencesStore.widenContentEnabled) {
-        return;
-    }
-    __weak typeof(self) weakSelf = self;
-    dispatch_after(dispatch_time(DISPATCH_TIME_NOW, (int64_t)(0.6 * NSEC_PER_SEC)),
-                   dispatch_get_main_queue(), ^{
-        if (![weakSelf applyWidenContentIfEnabled]) {
-            dispatch_after(dispatch_time(DISPATCH_TIME_NOW, (int64_t)(1.5 * NSEC_PER_SEC)),
-                           dispatch_get_main_queue(), ^{
-                [weakSelf applyWidenContentIfEnabled];
-            });
-        }
-    });
 }
 
 - (void)applyReadingZoom {
@@ -1109,126 +679,6 @@ static NSString * const kBrowserRestoreContentScript =
     webView.userPageZoom = (CGFloat)self.preferencesStore.pageZoomPercent / 100.0;
     [webView setMinimumFontSize:(CGFloat)self.preferencesStore.minimumFontSize];
     [webView applyPageScalingIfNeeded];
-}
-
-// Changing a number is only useful if the page shows it at once, with the
-// measured characters-per-line said back.
-- (NSString *)reapplyReadingLayoutSummary {
-    if (!self.preferencesStore.widenContentEnabled) {
-        self.preferencesStore.widenContentEnabled = YES;
-    }
-    NSString *report = [self.webview stringByEvaluatingJavaScriptFromString:[self readingLayoutScriptForContext:[self readingLayoutContextLabel]]
-                                                                    timeout:4.0
-                                                                     status:NULL
-                                                              failureReason:NULL];
-    [[BrowserDiagnosticLog sharedLog] logSection:@"Reading Layout adjusted" body:report];
-
-    NSUInteger width = self.preferencesStore.readingColumnWidth;
-    NSUInteger font = self.preferencesStore.readingBodyFontSize;
-    NSString *measured = @"";
-    NSRange after = [report rangeOfString:@"after colWidth=" options:NSBackwardsSearch];
-    if (after.location != NSNotFound) {
-        NSRange marker = [report rangeOfString:@"charsPerLine=" options:0 range:
-                          NSMakeRange(after.location, report.length - after.location)];
-        if (marker.location != NSNotFound) {
-            measured = [NSString stringWithFormat:@"\n실제 한 줄 %ld자",
-                        (long)[report substringFromIndex:NSMaxRange(marker)].integerValue];
-        }
-    }
-    return [NSString stringWithFormat:@"폭 %lupx · 글자 %lupx%@",
-            (unsigned long)width, (unsigned long)font, measured];
-}
-
-- (NSString *)readingLayoutScriptForContext:(NSString *)context {
-    return [NSString stringWithFormat:kBrowserReadingLayoutScriptFormat,
-            (unsigned long)self.preferencesStore.readingColumnWidth,
-            (unsigned long)self.preferencesStore.readingBodyFontSize,
-            context ?: @"-"];
-}
-
-- (NSString *)readingLayoutContextLabel {
-    return [NSString stringWithFormat:@"workbench=%@ zoom=%lu%% minFont=%lu textSize=%lu scaleToFit=%@",
-            self.probeWorkbench != nil ? @"open" : @"closed",
-            (unsigned long)self.preferencesStore.pageZoomPercent,
-            (unsigned long)self.preferencesStore.minimumFontSize,
-            (unsigned long)self.viewModel.textFontSize,
-            self.preferencesStore.scalePagesToFit ? @"on" : @"off"];
-}
-
-- (BOOL)applyWidenContentIfEnabled {
-    if (self.webview == nil || !self.preferencesStore.widenContentEnabled) {
-        return YES;
-    }
-    NSString *report = [self.webview stringByEvaluatingJavaScriptFromString:
-                        [self readingLayoutScriptForContext:[self readingLayoutContextLabel]]
-                                                                    timeout:4.0
-                                                                     status:NULL
-                                                              failureReason:NULL];
-    NSRange marker = [report rangeOfString:@"RESULT applied=" options:NSBackwardsSearch];
-    if (marker.location == NSNotFound) {
-        [[BrowserDiagnosticLog sharedLog] logLine:
-            [NSString stringWithFormat:@"auto-layout failed url=%@",
-             self.webview.request.URL.absoluteString ?: @"-"]];
-        return NO;
-    }
-    [[BrowserDiagnosticLog sharedLog] logLine:
-        [NSString stringWithFormat:@"auto-layout %@ url=%@",
-         [report substringFromIndex:marker.location],
-         self.webview.request.URL.absoluteString ?: @"-"]];
-    return YES;
-}
-
-- (NSString *)browserWidenContent {
-    BOOL next = !self.preferencesStore.widenContentEnabled;
-    self.preferencesStore.widenContentEnabled = next;
-
-    NSString *script = next ? [self readingLayoutScriptForContext:[self readingLayoutContextLabel]] : kBrowserRestoreContentScript;
-    BrowserScriptEvaluationStatus status = BrowserScriptEvaluationStatusOK;
-    NSString *reason = nil;
-    NSString *report = [self.webview stringByEvaluatingJavaScriptFromString:script
-                                                                    timeout:4.0
-                                                                     status:&status
-                                                              failureReason:&reason];
-
-    [[BrowserDiagnosticLog sharedLog] logSection:next ? @"Reading Layout ON" : @"Reading Layout OFF"
-                                            body:report.length > 0
-                                                 ? report
-                                                 : [NSString stringWithFormat:@"평가 실패 status=%ld reason=%@",
-                                                    (long)status, reason ?: @"(없음)"]];
-
-    if (report.length == 0) {
-        return [NSString stringWithFormat:@"스크립트가 실행되지 않았습니다.\nstatus=%ld\n%@",
-                (long)status, reason ?: @""];
-    }
-
-    if (!next) {
-        return @"원래 배치로 되돌렸습니다.";
-    }
-
-    NSRange marker = [report rangeOfString:@"RESULT released=" options:NSBackwardsSearch];
-    if (marker.location == NSNotFound) {
-        return @"결과 표시를 찾지 못했습니다.\n로그를 확인해 주십시오.";
-    }
-    NSInteger released = [report substringFromIndex:NSMaxRange(marker)].integerValue;
-    NSUInteger width = self.preferencesStore.readingColumnWidth;
-    NSUInteger font = self.preferencesStore.readingBodyFontSize;
-    NSUInteger chars = font > 0 ? width / font : 0;
-    return [NSString stringWithFormat:@"폭 %lupx · 글자 %lupx\n한 줄에 한글 약 %lu자 (%ld군데 적용)",
-            (unsigned long)width, (unsigned long)font, (unsigned long)chars, (long)released];
-}
-
-- (NSString *)browserDisplayReport {
-    UIScreen *screen = UIScreen.mainScreen;
-    NSString *web = [self.webview stringByEvaluatingJavaScriptFromString:
-        @"(function(){try{return window.innerWidth+'x'+window.innerHeight"
-         "+' dpr'+(window.devicePixelRatio||1);}catch(e){return '?';}})()"] ?: @"?";
-    return [NSString stringWithFormat:
-            @"화면 %.0fx%.0f pt (scale %.1f)\n"
-             "실제 %.0fx%.0f px (native %.1f)\n"
-             "웹 %@",
-            screen.bounds.size.width, screen.bounds.size.height, screen.scale,
-            screen.nativeBounds.size.width, screen.nativeBounds.size.height, screen.nativeScale,
-            web];
 }
 
 - (void)browserReloadActivePage {
@@ -1296,17 +746,7 @@ static NSString * const kBrowserRestoreContentScript =
 }
 
 - (BOOL)browserRemoteInputControllerFocusNavigationActive {
-    return self.topBarFocusActive || self.probeWorkbench != nil;
-}
-
-- (BOOL)browserRemoteInputControllerWorkbenchActive {
-    // A presented view controller owns the remote while it is up, or Menu
-    // would close the workbench underneath it instead of dismissing it.
-    return self.probeWorkbench != nil && self.presentedViewController == nil;
-}
-
-- (void)browserRemoteInputControllerCloseWorkbench {
-    [self probeWorkbenchDidRequestClose:self.probeWorkbench];
+    return self.topBarFocusActive;
 }
 
 - (BOOL)browserRemoteInputControllerCanActivateTopBarFocus {

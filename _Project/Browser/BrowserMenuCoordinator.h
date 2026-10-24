@@ -8,7 +8,6 @@
 @property (nonatomic, readonly) BrowserWebView *browserWebView;
 @property (nonatomic, copy) NSString *browserPreviousURL;
 @property (nonatomic) NSUInteger browserTextFontSize;
-@property (nonatomic) BOOL browserFullscreenVideoPlaybackEnabled;
 @property (nonatomic, readonly) BOOL browserTopMenuShowing;
 
 - (void)browserPresentViewController:(UIViewController *)viewController;
@@ -20,9 +19,7 @@
 - (void)browserShowTopNav;
 - (void)browserUpdateTextFontSize;
 - (void)browserApplyReadingZoom;
-- (void)browserShowProbeWorkbench;
 - (void)browserReloadActivePage;
-- (NSString *)browserWidenContent;
 - (void)browserUpdateForcedDarkMode;
 - (void)browserCaptureSnapshotForCurrentTab;
 - (void)browserRecreateActiveWebViewPreservingCurrentURL;
