@@ -61,6 +61,10 @@ NS_ASSUME_NONNULL_BEGIN
 /// the page is narrowed rather than covered.
 @property (nonatomic) CGFloat webViewLeadingInset;
 
+/// CSS width the page is laid out at before being scaled to fill the
+/// screen. 0 lays out at the screen width, as a desktop browser would.
+@property (nonatomic) CGFloat pageLayoutWidth;
+
 - (void)updateTopNavAndWebView;
 - (void)setTopNavigationVisible:(BOOL)visible;
 - (BrowserTabViewModel *)tabForWebView:(id)webView;

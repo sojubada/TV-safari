@@ -99,20 +99,53 @@ static CGFloat const kThumbnailStagingOffset = 4096.0;
     [self updateTopNavAndWebView];
 }
 
+// Korean news sites cap their desktop layout at 1110-1275 CSS pixels and
+// centre it; there is no breakpoint above 668px that widens it. On a 1920
+// point screen that leaves 320 points of margin on each side, which is why
+// the television looks emptier than a 1600 wide monitor showing the same
+// page — the page is identical, only the surrounding space differs.
+//
+// So the screen is fitted to the page rather than the page to the screen.
+// The web view is laid out at the fitting width and the whole thing is scaled
+// up to fill the display: the proportions become the ones a desktop monitor
+// shows, and everything on it is larger by the same factor.
+//
+// Setting a frame on a view with a transform is undefined, so bounds and
+// centre are set around it.
 - (void)updateTopNavAndWebView {
-    if (self.activeWebView == nil) {
+    BrowserWebView *webView = self.activeWebView;
+    if (webView == nil) {
         return;
     }
-    // The workbench narrows the page rather than covering it, so what is being
-    // tried stays visible beside the controls that trigger it. Only the frame
-    // changes; the web process is never touched.
+
     CGFloat inset = MAX(0.0, MIN(self.webViewLeadingInset, CGRectGetWidth(self.rootView.bounds) - 200.0));
     CGFloat top = self.rootView.bounds.origin.y + (self.topNavigationVisible ? self.topMenuBrowserOffset : 0.0);
-    CGFloat height = self.rootView.bounds.size.height - (self.topNavigationVisible ? self.topMenuBrowserOffset : 0.0);
-    self.activeWebView.frame = CGRectMake(self.rootView.bounds.origin.x + inset,
-                                          top,
-                                          self.rootView.bounds.size.width - inset,
-                                          height);
+    CGFloat availableWidth = self.rootView.bounds.size.width - inset;
+    CGFloat availableHeight = self.rootView.bounds.size.height - (self.topNavigationVisible ? self.topMenuBrowserOffset : 0.0);
+    if (availableWidth < 1.0 || availableHeight < 1.0) {
+        return;
+    }
+
+    CGFloat layoutWidth = self.pageLayoutWidth;
+    CGFloat scale = 1.0;
+    if (layoutWidth > 200.0 && layoutWidth < availableWidth) {
+        scale = availableWidth / layoutWidth;
+    } else {
+        layoutWidth = availableWidth;
+    }
+
+    webView.transform = CGAffineTransformIdentity;
+    webView.bounds = CGRectMake(0.0, 0.0, layoutWidth, availableHeight / scale);
+    if (scale != 1.0) {
+        webView.transform = CGAffineTransformMakeScale(scale, scale);
+    }
+    webView.center = CGPointMake(self.rootView.bounds.origin.x + inset + availableWidth / 2.0,
+                                 top + availableHeight / 2.0);
+}
+
+- (void)setPageLayoutWidth:(CGFloat)pageLayoutWidth {
+    _pageLayoutWidth = pageLayoutWidth;
+    [self updateTopNavAndWebView];
 }
 
 - (void)setWebViewLeadingInset:(CGFloat)webViewLeadingInset {

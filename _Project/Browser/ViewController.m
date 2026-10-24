@@ -124,6 +124,7 @@ static UIColor *kTextColor(void) {
                                                                    navigationService:self.navigationService
                                                                     preferencesStore:self.preferencesStore];
 
+    self.tabCoordinator.pageLayoutWidth = (CGFloat)self.preferencesStore.pageLayoutWidth;
     self.topMenuView.delegate = self;
     self.topMenuView.loadingSpinner.hidesWhenStopped = YES;
     self.remoteInputController.cursorView.hidden = NO;
@@ -683,6 +684,41 @@ static UIColor *kTextColor(void) {
 
 - (void)browserReloadActivePage {
     [self.webview reload];
+}
+
+- (void)browserApplyPageLayoutWidth {
+    self.tabCoordinator.pageLayoutWidth = (CGFloat)self.preferencesStore.pageLayoutWidth;
+}
+
+// Naver's print view is not a popup, it is a URL: the same article with
+// "print/" after "article/". It is the article text on a white page with no
+// navigation, no ranking column and no advertising — the cleanest reading of
+// a news page this browser can get, and it costs one string substitution.
+- (BOOL)browserOpenPrintableArticle {
+    NSURL *URL = self.webview.request.URL;
+    NSString *path = URL.path ?: @"";
+    if (![URL.host hasSuffix:@"news.naver.com"] || [path hasPrefix:@"/article/print/"]) {
+        return NO;
+    }
+
+    NSArray<NSString *> *parts = [path componentsSeparatedByString:@"/"];
+    // "", "article", oid, aid
+    if (parts.count < 4 || ![parts[1] isEqualToString:@"article"]) {
+        return NO;
+    }
+    NSString *oid = parts[2];
+    NSString *aid = parts[3];
+    if (oid.length == 0 || aid.length == 0) {
+        return NO;
+    }
+
+    NSString *printString = [NSString stringWithFormat:@"https://n.news.naver.com/article/print/%@/%@", oid, aid];
+    NSURL *printURL = [NSURL URLWithString:printString];
+    if (printURL == nil) {
+        return NO;
+    }
+    [self.webview loadRequest:[NSURLRequest requestWithURL:printURL]];
+    return YES;
 }
 
 - (void)browserApplyReadingZoom {

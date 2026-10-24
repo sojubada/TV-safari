@@ -19,6 +19,8 @@
 - (void)browserShowTopNav;
 - (void)browserUpdateTextFontSize;
 - (void)browserApplyReadingZoom;
+- (void)browserApplyPageLayoutWidth;
+- (BOOL)browserOpenPrintableArticle;
 - (void)browserReloadActivePage;
 - (void)browserUpdateForcedDarkMode;
 - (void)browserCaptureSnapshotForCurrentTab;

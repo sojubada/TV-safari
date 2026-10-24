@@ -15,6 +15,7 @@ static NSString * const kOpenLinksInNewTabOnClickDefaultsKey = @"OpenLinksInNewT
 static NSString * const kForcedDarkModeEnabledDefaultsKey = @"ForcedDarkModeEnabled";
 static NSString * const kContentBlockingEnabledDefaultsKey = @"ContentBlockingEnabled";
 static NSString * const kPageZoomPercentDefaultsKey = @"PageZoomPercent";
+static NSString * const kPageLayoutWidthDefaultsKey = @"PageLayoutWidth";
 static NSString * const kMinimumFontSizeDefaultsKey = @"MinimumFontSize";
 static NSString * const kBoldTextEnabledDefaultsKey = @"BoldTextEnabled";
 static NSString * const kWidenContentEnabledDefaultsKey = @"WidenContentEnabled";
@@ -280,6 +281,23 @@ static NSUInteger const kMaximumReaderFontSize = 96;
 }
 - (void)setBoldTextEnabled:(BOOL)boldTextEnabled {
     [[self defaults] setObject:@(boldTextEnabled) forKey:kBoldTextEnabledDefaultsKey];
+    [[self defaults] synchronize];
+}
+
+// 1280 by default: just above the 1275 these sites lay out at, so the page
+// fills the screen at a scale of about one and a half.
+- (NSUInteger)pageLayoutWidth {
+    NSNumber *value = [[self defaults] objectForKey:kPageLayoutWidthDefaultsKey];
+    NSUInteger width = value ? value.unsignedIntegerValue : 1280;
+    if (width == 0) {
+        return 0;
+    }
+    return MIN((NSUInteger)1920, MAX((NSUInteger)800, width));
+}
+- (void)setPageLayoutWidth:(NSUInteger)pageLayoutWidth {
+    NSUInteger clamped = pageLayoutWidth == 0 ? 0
+        : MIN((NSUInteger)1920, MAX((NSUInteger)800, pageLayoutWidth));
+    [[self defaults] setObject:@(clamped) forKey:kPageLayoutWidthDefaultsKey];
     [[self defaults] synchronize];
 }
 

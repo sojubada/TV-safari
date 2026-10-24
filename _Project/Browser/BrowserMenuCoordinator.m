@@ -1273,6 +1273,11 @@ withAnimationCoordinator:(UIFocusAnimationCoordinator *)coordinator {
             [self increaseReaderFontSizeMenuItem],
             [self decreaseReaderFontSizeMenuItem],
         ]],
+        [BrowserAdvancedMenuSection sectionWithTitle:@"화면 채우기" items:@[
+            [self narrowerLayoutMenuItem],
+            [self widerLayoutMenuItem],
+            [self printableArticleMenuItem],
+        ]],
         [BrowserAdvancedMenuSection sectionWithTitle:@"Page Text Size" items:@[
             [self increasePageZoomMenuItem],
             [self decreasePageZoomMenuItem],
@@ -1286,6 +1291,49 @@ withAnimationCoordinator:(UIFocusAnimationCoordinator *)coordinator {
             [self pageScalingMenuItem],
         ]],
     ];
+}
+
+// Fitting the screen to the page: the page is laid out at this width and
+// scaled up to fill the display, so a desktop layout that caps itself near
+// 1275 fills a 1920 screen instead of sitting in the middle of it.
+- (BrowserAdvancedMenuItem *)narrowerLayoutMenuItem {
+    NSUInteger width = self.preferencesStore.pageLayoutWidth;
+    NSString *title = width > 0
+        ? [NSString stringWithFormat:@"화면 더 크게  (레이아웃 %lupx)", (unsigned long)width]
+        : @"화면 더 크게  (끔)";
+    __weak typeof(self) weakSelf = self;
+    return [self settingMenuItemWithTitle:title handler:^{
+        NSUInteger current = weakSelf.preferencesStore.pageLayoutWidth;
+        weakSelf.preferencesStore.pageLayoutWidth = current == 0 ? 1280
+            : (current > 900 ? current - 80 : current);
+        [weakSelf.host browserApplyPageLayoutWidth];
+    }];
+}
+
+- (BrowserAdvancedMenuItem *)widerLayoutMenuItem {
+    NSUInteger width = self.preferencesStore.pageLayoutWidth;
+    NSString *title = width > 0
+        ? [NSString stringWithFormat:@"화면 작게  (레이아웃 %lupx)", (unsigned long)width]
+        : @"화면 작게  (끔)";
+    __weak typeof(self) weakSelf = self;
+    return [self settingMenuItemWithTitle:title handler:^{
+        NSUInteger current = weakSelf.preferencesStore.pageLayoutWidth;
+        weakSelf.preferencesStore.pageLayoutWidth = (current == 0 || current >= 1840) ? 0 : current + 80;
+        [weakSelf.host browserApplyPageLayoutWidth];
+    }];
+}
+
+- (BrowserAdvancedMenuItem *)printableArticleMenuItem {
+    __weak typeof(self) weakSelf = self;
+    return [self advancedMenuItemWithTitle:@"기사만 깔끔하게 보기" style:UIAlertActionStyleDefault handler:^{
+        if (![weakSelf.host browserOpenPrintableArticle]) {
+            UIAlertController *alert =
+                [weakSelf browserAlertControllerWithTitle:@"기사만 깔끔하게 보기"
+                                                  message:@"네이버 뉴스 기사 페이지에서만 쓸 수 있습니다."];
+            [alert addAction:[weakSelf browserCancelAction]];
+            [weakSelf.host browserPresentViewController:alert];
+        }
+    }];
 }
 
 - (BrowserAdvancedMenuItem *)boldTextToggleMenuItem {

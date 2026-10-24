@@ -26,6 +26,10 @@ NS_ASSUME_NONNULL_BEGIN
 /// Whole-page reading zoom in percent. 100 == no zoom. Clamped 50...250.
 @property (nonatomic) NSUInteger pageZoomPercent;
 
+/// CSS width pages are laid out at before being scaled to fill the screen.
+/// 0 means no fitting. Korean news sites cap their layout near 1275.
+@property (nonatomic) NSUInteger pageLayoutWidth;
+
 /// Floor on rendered text size in points. 0 turns it off. Clamped 0...48.
 @property (nonatomic) NSUInteger minimumFontSize;
 
