@@ -75,6 +75,29 @@
                     "if (badNodes[l].parentNode) { badNodes[l].parentNode.removeChild(badNodes[l]); }"
                 "}"
             "}"
+            // Article photos are lazy-loaded: src holds a 1px placeholder and the real
+            // URL sits in a data- attribute that the page's own script would have
+            // copied across on scroll. The clone never scrolls, so copy it here or
+            // every picture in reader mode comes out blank.
+            "var lazyImages = clone.querySelectorAll('img');"
+            "for (var n = 0; n < lazyImages.length; n++) {"
+                "var img = lazyImages[n];"
+                "var currentSrc = img.getAttribute('src') || '';"
+                // Only step in where the real src is missing or is a placeholder, so an
+                // image that already loaded is never swapped for a stale data- value.
+                "var needsSrc = (currentSrc.length < 5) || (currentSrc.indexOf('data:') === 0) || /blank|placeholder|1x1|spacer/i.test(currentSrc);"
+                "if (needsSrc) {"
+                    "var lazyAttrs = ['data-src', 'data-original', 'data-lazy-src', 'data-echo'];"
+                    "for (var p = 0; p < lazyAttrs.length; p++) {"
+                        "var lazyValue = img.getAttribute(lazyAttrs[p]);"
+                        "if (lazyValue && lazyValue.length > 4) { img.setAttribute('src', lazyValue); break; }"
+                    "}"
+                "}"
+                "var lazySet = img.getAttribute('data-srcset') || img.getAttribute('data-lazy-srcset');"
+                "if (lazySet) { img.setAttribute('srcset', lazySet); }"
+                "img.removeAttribute('loading');"
+            "}"
+
             "var allElements = clone.querySelectorAll('*');"
             "for (var m = 0; m < allElements.length; m++) {"
                 "var el = allElements[m];"

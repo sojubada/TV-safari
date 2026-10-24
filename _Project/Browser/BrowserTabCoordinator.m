@@ -195,6 +195,9 @@ static CGFloat const kThumbnailStagingOffset = 4096.0;
     }
 
     if (webView.superview == self.thumbnailStagingView) {
+        // A frame assignment on a transformed view is undefined, and the fill
+        // -the-screen scale is still on it here.
+        webView.transform = CGAffineTransformIdentity;
         webView.frame = self.thumbnailStagingView.bounds;
     }
     [webView setNeedsLayout];
@@ -221,7 +224,15 @@ static CGFloat const kThumbnailStagingOffset = 4096.0;
         [webView removeFromSuperview];
         [self.thumbnailStagingView addSubview:webView];
     }
+    webView.transform = CGAffineTransformIdentity;
     webView.frame = self.thumbnailStagingView.bounds;
+}
+
+// Settings that belong to the browser rather than to one page — dark mode,
+// for one — have to reach the tabs sitting in the background too, or they
+// only take effect when you happen to switch to them.
+- (NSArray<BrowserWebView *> *)allLoadedWebViews {
+    return self.webViewsByTabIdentifier.allValues ?: @[];
 }
 
 - (BOOL)isWebViewStaged:(BrowserWebView *)webView {

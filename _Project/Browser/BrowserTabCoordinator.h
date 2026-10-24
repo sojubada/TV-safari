@@ -65,6 +65,9 @@ NS_ASSUME_NONNULL_BEGIN
 /// screen. 0 lays out at the screen width, as a desktop browser would.
 @property (nonatomic) CGFloat pageLayoutWidth;
 
+/// Every web view that currently exists, active and background alike.
+- (NSArray<BrowserWebView *> *)allLoadedWebViews;
+
 - (void)updateTopNavAndWebView;
 - (void)setTopNavigationVisible:(BOOL)visible;
 - (BrowserTabViewModel *)tabForWebView:(id)webView;

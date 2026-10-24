@@ -20,7 +20,13 @@ static NSString * const kEditableElementSelector = @"input, textarea, select, [c
         return point;
     }
 
-    CGFloat scale = CGRectGetWidth([webView frame]) / (CGFloat)displayWidth;
+    // bounds, not frame. The web view carries a scale transform when the page
+    // is laid out narrow and blown up to fill the screen, and convertPoint:
+    // has already divided by it. Dividing by frame width here divided by it a
+    // second time, so every click landed a third of the way up and to the
+    // left of the cursor — on Naver that is the search box, which is why
+    // clicking a headline opened a text prompt.
+    CGFloat scale = CGRectGetWidth([webView bounds]) / (CGFloat)displayWidth;
     if (scale <= 0.0) {
         return point;
     }
@@ -118,7 +124,17 @@ static NSString * const kEditableElementSelector = @"input, textarea, select, [c
                                      "return candidate;"
                                  "}"
                                  "if (candidate && candidate.closest) {"
-                                     "var fallback = candidate.closest(editableSelector) || candidate.closest('textarea, select');"
+                                     // Walk at most three ancestors, not the whole tree. The fallback is
+                                     // here to rescue a click on an inner <span> of a real input, which is
+                                     // never more than a couple of levels down. Unbounded, closest() would
+                                     // find an enclosing search form from a news headline and open the
+                                     // keyboard for the wrong element.
+                                     "var fallback = null;"
+                                     "var hop = candidate;"
+                                     "for (var depth = 0; depth < 3 && hop; depth++) {"
+                                         "if (hop.matches && (hop.matches(editableSelector) || hop.matches('textarea, select'))) { fallback = hop; break; }"
+                                         "hop = hop.parentElement;"
+                                     "}"
                                      "if (fallback && browserIsEditableCandidate(fallback)) {"
                                          "window.__browserLastEditableElement = fallback;"
                                          "return fallback;"

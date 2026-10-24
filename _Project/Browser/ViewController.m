@@ -623,7 +623,11 @@ static UIColor *kTextColor(void) {
 
 - (void)browserUpdateForcedDarkMode {
     BOOL enabled = self.preferencesStore.forcedDarkModeEnabled;
-    [self.darkModeController syncDarkModeState:enabled forWebView:self.webview];
+    // Applying this only to the visible tab left the others as they were
+    // until you switched to one, which looked like the setting had not taken.
+    for (BrowserWebView *webView in [self.tabCoordinator allLoadedWebViews]) {
+        [self.darkModeController syncDarkModeState:enabled forWebView:webView];
+    }
 }
 
 - (void)browserCaptureSnapshotForCurrentTab {
