@@ -691,29 +691,58 @@ static UIColor *kTextColor(void) {
 }
 
 // Naver's print view is not a popup, it is a URL: the same article with
-// "print/" after "article/". It is the article text on a white page with no
-// navigation, no ranking column and no advertising — the cleanest reading of
-// a news page this browser can get, and it costs one string substitution.
+// "print/" inserted before the publisher and article numbers. It is the text
+// on a white page with no navigation, no ranking column and no advertising.
+//
+// The path comes in more than one shape — /article/214/0001531015 and
+// /mnews/article/214/0001531015 both occur, and both take the print form —
+// so the "article" segment is located wherever it sits rather than assumed
+// to be first, and whatever precedes it is carried over.
 - (BOOL)browserOpenPrintableArticle {
     NSURL *URL = self.webview.request.URL;
-    NSString *path = URL.path ?: @"";
-    if (![URL.host hasSuffix:@"news.naver.com"] || [path hasPrefix:@"/article/print/"]) {
+    NSString *host = URL.host.lowercaseString ?: @"";
+    // Matching a bare suffix would also accept evilnews.naver.com.
+    BOOL isNaverNews = [host isEqualToString:@"news.naver.com"] ||
+                       [host hasSuffix:@".news.naver.com"];
+    if (!isNaverNews) {
         return NO;
     }
 
-    NSArray<NSString *> *parts = [path componentsSeparatedByString:@"/"];
-    // "", "article", oid, aid
-    if (parts.count < 4 || ![parts[1] isEqualToString:@"article"]) {
-        return NO;
+    NSMutableArray<NSString *> *segments = [NSMutableArray array];
+    for (NSString *segment in [(URL.path ?: @"") componentsSeparatedByString:@"/"]) {
+        if (segment.length > 0) {
+            [segments addObject:segment];
+        }
     }
-    NSString *oid = parts[2];
-    NSString *aid = parts[3];
-    if (oid.length == 0 || aid.length == 0) {
+
+    NSUInteger articleIndex = [segments indexOfObject:@"article"];
+    if (articleIndex == NSNotFound || segments.count < articleIndex + 3) {
         return NO;
     }
 
-    NSString *printString = [NSString stringWithFormat:@"https://n.news.naver.com/article/print/%@/%@", oid, aid];
-    NSURL *printURL = [NSURL URLWithString:printString];
+    NSString *oid = segments[articleIndex + 1];
+    NSString *aid = segments[articleIndex + 2];
+    if ([oid isEqualToString:@"print"]) {
+        return NO;   // already the print view
+    }
+
+    NSCharacterSet *nonDigits = NSCharacterSet.decimalDigitCharacterSet.invertedSet;
+    if (oid.length == 0 || aid.length == 0 ||
+        [oid rangeOfCharacterFromSet:nonDigits].location != NSNotFound ||
+        [aid rangeOfCharacterFromSet:nonDigits].location != NSNotFound) {
+        return NO;
+    }
+
+    NSMutableArray<NSString *> *printSegments =
+        [[segments subarrayWithRange:NSMakeRange(0, articleIndex + 1)] mutableCopy];
+    [printSegments addObjectsFromArray:@[@"print", oid, aid]];
+
+    NSURLComponents *components = [NSURLComponents new];
+    components.scheme = @"https";
+    components.host = URL.host;
+    components.path = [@"/" stringByAppendingString:[printSegments componentsJoinedByString:@"/"]];
+
+    NSURL *printURL = components.URL;
     if (printURL == nil) {
         return NO;
     }

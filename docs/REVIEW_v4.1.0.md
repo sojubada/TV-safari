@@ -181,16 +181,29 @@ webView.center = CGPointMake(originX + inset + availableWidth / 2.0,
 
 ### 5-2. 프린트 화면 (`ViewController.browserOpenPrintableArticle`)
 
+네이버 기사 경로는 한 가지가 아니다. 둘 다 실제로 존재하고 둘 다 프린트 형태가 산다.
+
+```
+/article/214/0001531015          →  /article/print/214/0001531015          200
+/mnews/article/214/0001531015    →  /mnews/article/print/214/0001531015    200
+```
+
+그래서 `article` 조각을 **경로 어디에 있든 찾아서** 앞부분을 그대로 보존한다.
+호스트는 접미사 일치(`evilnews.naver.com`이 통과함)를 버리고 정확히 검사한다.
+`oid`/`aid`는 숫자인지 확인한 뒤에만 URL을 만든다.
+
 ```objc
-// /article/{oid}/{aid}  →  /article/print/{oid}/{aid}
-if (![URL.host hasSuffix:@"news.naver.com"] || [path hasPrefix:@"/article/print/"]) return NO;
-NSArray *parts = [path componentsSeparatedByString:@"/"];
-if (parts.count < 4 || ![parts[1] isEqualToString:@"article"]) return NO;
+BOOL isNaverNews = [host isEqualToString:@"news.naver.com"] ||
+                   [host hasSuffix:@".news.naver.com"];
+NSUInteger articleIndex = [segments indexOfObject:@"article"];
+if (articleIndex == NSNotFound || segments.count < articleIndex + 3) return NO;
 ```
 
 **검토 요청:**
-- (e) `hasSuffix:@"news.naver.com"`은 `evilnews.naver.com` 같은 호스트도 통과시킨다. 위험한가? (여기서는 URL 생성만 하므로 영향이 제한적이라 판단했으나 의견을 듣고 싶다)
-- (f) 경로 파싱이 쿼리·프래그먼트·인코딩된 경로에서 안전한가?
+- (e) 호스트 검사와 숫자 검증으로 충분한가? 더 좁혀야 하는가?
+- (f) 경로 파싱이 쿼리·프래그먼트·퍼센트 인코딩에서 안전한가?
+  (`NSURL.path`는 디코딩된 경로를 돌려주는데, 그 뒤 `NSURLComponents.path`에 넣어 다시 인코딩되는 왕복이 문제를 일으킬 여지가 있는지)
+- (g) 네이버 외 다른 언론사 사이트에도 같은 방식으로 쓸 만한 프린트 경로가 있는가?
 
 ### 5-3. 즐겨찾기 폴더 (`BrowserFavoritesStore`)
 
@@ -205,8 +218,8 @@ if (parts.count < 4 || ![parts[1] isEqualToString:@"article"]) return NO;
 ```
 
 **검토 요청:**
-- (g) 구버전 데이터 호환이 실제로 보장되는가? 마이그레이션 없이 안전한가?
-- (h) 폴더 삭제 시 즐겨찾기를 보존하는 구현이 올바른가?
+- (h) 구버전 데이터 호환이 실제로 보장되는가? 마이그레이션 없이 안전한가?
+- (i) 폴더 삭제 시 즐겨찾기를 보존하는 구현이 올바른가?
 
 ### 5-4. 상단바 아이콘 재배치 (`BrowserTopBarView`)
 
@@ -214,8 +227,8 @@ if (parts.count < 4 || ![parts[1] isEqualToString:@"article"]) return NO;
 전체화면 토글 아이콘은 숨김 처리(`hidden = YES`)하고 `_focusButtons` 배열에서 제외.
 
 **검토 요청:**
-- (i) 숨긴 버튼을 배열에서만 빼고 객체는 남겨둔 것이 문제가 되는가? 완전히 제거하는 편이 나은가?
-- (j) 리모컨 좌우 포커스 이동 순서가 시각적 순서와 일치하는가?
+- (j) 숨긴 버튼을 배열에서만 빼고 객체는 남겨둔 것이 문제가 되는가? 완전히 제거하는 편이 나은가?
+- (k) 리모컨 좌우 포커스 이동 순서가 시각적 순서와 일치하는가?
 
 ---
 
@@ -241,8 +254,8 @@ if (parts.count < 4 || ![parts[1] isEqualToString:@"article"]) return NO;
 | 파일 | 크기 | 담긴 것 | 대응 검토 항목 |
 |---|---|---|---|
 | `SOURCE_1_LAYOUT_v4.1.0.md` | 171 KB | TabCoordinator, TopBarView, RemoteInputController, DOMInteractionService | **5-1 (a)~(d), 5-4** — 가장 중요 |
-| `SOURCE_2_HOST_v4.1.0.md` | 139 KB | ViewController, MenuCoordinator, PageActionCoordinator | 5-2 (e)(f) |
-| `SOURCE_3_STORAGE_v4.1.0.md` | 77 KB | WebView, FavoritesStore, PreferencesStore | 5-3 (g)(h) |
+| `SOURCE_2_HOST_v4.1.0.md` | 139 KB | ViewController, MenuCoordinator, PageActionCoordinator | 5-2 (e)~(g) |
+| `SOURCE_3_STORAGE_v4.1.0.md` | 77 KB | WebView, FavoritesStore, PreferencesStore | 5-3 (h)(i) |
 | `SOURCE_4_REST_v4.1.0.md` | 87 KB | 나머지 (맥락용) | — |
 
 한 번에 다 넣기 어렵다면 **1번만으로도 최우선 항목(커서 좌표계)은 검토 가능하다.**
