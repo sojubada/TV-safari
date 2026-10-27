@@ -1023,14 +1023,6 @@ withAnimationCoordinator:(UIFocusAnimationCoordinator *)coordinator {
     }];
 }
 
-- (BrowserAdvancedMenuItem *)favoritesMenuItem {
-    return [self advancedMenuItemWithTitle:@"Favorites"
-                                     style:UIAlertActionStyleDefault
-                                   handler:^{
-        [self presentFavoritesMenu];
-    }];
-}
-
 - (BrowserAdvancedMenuItem *)historyMenuItem {
     return [self advancedMenuItemWithTitle:@"History"
                                      style:UIAlertActionStyleDefault
@@ -1138,9 +1130,49 @@ withAnimationCoordinator:(UIFocusAnimationCoordinator *)coordinator {
     }
     [items addObject:[self deleteFavoriteMenuItem]];
     [items addObject:[self favoriteFoldersMenuItem]];
-    [items addObject:[self favoritesMenuItem]];
 
-    return @[[BrowserAdvancedMenuSection sectionWithTitle:@"즐겨찾기" items:items]];
+    NSMutableArray<BrowserAdvancedMenuSection *> *sections = [NSMutableArray array];
+    [sections addObject:[BrowserAdvancedMenuSection sectionWithTitle:@"즐겨찾기" items:items]];
+
+    // The list is what the star is for, so it is in the panel itself rather
+    // than one row deeper behind a screen of its own.
+    NSArray<BrowserAdvancedMenuItem *> *listItems = [self favoriteListMenuItemsInFolder:nil];
+    if (listItems.count > 0) {
+        [sections addObject:[BrowserAdvancedMenuSection sectionWithTitle:@"목록" items:listItems]];
+    }
+
+    return sections;
+}
+
+// One row per saved page, in the order they were saved. Choosing a row loads
+// it and the panel closes behind it.
+- (NSArray<BrowserAdvancedMenuItem *> *)favoriteListMenuItemsInFolder:(nullable NSString *)folder {
+    NSArray<NSArray<NSString *> *> *favorites = (folder.length > 0)
+        ? [self.favoritesStore favoritesInFolder:folder]
+        : [self.favoritesStore favorites];
+    NSMutableArray<BrowserAdvancedMenuItem *> *items = [NSMutableArray array];
+    __weak typeof(self) weakSelf = self;
+
+    for (NSArray<NSString *> *entry in favorites) {
+        NSString *URLString = entry.count > 0 ? entry[0] : @"";
+        if (URLString.length == 0) {
+            continue;
+        }
+        NSString *storedTitle = entry.count > 1 ? entry[1] : @"";
+        NSString *displayTitle = [self displayTitleForStoredTitle:storedTitle
+                                                        URLString:URLString
+                                                       includeURL:NO];
+        if (![self stringHasVisibleContent:displayTitle]) {
+            continue;
+        }
+        [items addObject:[self advancedMenuItemWithTitle:displayTitle
+                                                   style:UIAlertActionStyleDefault
+                                                 handler:^{
+            [weakSelf loadStoredURLString:URLString];
+        }]];
+    }
+
+    return items;
 }
 
 - (BrowserAdvancedMenuItem *)deleteFavoriteMenuItem {

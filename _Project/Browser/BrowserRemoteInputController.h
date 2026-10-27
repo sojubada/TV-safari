@@ -18,6 +18,14 @@ NS_ASSUME_NONNULL_BEGIN
 /// both own the direction pad.
 - (BOOL)browserRemoteInputControllerFocusNavigationActive;
 - (BOOL)browserRemoteInputControllerCanActivateTopBarFocus;
+/// Bottom edge of the top bar in root coordinates, or 0 when the bar is
+/// hidden. The pointer snaps into the bar at this line, and page edge
+/// auto-scroll starts below it.
+- (CGFloat)browserRemoteInputControllerTopBarBottomEdge;
+/// Restores bar focus after a menu closed, if the bar had it when the menu
+/// opened. Returns YES when it took the press.
+- (BOOL)browserRemoteInputControllerRestoreTopBarFocusIfPending;
+- (void)browserRemoteInputControllerCancelPendingTopBarFocusRestore;
 - (void)browserRemoteInputControllerActivateTopBarFocus;
 - (void)browserRemoteInputControllerDeactivateTopBarFocus;
 - (BOOL)browserRemoteInputControllerTabOverviewVisible;
@@ -64,6 +72,9 @@ NS_ASSUME_NONNULL_BEGIN
 - (void)handleTouchesCancelled;
 - (void)setCursorModeEnabled:(BOOL)cursorModeEnabled;
 - (void)refreshInteractionState;
+/// Called when the bar gives focus back, so the pointer reappears below the
+/// bar instead of inside it, where it would snap straight back in.
+- (void)noteTopBarFocusDeactivated;
 
 @end
 

@@ -69,6 +69,7 @@ static UIColor *kTextColor(void) {
 @property (nonatomic) BOOL displayedHintsOnLaunch;
 @property (nonatomic) BOOL scrollViewAllowBounces;
 @property (nonatomic, getter=isTopBarFocusActive) BOOL topBarFocusActive;
+@property (nonatomic) BOOL topBarFocusPendingRestore;
 @property (nonatomic, copy, nullable) NSString *lastWebContentCrashURLString;
 @property (nonatomic) NSUInteger consecutiveWebContentCrashes;
 
@@ -237,6 +238,7 @@ static UIColor *kTextColor(void) {
     }
 
     self.topBarFocusActive = NO;
+    [self.remoteInputController noteTopBarFocusDeactivated];
     [self.topMenuView setFocusModeActive:NO];
     [self.remoteInputController refreshInteractionState];
     [self setNeedsFocusUpdate];
@@ -581,7 +583,35 @@ static UIColor *kTextColor(void) {
     return self.viewModel.topNavigationBarVisible;
 }
 
+- (CGFloat)browserRemoteInputControllerTopBarBottomEdge {
+    if (!self.viewModel.topNavigationBarVisible || self.topMenuView.hidden) {
+        return 0.0;
+    }
+    return CGRectGetMaxY(self.topMenuView.frame);
+}
+
+- (BOOL)browserRemoteInputControllerRestoreTopBarFocusIfPending {
+    if (!self.topBarFocusPendingRestore) {
+        return NO;
+    }
+    self.topBarFocusPendingRestore = NO;
+    if (![self canActivateTopBarFocusMode]) {
+        return NO;
+    }
+    [self activateTopBarFocusMode];
+    return YES;
+}
+
+- (void)browserRemoteInputControllerCancelPendingTopBarFocusRestore {
+    self.topBarFocusPendingRestore = NO;
+}
+
 - (void)browserPresentViewController:(UIViewController *)viewController {
+    // A menu opened from the bar has to take focus, so the bar gives it up.
+    // Remember that it had it, or closing the menu leaves the remote owning
+    // nothing: arrow presses fall through to page history instead of moving
+    // between the icons the person was just using.
+    self.topBarFocusPendingRestore = self.topBarFocusActive;
     [self deactivateTopBarFocusMode];
     [self presentViewController:viewController animated:YES completion:nil];
 }

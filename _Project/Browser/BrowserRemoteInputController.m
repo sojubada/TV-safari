@@ -74,6 +74,9 @@ static NSString *BrowserPressPhaseString(UIPressPhase phase) {
 @property (nonatomic) CFTimeInterval selectPressStartTime;
 @property (nonatomic, nullable) NSTimer *cursorIdleTimer;
 @property (nonatomic) CFTimeInterval lastCursorActivityTimestamp;
+// Set when the bar hands focus back. Without it the pointer, parked inside the
+// bar, would snap straight back in on the next flick of the finger.
+@property (nonatomic) CFTimeInterval topBarSnapSuppressedUntil;
 
 @property (nonatomic, nullable) CADisplayLink *dpadPageScrollDisplayLink;
 @property (nonatomic) CFTimeInterval dpadPageScrollStartTime;
@@ -156,9 +159,52 @@ static NSString *BrowserPressPhaseString(UIPressPhase phase) {
     return width > 0.0 ? width : 1920.0;
 }
 
+// The bar's own rectangle is the zone, so the pointer activates it by touching
+// it rather than by being somewhere near the top of a screen.
+- (CGFloat)topBarBottomEdge {
+    CGFloat edge = [self.host browserRemoteInputControllerTopBarBottomEdge];
+    if (edge <= 1.0) {
+        return 0.0;
+    }
+    return MIN(edge, [self viewportHeight] * 0.25);
+}
+
 - (BOOL)isCursorInTopBarActivationZone {
+    CGFloat barBottom = [self topBarBottomEdge];
+    if (barBottom > 0.0) {
+        return self.cursorView.center.y < barBottom;
+    }
     CGFloat screenHeight = [self viewportHeight];
     return self.cursorView.center.y < (screenHeight * 0.12);
+}
+
+- (void)noteTopBarFocusDeactivated {
+    CGFloat barBottom = [self topBarBottomEdge];
+    if (barBottom > 0.0) {
+        CGRect rect = self.cursorView.frame;
+        if (rect.origin.y < barBottom) {
+            rect.origin.y = barBottom + 40.0;
+            self.cursorView.frame = rect;
+        }
+    }
+    self.topBarSnapSuppressedUntil = CACurrentMediaTime() + 0.6;
+    self.lastTouchLocation = CGPointMake(-1, -1);
+}
+
+- (BOOL)shouldSnapToTopBarMovingUpward:(BOOL)movingUpward {
+    if (!movingUpward || !self.cursorModeEnabled) {
+        return NO;
+    }
+    if (CACurrentMediaTime() < self.topBarSnapSuppressedUntil) {
+        return NO;
+    }
+    if ([self topBarBottomEdge] <= 0.0) {
+        return NO;
+    }
+    if (![self isCursorInTopBarActivationZone]) {
+        return NO;
+    }
+    return [self.host browserRemoteInputControllerCanActivateTopBarFocus];
 }
 
 - (BOOL)canPerformCustomScroll {
@@ -480,8 +526,13 @@ static NSString *BrowserPressPhaseString(UIPressPhase phase) {
     CGFloat cursorY = self.cursorView.center.y;
     CGFloat velocityY = 0.0;
 
-    if (cursorY < edgeZoneHeight) {
-        CGFloat ratio = (edgeZoneHeight - MAX(0.0, cursorY)) / edgeZoneHeight;
+    // With the bar on screen its rectangle belongs to the bar, so the upward
+    // scroll zone begins underneath it instead of overlapping it.
+    CGFloat topZoneStart = [self topBarBottomEdge];
+    CGFloat topZoneEnd = topZoneStart + edgeZoneHeight;
+
+    if (cursorY < topZoneEnd && cursorY >= topZoneStart) {
+        CGFloat ratio = (topZoneEnd - cursorY) / edgeZoneHeight;
         velocityY = -1200.0 * MIN(1.0, MAX(0.0, ratio));
     } else if (cursorY > (screenHeight - edgeZoneHeight)) {
         CGFloat ratio = (MIN(screenHeight, cursorY) - (screenHeight - edgeZoneHeight)) / edgeZoneHeight;
@@ -831,6 +882,22 @@ static const CFTimeInterval kBrowserCursorIdleHideDelay = 3.0;
         return YES;
     }
 
+    // The bar gave up focus so a menu opened from it could take it. The first
+    // arrow press after that menu closes puts focus back where it was, instead
+    // of falling through to page scrolling or page history. Down means the
+    // person wants the page, so it only clears the pending restore.
+    if (press.type == UIPressTypeUpArrow ||
+        press.type == UIPressTypeLeftArrow ||
+        press.type == UIPressTypeRightArrow) {
+        if ([self.host browserRemoteInputControllerPresentedViewController] == nil &&
+            ![self.host browserRemoteInputControllerTabOverviewVisible] &&
+            [self.host browserRemoteInputControllerRestoreTopBarFocusIfPending]) {
+            return YES;
+        }
+    } else if (press.type == UIPressTypeDownArrow) {
+        [self.host browserRemoteInputControllerCancelPendingTopBarFocusRestore];
+    }
+
     if (press.type == UIPressTypeUpArrow || press.type == UIPressTypeDownArrow) {
         if (![self canPerformCustomScroll]) {
             return NO;
@@ -924,6 +991,9 @@ static const CFTimeInterval kBrowserCursorIdleHideDelay = 3.0;
     if ([self.host browserRemoteInputControllerFocusNavigationActive]) {
         return NO;
     }
+    // Moving the pointer is a decision to use the page, so a bar focus waiting
+    // to be restored is dropped rather than stealing the next arrow press.
+    [self.host browserRemoteInputControllerCancelPendingTopBarFocusRestore];
     if ([self.host browserRemoteInputControllerTabOverviewVisible]) {
         return NO;
     }
@@ -953,6 +1023,19 @@ static const CFTimeInterval kBrowserCursorIdleHideDelay = 3.0;
             }
             self.cursorView.frame = rect;
             self.lastTouchLocation = location;
+
+            // Magnetic bar: sliding the pointer up into the bar hands the
+            // remote to the focus engine, so the icons are reached by moving
+            // to them rather than by pressing up first. A hard swipe down has
+            // nothing focusable below the bar, so it arrives as a down press
+            // and gives the pointer back.
+            if ([self shouldSnapToTopBarMovingUpward:(yDiff < 0.0)]) {
+                self.trackingTouchForTap = NO;
+                [self stopEdgeAutoScroll];
+                [self stopManualScrollInertia];
+                [self.host browserRemoteInputControllerActivateTopBarFocus];
+                return YES;
+            }
 
             if (self.trackingTouchForTap) {
                 CGFloat dx = rect.origin.x - self.currentTouchStartCursorOrigin.x;
