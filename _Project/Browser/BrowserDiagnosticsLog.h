@@ -24,6 +24,12 @@ NS_ASSUME_NONNULL_BEGIN
 /// Starts a new session's section, naming the app version.
 - (void)logSessionStart;
 
+/// Arms the two things an ordinary log cannot catch: a crash below
+/// Objective-C, which kills the process before any normal code runs, and a
+/// main thread that stops answering, which ends with the system taking the
+/// app and no record of why.
+- (void)installCrashAndStallWatch;
+
 /// The whole log as a page the browser can show, newest first. The file sits
 /// in the app's own container, which nothing else on the box can navigate to,
 /// so the browser reads it to itself.

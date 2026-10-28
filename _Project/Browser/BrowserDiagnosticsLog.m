@@ -2,6 +2,13 @@
 
 #import <UIKit/UIKit.h>
 
+#import <objc/runtime.h>
+
+#import <fcntl.h>
+#import <string.h>
+#import <signal.h>
+#import <unistd.h>
+
 static const unsigned long long kBrowserDiagnosticsMaxBytes = 512 * 1024;
 static NSString *const kBrowserDiagnosticsFileName = @"tv-safari-diag.log";
 
@@ -11,6 +18,40 @@ static NSString *const kBrowserDiagnosticsFileName = @"tv-safari-diag.log";
 @property (nonatomic) NSDateFormatter *timestampFormatter;
 @end
 
+
+// Written from a signal handler, where almost nothing is allowed: no
+// Objective-C, no malloc, no NSString. Only the path, held as plain bytes
+// from before the crash, and write().
+static char gBrowserLogPathBytes[1024] = {0};
+
+static void BrowserWriteRaw(const char *text) {
+    if (gBrowserLogPathBytes[0] == 0 || text == NULL) {
+        return;
+    }
+    int fd = open(gBrowserLogPathBytes, O_WRONLY | O_APPEND | O_CREAT, 0644);
+    if (fd < 0) {
+        return;
+    }
+    size_t length = strlen(text);
+    ssize_t ignored = write(fd, text, length);
+    (void)ignored;
+    close(fd);
+}
+
+static void BrowserHandleFatalSignal(int signalNumber) {
+    switch (signalNumber) {
+        case SIGSEGV: BrowserWriteRaw("SIGNAL  SIGSEGV (bad memory access)\n"); break;
+        case SIGBUS:  BrowserWriteRaw("SIGNAL  SIGBUS\n"); break;
+        case SIGABRT: BrowserWriteRaw("SIGNAL  SIGABRT\n"); break;
+        case SIGILL:  BrowserWriteRaw("SIGNAL  SIGILL\n"); break;
+        case SIGFPE:  BrowserWriteRaw("SIGNAL  SIGFPE\n"); break;
+        case SIGTRAP: BrowserWriteRaw("SIGNAL  SIGTRAP\n"); break;
+        default:      BrowserWriteRaw("SIGNAL  other\n"); break;
+    }
+    // Hand it back to the system so the crash still happens as it would have.
+    signal(signalNumber, SIG_DFL);
+    raise(signalNumber);
+}
 
 @implementation BrowserDiagnosticsLog
 
@@ -78,6 +119,66 @@ static NSString *const kBrowserDiagnosticsFileName = @"tv-safari-diag.log";
         return path;
     }
     return nil;
+}
+
+- (void)installCrashAndStallWatch {
+    NSString *path = self.logFilePath;
+    if (path.length == 0) {
+        return;
+    }
+    strncpy(gBrowserLogPathBytes, path.fileSystemRepresentation, sizeof(gBrowserLogPathBytes) - 1);
+
+    signal(SIGSEGV, BrowserHandleFatalSignal);
+    signal(SIGBUS, BrowserHandleFatalSignal);
+    signal(SIGABRT, BrowserHandleFatalSignal);
+    signal(SIGILL, BrowserHandleFatalSignal);
+    signal(SIGFPE, BrowserHandleFatalSignal);
+    signal(SIGTRAP, BrowserHandleFatalSignal);
+
+    [self startMainThreadStallWatch];
+}
+
+// A frozen app is killed with no warning and no exception, so the only way to
+// know it froze is to have asked the main thread a question it failed to
+// answer. A ping every second; if three in a row go unanswered the main
+// thread has been stuck for about that long, and that is written down.
+- (void)startMainThreadStallWatch {
+    static dispatch_once_t onceToken;
+    dispatch_once(&onceToken, ^{
+        __block NSInteger outstanding = 0;
+        dispatch_queue_t watchQueue =
+            dispatch_queue_create("browser.diagnostics.watch", DISPATCH_QUEUE_SERIAL);
+        dispatch_source_t timer =
+            dispatch_source_create(DISPATCH_SOURCE_TYPE_TIMER, 0, 0, watchQueue);
+        dispatch_source_set_timer(timer,
+                                  dispatch_time(DISPATCH_TIME_NOW, (int64_t)(1.0 * NSEC_PER_SEC)),
+                                  (uint64_t)(1.0 * NSEC_PER_SEC),
+                                  (uint64_t)(0.2 * NSEC_PER_SEC));
+        __weak typeof(self) weakSelf = self;
+        dispatch_source_set_event_handler(timer, ^{
+            outstanding += 1;
+            if (outstanding == 4) {
+                // Raw write: the serial queue behind logEvent: is fine, but a
+                // stall this long often ends with the process gone before a
+                // queued write reaches the disk.
+                BrowserWriteRaw("STALL  main thread has not answered for ~4s\n");
+            }
+            dispatch_async(dispatch_get_main_queue(), ^{
+                dispatch_async(watchQueue, ^{
+                    if (outstanding >= 4) {
+                        [weakSelf logEvent:@"STALL-END"
+                                    detail:[NSString stringWithFormat:@"main thread answered after ~%lds",
+                                            (long)outstanding]];
+                    }
+                    outstanding = 0;
+                });
+            });
+        });
+        dispatch_resume(timer);
+        // Held for the life of the app.
+        objc_setAssociatedObject(self, @selector(startMainThreadStallWatch), timer,
+                                 OBJC_ASSOCIATION_RETAIN);
+    });
 }
 
 - (void)logSessionStart {

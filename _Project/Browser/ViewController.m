@@ -155,6 +155,10 @@ static UIColor *kTextColor(void) {
     BrowserFocusEscapeView *escapeView = [[BrowserFocusEscapeView alloc] initWithFrame:CGRectZero];
     escapeView.backgroundColor = UIColor.clearColor;
     escapeView.focusAllowed = NO;
+    // Hidden except while the bar holds focus. Left visible it is a clear
+    // sheet sitting over the page, and a clear sheet still takes every touch
+    // meant for what is underneath it — the page stops answering entirely.
+    escapeView.hidden = YES;
     [self.view addSubview:escapeView];
     self.focusEscapeView = escapeView;
     [self.view addSubview:self.remoteInputController.cursorView];
@@ -285,6 +289,7 @@ static UIColor *kTextColor(void) {
     }
 
     self.topBarFocusActive = YES;
+    self.focusEscapeView.hidden = NO;
     self.focusEscapeView.focusAllowed = YES;
     [self.topMenuView setFocusModeActive:YES];
     [self.remoteInputController refreshInteractionState];
@@ -299,6 +304,7 @@ static UIColor *kTextColor(void) {
 
     self.topBarFocusActive = NO;
     self.focusEscapeView.focusAllowed = NO;
+    self.focusEscapeView.hidden = YES;
     [self.remoteInputController noteTopBarFocusDeactivated];
     [self.topMenuView setFocusModeActive:NO];
     [self.remoteInputController refreshInteractionState];
@@ -605,11 +611,13 @@ static UIColor *kTextColor(void) {
     [super viewDidLayoutSubviews];
     // Directly under the bar and the full width of it, so "down" out of any
     // icon lands here.
+    // A strip under the bar, not the whole page: the focus engine only needs
+    // somewhere for "down" out of the bar to land.
     CGFloat top = CGRectGetMaxY(self.topMenuView.frame);
     self.focusEscapeView.frame = CGRectMake(0.0,
                                             top,
                                             CGRectGetWidth(self.view.bounds),
-                                            MAX(120.0, CGRectGetHeight(self.view.bounds) - top));
+                                            90.0);
 }
 
 - (void)didUpdateFocusInContext:(UIFocusUpdateContext *)context
