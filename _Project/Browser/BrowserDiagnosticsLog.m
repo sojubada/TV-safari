@@ -9,66 +9,8 @@ static NSString *const kBrowserDiagnosticsFileName = @"tv-safari-diag.log";
 @property (nonatomic, readwrite, copy, nullable) NSString *logFilePath;
 @property (nonatomic) dispatch_queue_t writeQueue;
 @property (nonatomic) NSDateFormatter *timestampFormatter;
-+ (NSString *)escapedHTML:(NSString *)text {
-    NSMutableString *escaped = [text mutableCopy];
-    [escaped replaceOccurrencesOfString:@"&" withString:@"&amp;"
-                                options:0 range:NSMakeRange(0, escaped.length)];
-    [escaped replaceOccurrencesOfString:@"<" withString:@"&lt;"
-                                options:0 range:NSMakeRange(0, escaped.length)];
-    [escaped replaceOccurrencesOfString:@">" withString:@"&gt;"
-                                options:0 range:NSMakeRange(0, escaped.length)];
-    return escaped;
-}
-
-- (NSString *)logPageHTML {
-    NSString *path = self.logFilePath;
-    NSString *contents = path.length > 0
-        ? [NSString stringWithContentsOfFile:path encoding:NSUTF8StringEncoding error:NULL]
-        : nil;
-
-    NSMutableString *rows = [NSMutableString string];
-    if (contents.length > 0) {
-        NSArray<NSString *> *lines = [contents componentsSeparatedByString:@"\n"];
-        // Newest first: the thing that just went wrong is the thing being
-        // looked for, and it should not be at the end of a long scroll.
-        for (NSString *line in [[lines reverseObjectEnumerator] allObjects]) {
-            if (line.length == 0) {
-                continue;
-            }
-            NSString *className = @"row";
-            if ([line rangeOfString:@"CRASH"].location != NSNotFound) {
-                className = @"row crash";
-            } else if ([line rangeOfString:@"load-fail"].location != NSNotFound) {
-                className = @"row fail";
-            } else if ([line rangeOfString:@"--- launch"].location != NSNotFound) {
-                className = @"row launch";
-            }
-            [rows appendFormat:@"<div class=\"%@\">%@</div>", className,
-                               [[self class] escapedHTML:line]];
-        }
-    } else {
-        [rows appendString:@"<div class=\"row\">기록된 내용이 없습니다.</div>"];
-    }
-
-    return [NSString stringWithFormat:
-            @"<!doctype html><html><head><meta charset=\"utf-8\">"
-            "<meta name=\"viewport\" content=\"width=device-width,initial-scale=1\">"
-            "<style>"
-            "body{background:#0d1117;color:#d7dde5;font:28px/1.5 -apple-system,monospace;"
-            "margin:0;padding:48px 64px;}"
-            "h1{font-size:40px;margin:0 0 8px;color:#fff;}"
-            "p.path{color:#8a94a6;font-size:22px;word-break:break-all;margin:0 0 32px;}"
-            ".row{padding:10px 14px;border-bottom:1px solid #1d2430;white-space:pre-wrap;"
-            "word-break:break-all;}"
-            ".crash{background:#3a1416;color:#ff9a9a;}"
-            ".fail{background:#3a2d12;color:#ffd48a;}"
-            ".launch{background:#10263a;color:#8fc8ff;}"
-            "</style></head><body>"
-            "<h1>진단 로그</h1><p class=\"path\">%@</p>%@</body></html>",
-            [[self class] escapedHTML:path ?: @"(없음)"], rows];
-}
-
 @end
+
 
 @implementation BrowserDiagnosticsLog
 
@@ -198,6 +140,65 @@ static NSString *const kBrowserDiagnosticsFileName = @"tv-safari-diag.log";
         // A full or vanished volume is not worth taking the app down for.
     }
     [handle closeFile];
+}
+
++ (NSString *)escapedHTML:(NSString *)text {
+    NSMutableString *escaped = [text mutableCopy];
+    [escaped replaceOccurrencesOfString:@"&" withString:@"&amp;"
+                                options:0 range:NSMakeRange(0, escaped.length)];
+    [escaped replaceOccurrencesOfString:@"<" withString:@"&lt;"
+                                options:0 range:NSMakeRange(0, escaped.length)];
+    [escaped replaceOccurrencesOfString:@">" withString:@"&gt;"
+                                options:0 range:NSMakeRange(0, escaped.length)];
+    return escaped;
+}
+
+- (NSString *)logPageHTML {
+    NSString *path = self.logFilePath;
+    NSString *contents = path.length > 0
+        ? [NSString stringWithContentsOfFile:path encoding:NSUTF8StringEncoding error:NULL]
+        : nil;
+
+    NSMutableString *rows = [NSMutableString string];
+    if (contents.length > 0) {
+        NSArray<NSString *> *lines = [contents componentsSeparatedByString:@"\n"];
+        // Newest first: the thing that just went wrong is the thing being
+        // looked for, and it should not be at the end of a long scroll.
+        for (NSString *line in [[lines reverseObjectEnumerator] allObjects]) {
+            if (line.length == 0) {
+                continue;
+            }
+            NSString *className = @"row";
+            if ([line rangeOfString:@"CRASH"].location != NSNotFound) {
+                className = @"row crash";
+            } else if ([line rangeOfString:@"load-fail"].location != NSNotFound) {
+                className = @"row fail";
+            } else if ([line rangeOfString:@"--- launch"].location != NSNotFound) {
+                className = @"row launch";
+            }
+            [rows appendFormat:@"<div class=\"%@\">%@</div>", className,
+                               [[self class] escapedHTML:line]];
+        }
+    } else {
+        [rows appendString:@"<div class=\"row\">기록된 내용이 없습니다.</div>"];
+    }
+
+    return [NSString stringWithFormat:
+            @"<!doctype html><html><head><meta charset=\"utf-8\">"
+            "<meta name=\"viewport\" content=\"width=device-width,initial-scale=1\">"
+            "<style>"
+            "body{background:#0d1117;color:#d7dde5;font:28px/1.5 -apple-system,monospace;"
+            "margin:0;padding:48px 64px;}"
+            "h1{font-size:40px;margin:0 0 8px;color:#fff;}"
+            "p.path{color:#8a94a6;font-size:22px;word-break:break-all;margin:0 0 32px;}"
+            ".row{padding:10px 14px;border-bottom:1px solid #1d2430;white-space:pre-wrap;"
+            "word-break:break-all;}"
+            ".crash{background:#3a1416;color:#ff9a9a;}"
+            ".fail{background:#3a2d12;color:#ffd48a;}"
+            ".launch{background:#10263a;color:#8fc8ff;}"
+            "</style></head><body>"
+            "<h1>진단 로그</h1><p class=\"path\">%@</p>%@</body></html>",
+            [[self class] escapedHTML:path ?: @"(없음)"], rows];
 }
 
 @end
