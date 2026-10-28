@@ -25,6 +25,11 @@ NS_ASSUME_NONNULL_BEGIN
 /// hidden. The pointer snaps into the bar at this line, and page edge
 /// auto-scroll starts below it.
 - (CGFloat)browserRemoteInputControllerTopBarBottomEdge;
+/// Reports page scrolling so the bar can get out of the way going down
+/// and come back coming up.
+- (void)browserRemoteInputControllerDidScrollVertically:(CGFloat)deltaY;
+/// Brings a bar hidden by scrolling back. YES when it had to.
+- (BOOL)browserRemoteInputControllerRevealTopBarIfHidden;
 /// Restores bar focus after a menu closed, if the bar had it when the menu
 /// opened. Returns YES when it took the press.
 - (BOOL)browserRemoteInputControllerRestoreTopBarFocusIfPending;

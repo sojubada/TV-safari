@@ -239,6 +239,19 @@ static NSString *BrowserPressPhaseString(UIPressPhase phase) {
     return [self.host browserRemoteInputControllerCanActivateTopBarFocus];
 }
 
+// Reaching the very top of the screen brings a scrolled-away bar back. The
+// snap itself waits for the next movement, so the bar appearing is never the
+// same gesture as being pulled into it.
+- (BOOL)revealTopBarIfCursorAtScreenTop:(BOOL)movingUpward {
+    if (!movingUpward || !self.cursorModeEnabled) {
+        return NO;
+    }
+    if (self.cursorView.center.y > ([self viewportHeight] * 0.07)) {
+        return NO;
+    }
+    return [self.host browserRemoteInputControllerRevealTopBarIfHidden];
+}
+
 - (BOOL)canPerformCustomScroll {
     return [self.host browserRemoteInputControllerPresentedViewController] == nil &&
         ![self.host browserRemoteInputControllerTabOverviewVisible] &&
@@ -300,6 +313,7 @@ static NSString *BrowserPressPhaseString(UIPressPhase phase) {
         CGPoint nextOffset = CGPointMake(nextOffsetX, nextOffsetY);
         if (!CGPointEqualToPoint(contentOffset, nextOffset)) {
             [scrollView setContentOffset:nextOffset animated:NO];
+            [self.host browserRemoteInputControllerDidScrollVertically:(nextOffsetY - contentOffset.y)];
             return YES;
         }
     }
@@ -308,7 +322,11 @@ static NSString *BrowserPressPhaseString(UIPressPhase phase) {
         return NO;
     }
 
-    return [self enqueueJavaScriptScrollDelta:delta];
+    BOOL moved = [self enqueueJavaScriptScrollDelta:delta];
+    if (moved) {
+        [self.host browserRemoteInputControllerDidScrollVertically:delta.y];
+    }
+    return moved;
 }
 
 // The fallback evaluates JavaScript synchronously, which pumps the run loop.
@@ -1069,6 +1087,10 @@ static const CFTimeInterval kBrowserCursorIdleHideDelay = 3.0;
             // to them rather than by pressing up first. A hard swipe down has
             // nothing focusable below the bar, so it arrives as a down press
             // and gives the pointer back.
+            if ([self revealTopBarIfCursorAtScreenTop:(yDiff < 0.0)]) {
+                return YES;
+            }
+
             if ([self shouldSnapToTopBarMovingUpward:(yDiff < 0.0)]) {
                 self.trackingTouchForTap = NO;
                 [self stopEdgeAutoScroll];

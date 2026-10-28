@@ -52,6 +52,20 @@ static UIColor *kTextColor(void) {
     }
 }
 
+/// A view that exists only to be focused. It sits just under the bar, so a
+/// downward swipe while the bar has focus has somewhere to go — the focus
+/// engine owns the touch surface at that moment, and a plain touch handler
+/// never sees the gesture at all.
+@interface BrowserFocusEscapeView : UIView
+@property (nonatomic) BOOL focusAllowed;
+@end
+
+@implementation BrowserFocusEscapeView
+- (BOOL)canBecomeFocused {
+    return self.focusAllowed;
+}
+@end
+
 @interface ViewController () <BrowserMenuCoordinatorHost, BrowserPageActionCoordinatorHost, BrowserRemoteInputControllerHost, BrowserTabCoordinatorHost, BrowserTabOverviewControllerHost, BrowserTopBarViewDelegate,
     BrowserHardwareKeyboardControllerDelegate>
 
@@ -65,6 +79,11 @@ static UIColor *kTextColor(void) {
 @property (nonatomic) CGPoint hardwareTypingDOMPoint;
 @property (nonatomic, weak) BrowserWebView *hardwareTypingWebView;
 @property (nonatomic, nullable) UILabel *inputModeLabel;
+@property (nonatomic, nullable) BrowserFocusEscapeView *focusEscapeView;
+/// Hidden by scrolling down, which is separate from the person switching the
+/// bar off for good.
+@property (nonatomic) BOOL topBarHiddenByScrolling;
+@property (nonatomic) CGFloat topBarScrollAccumulator;
 @property (nonatomic) BrowserMenuCoordinator *menuCoordinator;
 @property (nonatomic) BrowserNavigationService *navigationService;
 @property (nonatomic) BrowserPageActionCoordinator *pageActionCoordinator;
@@ -113,6 +132,11 @@ static UIColor *kTextColor(void) {
     self.sessionStore = [BrowserSessionStore new];
     self.menuCoordinator = [[BrowserMenuCoordinator alloc] initWithHost:self preferencesStore:self.preferencesStore];
     self.remoteInputController = [[BrowserRemoteInputController alloc] initWithHost:self rootView:self.view];
+    BrowserFocusEscapeView *escapeView = [[BrowserFocusEscapeView alloc] initWithFrame:CGRectZero];
+    escapeView.backgroundColor = UIColor.clearColor;
+    escapeView.focusAllowed = NO;
+    [self.view addSubview:escapeView];
+    self.focusEscapeView = escapeView;
     [self.view addSubview:self.remoteInputController.cursorView];
     self.tabCoordinator = [[BrowserTabCoordinator alloc] initWithHost:self
                                                              viewModel:self.viewModel
@@ -237,6 +261,7 @@ static UIColor *kTextColor(void) {
     }
 
     self.topBarFocusActive = YES;
+    self.focusEscapeView.focusAllowed = YES;
     [self.topMenuView setFocusModeActive:YES];
     [self.remoteInputController refreshInteractionState];
     [self setNeedsFocusUpdate];
@@ -249,6 +274,7 @@ static UIColor *kTextColor(void) {
     }
 
     self.topBarFocusActive = NO;
+    self.focusEscapeView.focusAllowed = NO;
     [self.remoteInputController noteTopBarFocusDeactivated];
     [self.topMenuView setFocusModeActive:NO];
     [self.remoteInputController refreshInteractionState];
@@ -551,6 +577,32 @@ static UIColor *kTextColor(void) {
     }];
 }
 
+- (void)viewDidLayoutSubviews {
+    [super viewDidLayoutSubviews];
+    // Directly under the bar and the full width of it, so "down" out of any
+    // icon lands here.
+    CGFloat top = CGRectGetMaxY(self.topMenuView.frame);
+    self.focusEscapeView.frame = CGRectMake(0.0,
+                                            top,
+                                            CGRectGetWidth(self.view.bounds),
+                                            MAX(120.0, CGRectGetHeight(self.view.bounds) - top));
+}
+
+- (void)didUpdateFocusInContext:(UIFocusUpdateContext *)context
+       withAnimationCoordinator:(UIFocusAnimationCoordinator *)coordinator {
+    [super didUpdateFocusInContext:context withAnimationCoordinator:coordinator];
+    if (context.nextFocusedView != self.focusEscapeView || self.focusEscapeView == nil) {
+        return;
+    }
+    // Focus arrived at the patch below the bar, which only happens on a swipe
+    // down out of the bar. Leaving focus mode runs a focus update of its own,
+    // so it waits until this one has finished.
+    __weak typeof(self) weakSelf = self;
+    dispatch_async(dispatch_get_main_queue(), ^{
+        [weakSelf deactivateTopBarFocusMode];
+    });
+}
+
 - (NSArray<id<UIFocusEnvironment>> *)preferredFocusEnvironments {
     if (self.topBarFocusActive) {
         UIView *preferredFocusItem = [self.topMenuView preferredFocusItem];
@@ -594,8 +646,53 @@ static UIColor *kTextColor(void) {
     return self.viewModel.topNavigationBarVisible;
 }
 
+- (void)browserRemoteInputControllerDidScrollVertically:(CGFloat)deltaY {
+    if (!self.viewModel.topNavigationBarVisible || self.topBarFocusActive) {
+        return;
+    }
+    // Direction changes reset the run, so the bar reacts to a deliberate
+    // scroll rather than to the wobble of a finger on the touch surface.
+    if ((deltaY > 0.0) != (self.topBarScrollAccumulator > 0.0)) {
+        self.topBarScrollAccumulator = 0.0;
+    }
+    self.topBarScrollAccumulator += deltaY;
+
+    if (!self.topBarHiddenByScrolling && self.topBarScrollAccumulator > 160.0) {
+        [self setTopBarHiddenByScrolling:YES];
+    } else if (self.topBarHiddenByScrolling && self.topBarScrollAccumulator < -80.0) {
+        [self setTopBarHiddenByScrolling:NO];
+    }
+}
+
+- (BOOL)browserRemoteInputControllerRevealTopBarIfHidden {
+    if (!self.topBarHiddenByScrolling) {
+        return NO;
+    }
+    [self setTopBarHiddenByScrolling:NO];
+    return YES;
+}
+
+- (void)setTopBarHiddenByScrolling:(BOOL)hidden {
+    if (_topBarHiddenByScrolling == hidden) {
+        return;
+    }
+    _topBarHiddenByScrolling = hidden;
+    self.topBarScrollAccumulator = 0.0;
+
+    CGFloat offset = CGRectGetHeight(self.topMenuView.frame) + 12.0;
+    [UIView animateWithDuration:0.22
+                          delay:0.0
+                        options:UIViewAnimationOptionCurveEaseOut
+                     animations:^{
+        self.topMenuView.transform = hidden ? CGAffineTransformMakeTranslation(0.0, -offset)
+                                            : CGAffineTransformIdentity;
+        self.topMenuView.alpha = hidden ? 0.0 : 1.0;
+    } completion:nil];
+}
+
 - (CGFloat)browserRemoteInputControllerTopBarBottomEdge {
-    if (!self.viewModel.topNavigationBarVisible || self.topMenuView.hidden) {
+    if (!self.viewModel.topNavigationBarVisible || self.topMenuView.hidden ||
+        self.topBarHiddenByScrolling) {
         return 0.0;
     }
     return CGRectGetMaxY(self.topMenuView.frame);
