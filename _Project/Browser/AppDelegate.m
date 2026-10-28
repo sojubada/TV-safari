@@ -7,6 +7,7 @@
 //
 
 #import "AppDelegate.h"
+#import "BrowserDiagnosticsLog.h"
 #import "BrowserPreferencesStore.h"
 #import "BrowserWebView.h"
 
@@ -36,7 +37,21 @@
 }
 
 
+// A crash kills the app before anything else can write, so the reason is
+// recorded here, first thing, while the exception is still in hand.
+static void BrowserLogUncaughtException(NSException *exception) {
+    NSString *frames = [exception.callStackSymbols componentsJoinedByString:@" | "];
+    if (frames.length > 1200) {
+        frames = [frames substringToIndex:1200];
+    }
+    [[BrowserDiagnosticsLog sharedLog]
+        logEvent:@"UNCAUGHT"
+          detail:[NSString stringWithFormat:@"%@: %@  ::  %@",
+                  exception.name ?: @"?", exception.reason ?: @"?", frames ?: @""]];
+}
+
 - (BOOL)application:(UIApplication *)application didFinishLaunchingWithOptions:(NSDictionary *)launchOptions {
+    NSSetUncaughtExceptionHandler(&BrowserLogUncaughtException);
 	// Override point for customization after application launch.
     if ([[NSUserDefaults standardUserDefaults] boolForKey:@"MobileMode"]) {
         [[NSUserDefaults standardUserDefaults] setObject:BrowserPreferencesStore.mobileUserAgent forKey:@"UserAgent"];

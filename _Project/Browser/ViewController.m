@@ -94,6 +94,10 @@ static UIColor *kTextColor(void) {
 /// every letter of a heavy page is enough to take its web process down.
 @property (nonatomic, nullable) NSTimer *typingFlushTimer;
 @property (nonatomic, copy, nullable) NSString *pendingTypingText;
+/// The address the field being typed into belongs to. A page that has moved
+/// on since is a different page, and text left over from the old one must not
+/// be written into whatever now sits at that spot.
+@property (nonatomic, copy, nullable) NSString *typingPageURLString;
 @property (nonatomic, nullable) BrowserFocusEscapeView *focusEscapeView;
 /// Hidden by scrolling down, which is separate from the person switching the
 /// bar off for good.
@@ -221,11 +225,15 @@ static UIColor *kTextColor(void) {
 #pragma mark - Notifications
 
 - (void)handleApplicationWillResignActive:(NSNotification *)notification {
+    [[BrowserDiagnosticsLog sharedLog] logEvent:@"app" detail:@"resign-active"];
     (void)notification;
     [self.tabCoordinator persistSession];
 }
 
 - (void)handleApplicationDidEnterBackground:(NSNotification *)notification {
+    // A launch line with one of these before it is the person leaving. A
+    // launch line with nothing before it is the app being taken.
+    [[BrowserDiagnosticsLog sharedLog] logEvent:@"app" detail:@"background"];
     (void)notification;
     [self.tabCoordinator persistSession];
 }
@@ -966,6 +974,7 @@ static UIColor *kTextColor(void) {
 
     self.hardwareTypingDOMPoint = point;
     self.hardwareTypingWebView = webView;
+    self.typingPageURLString = webView.request.URL.absoluteString ?: @"";
 
     // The element has to hold the caret itself, or the page will not show what
     // is being typed and will not react to it.
@@ -1056,6 +1065,7 @@ static UIColor *kTextColor(void) {
     [self.typingProofTimer invalidate];
     self.typingProofTimer = nil;
     [self flushPendingTypingText];
+    self.typingPageURLString = nil;
     [self.hardwareKeyboardController endCapture];
     self.hardwareTypingWebView = nil;
     [self hideTypingBar];
@@ -1105,6 +1115,16 @@ static UIColor *kTextColor(void) {
     self.pendingTypingText = nil;
     BrowserWebView *webView = self.hardwareTypingWebView;
     if (text == nil || webView == nil) {
+        return;
+    }
+    // Submitting a search navigates, and the next click would otherwise flush
+    // the old query into whatever field now sits at the same spot — which on a
+    // results page is the search box, so the address itself got searched for.
+    NSString *currentURLString = webView.request.URL.absoluteString ?: @"";
+    if (self.typingPageURLString != nil &&
+        ![currentURLString isEqualToString:self.typingPageURLString]) {
+        [[BrowserDiagnosticsLog sharedLog] logEvent:@"typing-drop"
+                                             detail:@"page changed under the field"];
         return;
     }
     NSString *escaped = [self.domInteractionService javaScriptEscapedString:text];
@@ -1419,7 +1439,20 @@ static UIColor *kTextColor(void) {
     return YES;
 }
 
+- (void)didReceiveMemoryWarning {
+    [super didReceiveMemoryWarning];
+    // The log simply stops when the system takes the app for memory, so the
+    // warnings leading up to it are the only sign of what happened.
+    [[BrowserDiagnosticsLog sharedLog]
+        logEvent:@"MEMORY-WARNING"
+          detail:[NSString stringWithFormat:@"tabs=%lu  %@",
+                  (unsigned long)self.viewModel.tabs.count,
+                  self.webview.request.URL.absoluteString ?: @""]];
+}
+
 - (void)webViewDidStartLoad:(id)webView {
+    // Anything typed belonged to the page being left.
+    self.pendingTypingText = nil;
     [[BrowserDiagnosticsLog sharedLog] logEvent:@"load"
                                          detail:[(BrowserWebView *)webView request].URL.absoluteString];
     [self.tabCoordinator webViewDidStartLoad:webView];
