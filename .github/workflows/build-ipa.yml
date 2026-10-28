@@ -75,20 +75,17 @@ jobs:
           fi
           echo "Found app bundle: $APP"
 
-          # Drop whatever the build left behind before signing afresh.
+          # An unsigned build carries no signature or provisioning profile.
+          #
+          # It briefly carried an ad-hoc signature with no-sandbox, so the log
+          # could go in the media folder. Pages stopped rendering from that
+          # build onward — Naver came up blank but for the outline of its
+          # search box — and taking the app out of its sandbox is the only
+          # thing that changed. WebKit's own processes are sandboxed relative
+          # to the app that hosts them, so that is not a change the web content
+          # process survives. The log lives in the app's own folder and is read
+          # from the menu instead.
           rm -rf "$APP/_CodeSignature" "$APP/embedded.mobileprovision"
-
-          # Signed ad-hoc purely so the app carries its entitlements: TrollStore
-          # grants the entitlements of the signature it finds, and with none the
-          # app is confined to its container and cannot write its diagnostic log
-          # anywhere the file browser can reach. This is not a distribution
-          # signature; the app still installs through TrollStore only.
-          codesign --force --sign - \
-            --entitlements _Project/Browser/Browser.entitlements \
-            --timestamp=none \
-            "$APP"
-          echo "--- entitlements carried by the app ---"
-          codesign -d --entitlements :- "$APP"
 
           echo "--- binary architectures ---"
           BIN="$APP/$(/usr/libexec/PlistBuddy -c 'Print :CFBundleExecutable' "$APP/Info.plist")"
@@ -147,10 +144,8 @@ jobs:
           | tvOS deployment target | ${{ github.event.inputs.deployment_target || '15.6' }} |
           | SHA-256 | \`$SHA256\` |
 
-          **Signed ad-hoc, for TrollStore.** The signature exists to carry the app's
-          entitlements and is not a distribution signature — install it with TrollStore.
-          To install any other way, re-sign it with your own Apple ID or developer
-          certificate first — see the repository README.
+          **This .ipa is unsigned.** It will not install as-is. Sign it with your own
+          Apple ID or developer certificate before installing — see the repository README.
           NOTES
 
           if gh release view "$TAG" >/dev/null 2>&1; then
