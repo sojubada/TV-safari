@@ -185,8 +185,13 @@ static NSString *BrowserSubmitFocusedFieldScript(void) {
         return;
     }
 
+    // This dialog only appears when direct typing could not start, so it says
+    // why rather than leaving the reason invisible.
+    NSString *dialogMessage = [NSString stringWithFormat:@"%@  ·  %@",
+                               [fieldTitle capitalizedString],
+                               [self.host browserPageActionCoordinatorKeyboardDetectionSummary]];
     UIAlertController *alertController = [UIAlertController alertControllerWithTitle:@"Input Text"
-                                                                             message:[fieldTitle capitalizedString]
+                                                                             message:dialogMessage
                                                                       preferredStyle:UIAlertControllerStyleAlert];
 
     __weak typeof(self) weakSelf = self;

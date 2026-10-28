@@ -36,6 +36,11 @@ static NSString *const kPunctuationShifted = @"_+{}|~:\"~<>?";
 @property (nonatomic) BrowserHangulComposer *composer;
 @property (nonatomic, copy) NSString *settledText;
 @property (nonatomic, nullable) id keyboardInput;
+// Set the first time UIKit hands over a real key. Some systems report a
+// keyboard through the Game Controller framework and some only through the
+// press chain, and this is how the app finds out which it has without
+// guessing: once a key has arrived that way, direct typing is on.
+@property (nonatomic) BOOL sawUIKitKeyEvent;
 @end
 
 @implementation BrowserHardwareKeyboardController
@@ -80,7 +85,41 @@ static NSString *const kPunctuationShifted = @"_+{}|~:\"~<>?";
 }
 
 - (BOOL)isKeyboardConnected {
-    return [self currentKeyboardInput] != nil;
+    return self.sawUIKitKeyEvent || [self currentKeyboardInput] != nil;
+}
+
+- (void)prepareForKeyboardDetection {
+    [[self class] loadGameControllerFrameworkIfNeeded];
+    (void)[self currentKeyboardInput];
+}
+
+- (NSString *)detectionSummary {
+    [[self class] loadGameControllerFrameworkIfNeeded];
+    if (self.sawUIKitKeyEvent) {
+        return @"키보드: UIKit";
+    }
+    Class keyboardClass = NSClassFromString(@"GCKeyboard");
+    if (keyboardClass == Nil) {
+        return @"키보드: GC 없음";
+    }
+    if (![keyboardClass respondsToSelector:@selector(coalesced)]) {
+        return @"키보드: GC 구형";
+    }
+    id keyboard = ((id (*)(id, SEL))objc_msgSend)((id)keyboardClass, @selector(coalesced));
+    if (keyboard == nil) {
+        return @"키보드: 미연결";
+    }
+    if (![keyboard respondsToSelector:@selector(keyboardInput)]) {
+        return @"키보드: 입력 없음";
+    }
+    id input = ((id (*)(id, SEL))objc_msgSend)(keyboard, @selector(keyboardInput));
+    if (input == nil) {
+        return @"키보드: 프로필 없음";
+    }
+    if (![input respondsToSelector:@selector(setKeyChangedHandler:)]) {
+        return @"키보드: 수신 불가";
+    }
+    return @"키보드: GC 연결됨";
 }
 
 - (BOOL)isKeyCodePressed:(NSInteger)keyCode onInput:(id)keyboardInput {
@@ -109,10 +148,13 @@ static NSString *const kPunctuationShifted = @"_+{}|~:\"~<>?";
 
 - (BOOL)beginCaptureWithExistingText:(NSString *)text {
     id keyboardInput = [self currentKeyboardInput];
-    if (keyboardInput == nil) {
-        return NO;
+    if (keyboardInput != nil && ![keyboardInput respondsToSelector:@selector(setKeyChangedHandler:)]) {
+        keyboardInput = nil;
     }
-    if (![keyboardInput respondsToSelector:@selector(setKeyChangedHandler:)]) {
+    // With no Game Controller keyboard, typing can still go through the press
+    // chain — but only once a key has actually arrived that way. Starting
+    // without either would leave the field with no way to type into it at all.
+    if (keyboardInput == nil && !self.sawUIKitKeyEvent) {
         return NO;
     }
 
@@ -121,6 +163,9 @@ static NSString *const kPunctuationShifted = @"_+{}|~:\"~<>?";
     self.settledText = text.length > 0 ? text : @"";
     self.keyboardInput = keyboardInput;
     self.capturing = YES;
+    if (keyboardInput == nil) {
+        return YES;
+    }
 
     __weak typeof(self) weakSelf = self;
     void (^handler)(id, id, NSInteger, BOOL) = ^(id input, id button, NSInteger keyCode, BOOL pressed) {
@@ -284,19 +329,25 @@ static NSString *const kPunctuationShifted = @"_+{}|~:\"~<>?";
 #pragma mark - UIKit route
 
 - (BOOL)handleKeyPress:(UIPress *)press {
+    if (![press respondsToSelector:@selector(key)]) {
+        return NO;
+    }
+    UIKey *key = press.key;
+    if (key == nil) {
+        return NO;
+    }
+    // Noted whether or not a field is being typed into: this is the app
+    // learning that keys reach it this way, so the next field can skip the
+    // system text entry screen.
+    if (key.charactersIgnoringModifiers.length > 0) {
+        self.sawUIKitKeyEvent = YES;
+    }
     if (!self.capturing) {
         return NO;
     }
     // When the Game Controller route is live it already reported this key, and
     // taking it twice would double every letter.
     if (self.keyboardInput != nil) {
-        return NO;
-    }
-    if (![press respondsToSelector:@selector(key)]) {
-        return NO;
-    }
-    UIKey *key = press.key;
-    if (key == nil) {
         return NO;
     }
 

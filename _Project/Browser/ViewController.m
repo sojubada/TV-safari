@@ -108,6 +108,7 @@ static UIColor *kTextColor(void) {
     self.domInteractionService = [BrowserDOMInteractionService new];
     self.hardwareKeyboardController = [BrowserHardwareKeyboardController new];
     self.hardwareKeyboardController.delegate = self;
+    [self.hardwareKeyboardController prepareForKeyboardDetection];
     self.navigationService = [[BrowserNavigationService alloc] initWithPreferencesStore:self.preferencesStore];
     self.sessionStore = [BrowserSessionStore new];
     self.menuCoordinator = [[BrowserMenuCoordinator alloc] initWithHost:self preferencesStore:self.preferencesStore];
@@ -835,6 +836,10 @@ static UIColor *kTextColor(void) {
 }
 
 #pragma mark - Hardware keyboard
+
+- (NSString *)browserPageActionCoordinatorKeyboardDetectionSummary {
+    return [self.hardwareKeyboardController detectionSummary];
+}
 
 - (BOOL)browserPageActionCoordinatorBeginHardwareTypingAtDOMPoint:(CGPoint)point
                                                           webView:(BrowserWebView *)webView

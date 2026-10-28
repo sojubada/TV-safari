@@ -51,6 +51,14 @@ NS_ASSUME_NONNULL_BEGIN
 /// key was used.
 - (BOOL)handleKeyPress:(UIPress *)press;
 
+/// Loaded at launch rather than at the first text field, in case the
+/// framework has to be in place before a keyboard already paired is seen.
+- (void)prepareForKeyboardDetection;
+
+/// One short line naming how far keyboard detection got, shown in the fallback
+/// dialog so a device that will not hand over its keyboard says why.
+- (NSString *)detectionSummary;
+
 @end
 
 NS_ASSUME_NONNULL_END

@@ -17,6 +17,9 @@ NS_ASSUME_NONNULL_BEGIN
 /// Asks the host to type into this field from a connected hardware
 /// keyboard. NO when there is none, and the system text entry screen is
 /// then the way in.
+/// How far keyboard detection got, named in the dialog that appears when
+/// direct typing could not start.
+- (NSString *)browserPageActionCoordinatorKeyboardDetectionSummary;
 - (BOOL)browserPageActionCoordinatorBeginHardwareTypingAtDOMPoint:(CGPoint)point
                                                           webView:(BrowserWebView *)webView
                                                      existingText:(NSString *)existingText;
