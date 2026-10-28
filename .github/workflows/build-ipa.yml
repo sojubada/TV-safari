@@ -75,8 +75,20 @@ jobs:
           fi
           echo "Found app bundle: $APP"
 
-          # An unsigned build should carry no signature or provisioning profile.
+          # Drop whatever the build left behind before signing afresh.
           rm -rf "$APP/_CodeSignature" "$APP/embedded.mobileprovision"
+
+          # Signed ad-hoc purely so the app carries its entitlements: TrollStore
+          # grants the entitlements of the signature it finds, and with none the
+          # app is confined to its container and cannot write its diagnostic log
+          # anywhere the file browser can reach. This is not a distribution
+          # signature; the app still installs through TrollStore only.
+          codesign --force --sign - \
+            --entitlements _Project/Browser/Browser.entitlements \
+            --timestamp=none \
+            "$APP"
+          echo "--- entitlements carried by the app ---"
+          codesign -d --entitlements :- "$APP"
 
           echo "--- binary architectures ---"
           BIN="$APP/$(/usr/libexec/PlistBuddy -c 'Print :CFBundleExecutable' "$APP/Info.plist")"
@@ -135,8 +147,10 @@ jobs:
           | tvOS deployment target | ${{ github.event.inputs.deployment_target || '15.6' }} |
           | SHA-256 | \`$SHA256\` |
 
-          **This .ipa is unsigned.** It will not install as-is. Sign it with your own
-          Apple ID or developer certificate before installing — see the repository README.
+          **Signed ad-hoc, for TrollStore.** The signature exists to carry the app's
+          entitlements and is not a distribution signature — install it with TrollStore.
+          To install any other way, re-sign it with your own Apple ID or developer
+          certificate first — see the repository README.
           NOTES
 
           if gh release view "$TAG" >/dev/null 2>&1; then
