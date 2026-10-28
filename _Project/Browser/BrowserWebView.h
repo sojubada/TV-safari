@@ -41,6 +41,10 @@ NS_ASSUME_NONNULL_BEGIN
       allowsInlineMediaPlayback:(BOOL)allowsInlineMediaPlayback NS_DESIGNATED_INITIALIZER;
 
 - (void)loadRequest:(NSURLRequest * _Nullable)request;
+
+/// Shows a page the app built itself, with no network behind it. Used for the
+/// diagnostic log, which lives in a folder nothing else on the box can reach.
+- (void)loadHTMLString:(NSString *)html;
 - (void)reload;
 - (void)goBack;
 - (void)goForward;

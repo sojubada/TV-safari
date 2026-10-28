@@ -1485,17 +1485,12 @@ withAnimationCoordinator:(UIFocusAnimationCoordinator *)coordinator {
 // whether it may be written there is not something the app can know without
 // trying, so the answer is shown rather than assumed.
 - (BrowserAdvancedMenuItem *)diagnosticsLogLocationMenuItem {
-    NSString *path = [BrowserDiagnosticsLog sharedLog].logFilePath;
-    NSString *title = (path.length > 0)
-        ? [NSString stringWithFormat:@"진단 로그: %@", path]
-        : @"진단 로그: 쓸 수 있는 폴더 없음";
     __weak typeof(self) weakSelf = self;
-    return [self markKeepsMenuOpen:[self advancedMenuItemWithTitle:title
-                                                             style:UIAlertActionStyleDefault
-                                                           handler:^{
-        [[BrowserDiagnosticsLog sharedLog] logEvent:@"note" detail:@"로그 위치 확인"];
-        (void)weakSelf;
-    }]];
+    return [self advancedMenuItemWithTitle:@"진단 로그 보기"
+                                     style:UIAlertActionStyleDefault
+                                   handler:^{
+        [[weakSelf.host browserWebView] loadHTMLString:[[BrowserDiagnosticsLog sharedLog] logPageHTML]];
+    }];
 }
 
 - (NSArray<BrowserAdvancedMenuSection *> *)settingsMenuSections {

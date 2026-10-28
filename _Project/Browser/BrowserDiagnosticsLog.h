@@ -24,6 +24,11 @@ NS_ASSUME_NONNULL_BEGIN
 /// Starts a new session's section, naming the app version.
 - (void)logSessionStart;
 
+/// The whole log as a page the browser can show, newest first. The file sits
+/// in the app's own container, which nothing else on the box can navigate to,
+/// so the browser reads it to itself.
+- (NSString *)logPageHTML;
+
 @end
 
 NS_ASSUME_NONNULL_END

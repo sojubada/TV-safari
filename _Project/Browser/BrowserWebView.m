@@ -503,6 +503,16 @@ static void BrowserConfigurePrivateMediaPreferences(id configuration) {
     }
 }
 
+- (void)loadHTMLString:(NSString *)html {
+    if (html.length == 0 || self.runtimeWebView == nil) {
+        return;
+    }
+    SEL selector = NSSelectorFromString(@"loadHTMLString:baseURL:");
+    if ([self.runtimeWebView respondsToSelector:selector]) {
+        ((id (*)(id, SEL, id, id))objc_msgSend)(self.runtimeWebView, selector, html, nil);
+    }
+}
+
 - (void)reload {
     SEL selector = NSSelectorFromString(@"reload");
     if (self.runtimeWebView != nil && [self.runtimeWebView respondsToSelector:selector]) {
