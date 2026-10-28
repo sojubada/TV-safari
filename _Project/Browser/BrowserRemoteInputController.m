@@ -77,6 +77,7 @@ static NSString *BrowserPressPhaseString(UIPressPhase phase) {
 // Set when the bar hands focus back. Without it the pointer, parked inside the
 // bar, would snap straight back in on the next flick of the finger.
 @property (nonatomic) CFTimeInterval topBarSnapSuppressedUntil;
+@property (nonatomic) CGFloat topBarExitSwipeDistance;
 
 @property (nonatomic, nullable) CADisplayLink *dpadPageScrollDisplayLink;
 @property (nonatomic) CFTimeInterval dpadPageScrollStartTime;
@@ -176,6 +177,37 @@ static NSString *BrowserPressPhaseString(UIPressPhase phase) {
     }
     CGFloat screenHeight = [self viewportHeight];
     return self.cursorView.center.y < (screenHeight * 0.12);
+}
+
+// While the bar has focus the pointer is not being moved, so the finger is
+// free to say "give it back": a firm downward drag across the touch surface
+// does it, without waiting for the focus engine to run out of things to
+// focus and turn the swipe into a button press.
+- (void)accumulateDownwardSwipeToLeaveTopBar:(NSSet<UITouch *> *)touches {
+    UITouch *touch = touches.anyObject;
+    if (touch == nil) {
+        return;
+    }
+    CGPoint location = [touch locationInView:self.rootView];
+    if (self.lastTouchLocation.x == -1 && self.lastTouchLocation.y == -1) {
+        self.lastTouchLocation = location;
+        self.topBarExitSwipeDistance = 0.0;
+        return;
+    }
+
+    CGFloat yDiff = location.y - self.lastTouchLocation.y;
+    self.lastTouchLocation = location;
+    if (yDiff > 0.0) {
+        self.topBarExitSwipeDistance += yDiff;
+    } else if (yDiff < -4.0) {
+        // Changed direction, so this was not one firm downward drag.
+        self.topBarExitSwipeDistance = 0.0;
+    }
+
+    if (self.topBarExitSwipeDistance > 220.0) {
+        self.topBarExitSwipeDistance = 0.0;
+        [self.host browserRemoteInputControllerDeactivateTopBarFocus];
+    }
 }
 
 - (void)noteTopBarFocusDeactivated {
@@ -806,6 +838,12 @@ static const CFTimeInterval kBrowserCursorIdleHideDelay = 3.0;
         return NO;
     }
 
+    // A field is being typed into, so a key goes to the page before the remote
+    // handling below can read it as a direction or a button.
+    if ([self.host browserRemoteInputControllerHandleHardwareKeyPress:press]) {
+        return YES;
+    }
+
     if (press.type == UIPressTypeMenu || press.type == UIPressTypePlayPause || press.type == UIPressTypeSelect) {
         NSLog(@"[InputTrace][Root] pressesEnded type=%@ phase=%@ presented=%@ tabOverview=%@",
               BrowserPressTypeString(press.type),
@@ -989,8 +1027,10 @@ static const CFTimeInterval kBrowserCursorIdleHideDelay = 3.0;
     (void)event;
     [self noteCursorActivity];
     if ([self.host browserRemoteInputControllerFocusNavigationActive]) {
+        [self accumulateDownwardSwipeToLeaveTopBar:touches];
         return NO;
     }
+    self.topBarExitSwipeDistance = 0.0;
     // Moving the pointer is a decision to use the page, so a bar focus waiting
     // to be restored is dropped rather than stealing the next arrow press.
     [self.host browserRemoteInputControllerCancelPendingTopBarFocusRestore];

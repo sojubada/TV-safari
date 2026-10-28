@@ -123,6 +123,27 @@ static UIColor *BrowserPageActionTextColor(void) {
     return YES;
 }
 
+// Sending a form on a modern page is not form.submit(): that call skips the
+// page's own submit handler, which is the whole mechanism on a site like
+// Google. So the Enter key is offered to the page first, and only if nothing
+// catches it does this fall back to the submit button and then to the form.
+static NSString *BrowserSubmitFocusedFieldScript(void) {
+    return @"var form = target.form;"
+            "try {"
+                "var options = { key: 'Enter', code: 'Enter', bubbles: true, cancelable: true };"
+                "var accepted = !target.dispatchEvent(new KeyboardEvent('keydown', options));"
+                "target.dispatchEvent(new KeyboardEvent('keypress', options));"
+                "target.dispatchEvent(new KeyboardEvent('keyup', options));"
+                "if (accepted) { return 'true'; }"
+            "} catch (error) {}"
+            "if (form) {"
+                "var submitter = form.querySelector('button[type=\"submit\"], input[type=\"submit\"], button:not([type])');"
+                "if (submitter) { submitter.click(); return 'true'; }"
+                "if (form.requestSubmit) { form.requestSubmit(); return 'true'; }"
+                "form.submit();"
+            "}";
+}
+
 - (void)presentEditableFieldPromptForFieldType:(NSString *)fieldType
                                          point:(CGPoint)point
                                        webView:(BrowserWebView *)webView {
@@ -142,10 +163,28 @@ static UIColor *BrowserPageActionTextColor(void) {
     if ([placeholder isEqualToString:@""]) {
         placeholder = [fieldTitle isEqualToString:fieldType] ? @"Text Input" : [NSString stringWithFormat:@"%@ Input", fieldTitle];
     }
+    // Whether the field sits in a form at all. The test used to be for an
+    // onsubmit attribute, which almost no modern page carries — Google's
+    // search box has none — so Submit was missing exactly where it was wanted.
     NSString *testedFormResponse = [self.domInteractionService evaluateEditableElementJavaScriptAtPoint:point
                                                                                                  webView:webView
                                                                                                     body:@"var target = browserEditableTarget();"
-                                                                                                         "return (target && target.form && target.form.hasAttribute('onsubmit')) ? 'true' : 'false';"];
+                                                                                                         "return (target && target.form) ? 'true' : 'false';"];
+
+    NSString *existingText = [self.domInteractionService evaluateEditableElementJavaScriptAtPoint:point
+                                                                                           webView:webView
+                                                                                              body:@"var target = browserEditableTarget();"
+                                                                                                   "if (!target) { return ''; }"
+                                                                                                   "if (typeof target.value !== 'undefined') { return target.value; }"
+                                                                                                   "return target.textContent || '';"];
+    // With a keyboard attached the letters can go straight into the page, so
+    // the system's full-screen text entry screen is skipped entirely.
+    if ([self.host browserPageActionCoordinatorBeginHardwareTypingAtDOMPoint:point
+                                                                     webView:webView
+                                                                existingText:existingText]) {
+        return;
+    }
+
     UIAlertController *alertController = [UIAlertController alertControllerWithTitle:@"Input Text"
                                                                              message:[fieldTitle capitalizedString]
                                                                       preferredStyle:UIAlertControllerStyleAlert];
@@ -169,12 +208,7 @@ static UIColor *BrowserPageActionTextColor(void) {
         if ([fieldType isEqualToString:@"password"]) {
             textField.secureTextEntry = YES;
         }
-        textField.text = [weakSelf.domInteractionService evaluateEditableElementJavaScriptAtPoint:point
-                                                                                           webView:webView
-                                                                                              body:@"var target = browserEditableTarget();"
-                                                                                                   "if (!target) { return ''; }"
-                                                                                                   "if (typeof target.value !== 'undefined') { return target.value; }"
-                                                                                                   "return target.textContent || '';"];
+        textField.text = existingText;
         textField.textColor = BrowserPageActionTextColor();
         [textField setReturnKeyType:UIReturnKeyDone];
     }];
@@ -194,8 +228,9 @@ static UIColor *BrowserPageActionTextColor(void) {
                                                                                       "target.dispatchEvent(new Event('input', { bubbles: true }));"
                                                                                       "target.dispatchEvent(new Event('change', { bubbles: true }));"
                                                                                   "}"
-                                                                                  "if (target.form) { target.form.submit(); }"
-                                                                                  "return 'true';", escapedText, escapedText]];
+                                                                                  "%@"
+                                                                                  "return 'true';", escapedText, escapedText,
+                                                                                  BrowserSubmitFocusedFieldScript()]];
     }];
     UIAlertAction *doneAction = [UIAlertAction actionWithTitle:@"Done"
                                                          style:UIAlertActionStyleDefault

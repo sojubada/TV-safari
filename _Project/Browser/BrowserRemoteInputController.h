@@ -16,6 +16,9 @@ NS_ASSUME_NONNULL_BEGIN
 /// True whenever the remote drives focus rather than the pointer: the top
 /// bar, and the probe workbench. The pointer and the focus engine cannot
 /// both own the direction pad.
+/// Offers a press to the hardware keyboard path before anything else sees
+/// it. YES when it was a key that got typed into the page.
+- (BOOL)browserRemoteInputControllerHandleHardwareKeyPress:(UIPress *)press;
 - (BOOL)browserRemoteInputControllerFocusNavigationActive;
 - (BOOL)browserRemoteInputControllerCanActivateTopBarFocus;
 /// Bottom edge of the top bar in root coordinates, or 0 when the bar is

@@ -14,6 +14,12 @@ NS_ASSUME_NONNULL_BEGIN
 
 - (void)browserPageActionCoordinatorPresentViewController:(UIViewController *)viewController;
 - (BOOL)browserPageActionCoordinatorCreateNewTabWithRequest:(NSURLRequest *)request;
+/// Asks the host to type into this field from a connected hardware
+/// keyboard. NO when there is none, and the system text entry screen is
+/// then the way in.
+- (BOOL)browserPageActionCoordinatorBeginHardwareTypingAtDOMPoint:(CGPoint)point
+                                                          webView:(BrowserWebView *)webView
+                                                     existingText:(NSString *)existingText;
 
 @end
 

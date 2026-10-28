@@ -292,6 +292,11 @@ static CGFloat const kTopBarSeparatorSpacing = 20.0;
 #endif
 
     self.effect = nil;
+    // The blur samples whatever is behind it, and while a page is scrolling
+    // that backdrop can drop out mid-frame: the glass vanishes and the icons
+    // and the address are left floating on the article. A solid plate under
+    // the blur means there is always something for them to sit on.
+    self.chromeContainerView.backgroundColor = [UIColor colorWithWhite:0.08 alpha:0.92];
     self.chromeEffectView.effect = [UIBlurEffect effectWithStyle:UIBlurEffectStyleDark];
     self.chromeEffectView.alpha = 0.98;
     self.chromeContainerView.layer.shadowColor = UIColor.blackColor.CGColor;

@@ -11,6 +11,7 @@
 #import "BrowserReaderModeController.h"
 #import "BrowserMenuCoordinator.h"
 #import "BrowserDOMInteractionService.h"
+#import "BrowserHardwareKeyboardController.h"
 #import "BrowserNavigationService.h"
 #import "BrowserPageActionCoordinator.h"
 #import "BrowserPreferencesStore.h"
@@ -51,12 +52,19 @@ static UIColor *kTextColor(void) {
     }
 }
 
-@interface ViewController () <BrowserMenuCoordinatorHost, BrowserPageActionCoordinatorHost, BrowserRemoteInputControllerHost, BrowserTabCoordinatorHost, BrowserTabOverviewControllerHost, BrowserTopBarViewDelegate>
+@interface ViewController () <BrowserMenuCoordinatorHost, BrowserPageActionCoordinatorHost, BrowserRemoteInputControllerHost, BrowserTabCoordinatorHost, BrowserTabOverviewControllerHost, BrowserTopBarViewDelegate,
+    BrowserHardwareKeyboardControllerDelegate>
 
 @property (nonatomic) BrowserContentBlockerController *contentBlockerController;
 @property (nonatomic) BrowserDarkModeController *darkModeController;
 @property (nonatomic) BrowserReaderModeController *readerModeController;
 @property (nonatomic) BrowserDOMInteractionService *domInteractionService;
+@property (nonatomic) BrowserHardwareKeyboardController *hardwareKeyboardController;
+/// Where the field being typed into lives, so each keystroke lands in the
+/// same element.
+@property (nonatomic) CGPoint hardwareTypingDOMPoint;
+@property (nonatomic, weak) BrowserWebView *hardwareTypingWebView;
+@property (nonatomic, nullable) UILabel *inputModeLabel;
 @property (nonatomic) BrowserMenuCoordinator *menuCoordinator;
 @property (nonatomic) BrowserNavigationService *navigationService;
 @property (nonatomic) BrowserPageActionCoordinator *pageActionCoordinator;
@@ -98,6 +106,8 @@ static UIColor *kTextColor(void) {
     self.darkModeController = [BrowserDarkModeController new];
     self.readerModeController = [BrowserReaderModeController new];
     self.domInteractionService = [BrowserDOMInteractionService new];
+    self.hardwareKeyboardController = [BrowserHardwareKeyboardController new];
+    self.hardwareKeyboardController.delegate = self;
     self.navigationService = [[BrowserNavigationService alloc] initWithPreferencesStore:self.preferencesStore];
     self.sessionStore = [BrowserSessionStore new];
     self.menuCoordinator = [[BrowserMenuCoordinator alloc] initWithHost:self preferencesStore:self.preferencesStore];
@@ -824,6 +834,141 @@ static UIColor *kTextColor(void) {
     [self.tabCoordinator closeTabAtIndex:tabIndex];
 }
 
+#pragma mark - Hardware keyboard
+
+- (BOOL)browserPageActionCoordinatorBeginHardwareTypingAtDOMPoint:(CGPoint)point
+                                                          webView:(BrowserWebView *)webView
+                                                     existingText:(NSString *)existingText {
+    if (webView == nil) {
+        return NO;
+    }
+    if (![self.hardwareKeyboardController beginCaptureWithExistingText:existingText]) {
+        return NO;
+    }
+
+    self.hardwareTypingDOMPoint = point;
+    self.hardwareTypingWebView = webView;
+
+    // The element has to hold the caret itself, or the page will not show what
+    // is being typed and will not react to it.
+    [self.domInteractionService evaluateEditableElementJavaScriptAtPoint:point
+                                                                 webView:webView
+                                                                    body:@"var target = browserEditableTarget();"
+                                                                         "if (!target) { return 'false'; }"
+                                                                         "if (target.focus) { target.focus(); }"
+                                                                         "return 'true';"];
+    [self showInputModeNotice:self.hardwareKeyboardController.isKoreanInputActive ? @"한글" : @"English"];
+    return YES;
+}
+
+- (void)endHardwareTypingSession {
+    [self.hardwareKeyboardController endCapture];
+    self.hardwareTypingWebView = nil;
+}
+
+- (void)hardwareKeyboardController:(BrowserHardwareKeyboardController *)controller
+                     didChangeText:(NSString *)text {
+    (void)controller;
+    BrowserWebView *webView = self.hardwareTypingWebView;
+    if (webView == nil) {
+        return;
+    }
+    NSString *escaped = [self.domInteractionService javaScriptEscapedString:text];
+    [self.domInteractionService evaluateEditableElementJavaScriptAtPoint:self.hardwareTypingDOMPoint
+                                                                 webView:webView
+                                                                    body:[NSString stringWithFormat:
+                                                                          @"var target = browserEditableTarget();"
+                                                                          "if (!target) { return 'false'; }"
+                                                                          "if (typeof target.value !== 'undefined') {"
+                                                                              "target.value = '%@';"
+                                                                              "if (target.setSelectionRange) {"
+                                                                                  "try { target.setSelectionRange(target.value.length, target.value.length); } catch (error) {}"
+                                                                              "}"
+                                                                          "} else {"
+                                                                              "target.textContent = '%@';"
+                                                                          "}"
+                                                                          "if (target.dispatchEvent) {"
+                                                                              "target.dispatchEvent(new Event('input', { bubbles: true }));"
+                                                                          "}"
+                                                                          "return 'true';", escaped, escaped]];
+}
+
+- (void)hardwareKeyboardControllerDidSubmit:(BrowserHardwareKeyboardController *)controller {
+    (void)controller;
+    BrowserWebView *webView = self.hardwareTypingWebView;
+    if (webView == nil) {
+        return;
+    }
+    [self.domInteractionService evaluateEditableElementJavaScriptAtPoint:self.hardwareTypingDOMPoint
+                                                                 webView:webView
+                                                                    body:@"var target = browserEditableTarget();"
+                                                                         "if (!target) { return 'false'; }"
+                                                                         "if (target.dispatchEvent) {"
+                                                                             "target.dispatchEvent(new Event('change', { bubbles: true }));"
+                                                                         "}"
+                                                                         "var form = target.form;"
+                                                                         "try {"
+                                                                             "var options = { key: 'Enter', code: 'Enter', bubbles: true, cancelable: true };"
+                                                                             "var accepted = !target.dispatchEvent(new KeyboardEvent('keydown', options));"
+                                                                             "target.dispatchEvent(new KeyboardEvent('keypress', options));"
+                                                                             "target.dispatchEvent(new KeyboardEvent('keyup', options));"
+                                                                             "if (accepted) { return 'true'; }"
+                                                                         "} catch (error) {}"
+                                                                         "if (form) {"
+                                                                             "var submitter = form.querySelector('button[type=\"submit\"], input[type=\"submit\"], button:not([type])');"
+                                                                             "if (submitter) { submitter.click(); return 'true'; }"
+                                                                             "if (form.requestSubmit) { form.requestSubmit(); return 'true'; }"
+                                                                             "form.submit();"
+                                                                         "}"
+                                                                         "return 'true';"];
+    [self endHardwareTypingSession];
+}
+
+- (void)hardwareKeyboardControllerDidCancel:(BrowserHardwareKeyboardController *)controller {
+    (void)controller;
+    [self endHardwareTypingSession];
+}
+
+- (void)hardwareKeyboardController:(BrowserHardwareKeyboardController *)controller
+              didChangeKoreanInput:(BOOL)koreanInput {
+    (void)controller;
+    [self showInputModeNotice:koreanInput ? @"한글" : @"English"];
+}
+
+// A keyboard carries no sign of which language it is typing, so the app says
+// so for a moment when it changes.
+- (void)showInputModeNotice:(NSString *)text {
+    if (self.inputModeLabel == nil) {
+        UILabel *label = [[UILabel alloc] initWithFrame:CGRectZero];
+        label.textAlignment = NSTextAlignmentCenter;
+        label.font = [UIFont systemFontOfSize:34.0 weight:UIFontWeightSemibold];
+        label.textColor = UIColor.whiteColor;
+        label.backgroundColor = [UIColor colorWithWhite:0.0 alpha:0.78];
+        label.layer.cornerRadius = 18.0;
+        label.layer.masksToBounds = YES;
+        label.userInteractionEnabled = NO;
+        [self.view addSubview:label];
+        self.inputModeLabel = label;
+    }
+
+    UILabel *label = self.inputModeLabel;
+    label.text = text;
+    CGFloat width = 240.0;
+    CGFloat height = 72.0;
+    label.frame = CGRectMake(floor((CGRectGetWidth(self.view.bounds) - width) / 2.0),
+                             CGRectGetHeight(self.view.bounds) - height - 90.0,
+                             width,
+                             height);
+    [self.view bringSubviewToFront:label];
+    label.alpha = 1.0;
+    [UIView animateWithDuration:0.3
+                          delay:1.1
+                        options:UIViewAnimationOptionCurveEaseIn
+                     animations:^{
+        label.alpha = 0.0;
+    } completion:nil];
+}
+
 #pragma mark - BrowserPageActionCoordinatorHost
 
 - (void)browserPageActionCoordinatorPresentViewController:(UIViewController *)viewController {
@@ -842,6 +987,10 @@ static UIColor *kTextColor(void) {
 
 - (UIViewController *)browserRemoteInputControllerPresentedViewController {
     return self.presentedViewController;
+}
+
+- (BOOL)browserRemoteInputControllerHandleHardwareKeyPress:(UIPress *)press {
+    return [self.hardwareKeyboardController handleKeyPress:press];
 }
 
 - (BOOL)browserRemoteInputControllerFocusNavigationActive {
@@ -881,10 +1030,18 @@ static UIColor *kTextColor(void) {
 }
 
 - (void)browserRemoteInputControllerHandlePrimaryActionWithSource:(BrowserPageActivationSource)source {
+    // A click lands somewhere new, so whatever field was being typed into is
+    // finished with. If the click is on another field, typing starts again a
+    // moment later with that one.
+    [self endHardwareTypingSession];
     [self browserHandlePrimaryActionWithSource:source];
 }
 
 - (void)browserRemoteInputControllerHandleMenuPress {
+    if (self.hardwareKeyboardController.isCapturing) {
+        [self endHardwareTypingSession];
+        return;
+    }
     if (self.presentedViewController != nil) {
         [self.presentedViewController dismissViewControllerAnimated:YES completion:nil];
         return;
