@@ -36,6 +36,11 @@ NS_ASSUME_NONNULL_BEGIN
 - (instancetype)init NS_UNAVAILABLE;
 
 - (NSString *)hoverStateAtDOMPoint:(CGPoint)point webView:(BrowserWebView *)webView;
+/// Opens the remote-driven text dialog for the field at this point, without
+/// offering the keyboard first. The way back when no keyboard answers.
+- (void)presentEditableFieldPromptAtDOMPoint:(CGPoint)point
+                                     webView:(BrowserWebView *)webView;
+
 - (BOOL)handlePageSelectionAtDOMPoint:(CGPoint)point
                               webView:(BrowserWebView *)webView
                                source:(BrowserPageActivationSource)source;

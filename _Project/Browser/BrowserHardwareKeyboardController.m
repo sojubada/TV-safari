@@ -15,6 +15,7 @@ static const NSInteger kKeyCodeEscape = 0x29;
 static const NSInteger kKeyCodeDeleteBackward = 0x2A;
 static const NSInteger kKeyCodeTab = 0x2B;
 static const NSInteger kKeyCodeSpacebar = 0x2C;
+static const NSInteger kKeyCodeCapsLock = 0x39;
 static const NSInteger kKeyCodeKeypadEnter = 0x58;
 static const NSInteger kKeyCodeLang1 = 0x90;
 static const NSInteger kKeyCodeLeftShift = 0xE1;
@@ -93,6 +94,15 @@ static NSString *const kPunctuationShifted = @"_+{}|~:\"~<>?";
     (void)[self currentKeyboardInput];
 }
 
+- (BOOL)isKeyboardProven {
+    return self.sawUIKitKeyEvent || [self currentKeyboardInput] != nil;
+}
+
+/// The syllable still being built, which the caller underlines.
+- (NSString *)composingText {
+    return self.composer.composingText;
+}
+
 - (NSString *)detectionSummary {
     [[self class] loadGameControllerFrameworkIfNeeded];
     if (self.sawUIKitKeyEvent) {
@@ -150,12 +160,6 @@ static NSString *const kPunctuationShifted = @"_+{}|~:\"~<>?";
     id keyboardInput = [self currentKeyboardInput];
     if (keyboardInput != nil && ![keyboardInput respondsToSelector:@selector(setKeyChangedHandler:)]) {
         keyboardInput = nil;
-    }
-    // With no Game Controller keyboard, typing can still go through the press
-    // chain — but only once a key has actually arrived that way. Starting
-    // without either would leave the field with no way to type into it at all.
-    if (keyboardInput == nil && !self.sawUIKitKeyEvent) {
-        return NO;
     }
 
     [self clearKeyChangedHandler];
@@ -225,7 +229,7 @@ static NSString *const kPunctuationShifted = @"_+{}|~:\"~<>?";
 
     // Control-space is the switch most people already use for this, and the
     // 한/영 key reports as Lang1 on the keyboards that have one.
-    if (keyCode == kKeyCodeLang1 || keyCode == kKeyCodeRightAlt ||
+    if (keyCode == kKeyCodeLang1 || keyCode == kKeyCodeCapsLock ||
         (control && keyCode == kKeyCodeSpacebar)) {
         [self setKoreanInput:!self.koreanInputActive];
         return;
@@ -336,12 +340,16 @@ static NSString *const kPunctuationShifted = @"_+{}|~:\"~<>?";
     if (key == nil) {
         return NO;
     }
-    // Noted whether or not a field is being typed into: this is the app
-    // learning that keys reach it this way, so the next field can skip the
-    // system text entry screen.
-    if (key.charactersIgnoringModifiers.length > 0) {
-        self.sawUIKitKeyEvent = YES;
+
+    NSInteger keyCode = (NSInteger)key.keyCode;
+    if (keyCode == 0) {
+        return NO;
     }
+
+    // Noted whether or not a field is being typed into, so the app knows keys
+    // reach it this way.
+    self.sawUIKitKeyEvent = YES;
+
     if (!self.capturing) {
         return NO;
     }
@@ -351,49 +359,41 @@ static NSString *const kPunctuationShifted = @"_+{}|~:\"~<>?";
         return NO;
     }
 
-    NSString *characters = key.charactersIgnoringModifiers;
-    BOOL shift = (key.modifierFlags & UIKeyModifierShift) != 0;
-    BOOL control = (key.modifierFlags & (UIKeyModifierControl | UIKeyModifierAlternate)) != 0;
+    // Modifier keys on their own do nothing, but they are still ours: letting
+    // them through would move the pointer.
+    if (keyCode >= kKeyCodeLeftControl && keyCode <= 0xE7) {
+        return YES;
+    }
 
-    if ([characters isEqualToString:@" "] && control) {
+    UIKeyModifierFlags flags = key.modifierFlags;
+    BOOL shift = (flags & UIKeyModifierShift) != 0;
+    BOOL control = (flags & UIKeyModifierControl) != 0;
+    BOOL command = (flags & UIKeyModifierCommand) != 0;
+    BOOL alternate = (flags & UIKeyModifierAlternate) != 0;
+
+    if (keyCode == kKeyCodeLang1 || keyCode == kKeyCodeCapsLock ||
+        (keyCode == kKeyCodeSpacebar && control && !command)) {
         [self setKoreanInput:!self.koreanInputActive];
         return YES;
     }
-    if (control) {
-        return NO;
-    }
-
-    if ([characters isEqualToString:UIKeyInputEscape]) {
-        [self.delegate hardwareKeyboardControllerDidCancel:self];
+    if (control || command) {
         return YES;
     }
-    if ([characters isEqualToString:@"\r"] || [characters isEqualToString:@"\n"]) {
+
+    // Holding option types the Latin letter even in Korean, the way it does
+    // in a Mac input method.
+    if (alternate) {
+        NSString *latin = [self characterForKeyCode:keyCode shift:shift];
+        if (latin.length == 0) {
+            return YES;
+        }
         self.settledText = [self.settledText stringByAppendingString:[self.composer flush]];
+        self.settledText = [self.settledText stringByAppendingString:latin];
         [self notifyTextChanged];
-        [self.delegate hardwareKeyboardControllerDidSubmit:self];
-        return YES;
-    }
-    if ([characters isEqualToString:@"\b"]) {
-        [self handleResolvedKeyCode:kKeyCodeDeleteBackward shift:NO];
         return YES;
     }
 
-    if (characters.length != 1) {
-        return NO;
-    }
-
-    unichar scalar = [characters characterAtIndex:0];
-    if (scalar < 0x20 || scalar == 0x7F) {
-        return NO;
-    }
-    if (shift && scalar >= 'a' && scalar <= 'z') {
-        scalar = (unichar)(scalar - 'a' + 'A');
-        characters = [NSString stringWithCharacters:&scalar length:1];
-    } else if (key.characters.length == 1) {
-        characters = key.characters;
-    }
-
-    [self appendTypedCharacter:characters];
+    [self handleResolvedKeyCode:keyCode shift:shift];
     return YES;
 }
 

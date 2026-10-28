@@ -59,6 +59,14 @@ NS_ASSUME_NONNULL_BEGIN
 /// dialog so a device that will not hand over its keyboard says why.
 - (NSString *)detectionSummary;
 
+/// YES once a keyboard has actually answered, by either route. Until then the
+/// caller gives typing a moment to prove itself before falling back.
+@property (nonatomic, readonly, getter=isKeyboardProven) BOOL keyboardProven;
+
+/// The part of the text that is still being composed, so the caller can
+/// underline it the way an input method does.
+@property (nonatomic, readonly, copy) NSString *composingText;
+
 @end
 
 NS_ASSUME_NONNULL_END

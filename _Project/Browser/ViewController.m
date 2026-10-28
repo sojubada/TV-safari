@@ -79,6 +79,15 @@ static UIColor *kTextColor(void) {
 @property (nonatomic) CGPoint hardwareTypingDOMPoint;
 @property (nonatomic, weak) BrowserWebView *hardwareTypingWebView;
 @property (nonatomic, nullable) UILabel *inputModeLabel;
+/// Shows what is being typed, with the syllable still being built underlined.
+/// The page's own field cannot carry that mark, and without it there is no
+/// way to tell a finished 가 from a 가 that is still waiting for a 받침.
+@property (nonatomic, nullable) UIView *typingBarView;
+@property (nonatomic, nullable) UILabel *typingLanguageLabel;
+@property (nonatomic, nullable) UILabel *typingTextLabel;
+/// Gives a keyboard that has never answered a moment to do so before the
+/// remote dialog takes over.
+@property (nonatomic, nullable) NSTimer *typingProofTimer;
 @property (nonatomic, nullable) BrowserFocusEscapeView *focusEscapeView;
 /// Hidden by scrolling down, which is separate from the person switching the
 /// bar off for good.
@@ -959,18 +968,115 @@ static UIColor *kTextColor(void) {
                                                                          "if (!target) { return 'false'; }"
                                                                          "if (target.focus) { target.focus(); }"
                                                                          "return 'true';"];
-    [self showInputModeNotice:self.hardwareKeyboardController.isKoreanInputActive ? @"한글" : @"English"];
+    [self showTypingBarWithText:existingText];
+
+    // A keyboard that has already answered once needs no proving.
+    if (!self.hardwareKeyboardController.isKeyboardProven) {
+        self.typingProofTimer = [NSTimer scheduledTimerWithTimeInterval:2.5
+                                                                 target:self
+                                                               selector:@selector(handleTypingProofTimeout)
+                                                               userInfo:nil
+                                                                repeats:NO];
+    }
     return YES;
 }
 
+#pragma mark - Typing bar
+
+- (void)showTypingBarWithText:(NSString *)text {
+    if (self.typingBarView == nil) {
+        UIView *bar = [[UIView alloc] initWithFrame:CGRectZero];
+        bar.backgroundColor = [UIColor colorWithWhite:0.05 alpha:0.94];
+        bar.layer.cornerRadius = 22.0;
+        bar.userInteractionEnabled = NO;
+
+        UILabel *language = [[UILabel alloc] initWithFrame:CGRectZero];
+        language.font = [UIFont systemFontOfSize:30.0 weight:UIFontWeightBold];
+        language.textColor = [UIColor colorWithRed:0.45 green:0.76 blue:1.0 alpha:1.0];
+        language.textAlignment = NSTextAlignmentCenter;
+        [bar addSubview:language];
+
+        UILabel *body = [[UILabel alloc] initWithFrame:CGRectZero];
+        body.font = [UIFont systemFontOfSize:36.0 weight:UIFontWeightRegular];
+        body.textColor = UIColor.whiteColor;
+        [bar addSubview:body];
+
+        [self.view addSubview:bar];
+        self.typingBarView = bar;
+        self.typingLanguageLabel = language;
+        self.typingTextLabel = body;
+    }
+
+    CGFloat width = MIN(1400.0, CGRectGetWidth(self.view.bounds) - 160.0);
+    CGFloat height = 96.0;
+    self.typingBarView.frame = CGRectMake(floor((CGRectGetWidth(self.view.bounds) - width) / 2.0),
+                                          CGRectGetHeight(self.view.bounds) - height - 80.0,
+                                          width,
+                                          height);
+    self.typingLanguageLabel.frame = CGRectMake(24.0, 0.0, 110.0, height);
+    self.typingTextLabel.frame = CGRectMake(146.0, 0.0, width - 170.0, height);
+    [self.view bringSubviewToFront:self.typingBarView];
+    self.typingBarView.hidden = NO;
+    self.typingBarView.alpha = 1.0;
+    [self updateTypingBarWithText:text ?: @""];
+}
+
+- (void)hideTypingBar {
+    self.typingBarView.hidden = YES;
+}
+
+- (void)updateTypingBarWithText:(NSString *)text {
+    self.typingLanguageLabel.text = self.hardwareKeyboardController.isKoreanInputActive ? @"한" : @"EN";
+
+    NSString *composing = self.hardwareKeyboardController.composingText ?: @"";
+    NSMutableAttributedString *attributed =
+        [[NSMutableAttributedString alloc] initWithString:text.length > 0 ? text : @" "];
+    // The composing syllable is the tail of the text, so it is marked from the
+    // end rather than tracked as a separate position.
+    if (composing.length > 0 && text.length >= composing.length) {
+        NSRange range = NSMakeRange(text.length - composing.length, composing.length);
+        [attributed addAttribute:NSUnderlineStyleAttributeName
+                           value:@(NSUnderlineStyleSingle)
+                           range:range];
+        [attributed addAttribute:NSForegroundColorAttributeName
+                           value:[UIColor colorWithRed:1.0 green:0.86 blue:0.45 alpha:1.0]
+                           range:range];
+    }
+    self.typingTextLabel.attributedText = attributed;
+}
+
 - (void)endHardwareTypingSession {
+    [self.typingProofTimer invalidate];
+    self.typingProofTimer = nil;
     [self.hardwareKeyboardController endCapture];
     self.hardwareTypingWebView = nil;
+    [self hideTypingBar];
+}
+
+// Nothing was typed, so there is no keyboard listening and the remote dialog
+// is the only way into this field.
+- (void)handleTypingProofTimeout {
+    self.typingProofTimer = nil;
+    if (!self.hardwareKeyboardController.isCapturing) {
+        return;
+    }
+    CGPoint point = self.hardwareTypingDOMPoint;
+    BrowserWebView *webView = self.hardwareTypingWebView;
+    [self endHardwareTypingSession];
+    if (webView != nil) {
+        [self.pageActionCoordinator presentEditableFieldPromptAtDOMPoint:point webView:webView];
+    }
 }
 
 - (void)hardwareKeyboardController:(BrowserHardwareKeyboardController *)controller
                      didChangeText:(NSString *)text {
     (void)controller;
+    // A keystroke arrived, so the keyboard has proved itself and the dialog
+    // is not needed.
+    [self.typingProofTimer invalidate];
+    self.typingProofTimer = nil;
+    [self updateTypingBarWithText:text];
+
     BrowserWebView *webView = self.hardwareTypingWebView;
     if (webView == nil) {
         return;
@@ -1034,6 +1140,9 @@ static UIColor *kTextColor(void) {
 - (void)hardwareKeyboardController:(BrowserHardwareKeyboardController *)controller
               didChangeKoreanInput:(BOOL)koreanInput {
     (void)controller;
+    [self.typingProofTimer invalidate];
+    self.typingProofTimer = nil;
+    self.typingLanguageLabel.text = koreanInput ? @"한" : @"EN";
     [self showInputModeNotice:koreanInput ? @"한글" : @"English"];
 }
 

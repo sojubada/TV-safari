@@ -147,6 +147,29 @@ static NSString *BrowserSubmitFocusedFieldScript(void) {
 - (void)presentEditableFieldPromptForFieldType:(NSString *)fieldType
                                          point:(CGPoint)point
                                        webView:(BrowserWebView *)webView {
+    [self presentEditableFieldPromptForFieldType:fieldType
+                                           point:point
+                                         webView:webView
+                             allowHardwareTyping:YES];
+}
+
+- (void)presentEditableFieldPromptAtDOMPoint:(CGPoint)point
+                                     webView:(BrowserWebView *)webView {
+    NSString *fieldType = [self.domInteractionService evaluateEditableElementJavaScriptAtPoint:point
+                                                                                        webView:webView
+                                                                                           body:@"var target = browserEditableTarget();"
+                                                                                                "if (!target) { return 'text'; }"
+                                                                                                "return (target.getAttribute && target.getAttribute('type')) || 'text';"];
+    [self presentEditableFieldPromptForFieldType:fieldType.length > 0 ? fieldType : @"text"
+                                           point:point
+                                         webView:webView
+                             allowHardwareTyping:NO];
+}
+
+- (void)presentEditableFieldPromptForFieldType:(NSString *)fieldType
+                                         point:(CGPoint)point
+                                       webView:(BrowserWebView *)webView
+                           allowHardwareTyping:(BOOL)allowHardwareTyping {
     NSString *fieldTitle = [self.domInteractionService evaluateEditableElementJavaScriptAtPoint:point
                                                                                          webView:webView
                                                                                             body:@"var target = browserEditableTarget();"
@@ -179,7 +202,8 @@ static NSString *BrowserSubmitFocusedFieldScript(void) {
                                                                                                    "return target.textContent || '';"];
     // With a keyboard attached the letters can go straight into the page, so
     // the system's full-screen text entry screen is skipped entirely.
-    if ([self.host browserPageActionCoordinatorBeginHardwareTypingAtDOMPoint:point
+    if (allowHardwareTyping &&
+        [self.host browserPageActionCoordinatorBeginHardwareTypingAtDOMPoint:point
                                                                      webView:webView
                                                                 existingText:existingText]) {
         return;
