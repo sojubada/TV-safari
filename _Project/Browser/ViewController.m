@@ -10,6 +10,7 @@
 #import "BrowserDarkModeController.h"
 #import "BrowserReaderModeController.h"
 #import "BrowserMenuCoordinator.h"
+#import "BrowserDiagnosticsLog.h"
 #import "BrowserDOMInteractionService.h"
 #import "BrowserHardwareKeyboardController.h"
 #import "BrowserNavigationService.h"
@@ -88,6 +89,11 @@ static UIColor *kTextColor(void) {
 /// Gives a keyboard that has never answered a moment to do so before the
 /// remote dialog takes over.
 @property (nonatomic, nullable) NSTimer *typingProofTimer;
+/// Writing into the page is held back a moment between keystrokes. Each write
+/// runs JavaScript synchronously, which pumps the run loop, and doing that on
+/// every letter of a heavy page is enough to take its web process down.
+@property (nonatomic, nullable) NSTimer *typingFlushTimer;
+@property (nonatomic, copy, nullable) NSString *pendingTypingText;
 @property (nonatomic, nullable) BrowserFocusEscapeView *focusEscapeView;
 /// Hidden by scrolling down, which is separate from the person switching the
 /// bar off for good.
@@ -134,6 +140,7 @@ static UIColor *kTextColor(void) {
     self.darkModeController = [BrowserDarkModeController new];
     self.readerModeController = [BrowserReaderModeController new];
     self.domInteractionService = [BrowserDOMInteractionService new];
+    [[BrowserDiagnosticsLog sharedLog] logSessionStart];
     self.hardwareKeyboardController = [BrowserHardwareKeyboardController new];
     self.hardwareKeyboardController.delegate = self;
     [self.hardwareKeyboardController prepareForKeyboardDetection];
@@ -1048,6 +1055,7 @@ static UIColor *kTextColor(void) {
 - (void)endHardwareTypingSession {
     [self.typingProofTimer invalidate];
     self.typingProofTimer = nil;
+    [self flushPendingTypingText];
     [self.hardwareKeyboardController endCapture];
     self.hardwareTypingWebView = nil;
     [self hideTypingBar];
@@ -1077,8 +1085,26 @@ static UIColor *kTextColor(void) {
     self.typingProofTimer = nil;
     [self updateTypingBarWithText:text];
 
+    if (self.hardwareTypingWebView == nil) {
+        return;
+    }
+    self.pendingTypingText = text;
+    [self.typingFlushTimer invalidate];
+    self.typingFlushTimer = [NSTimer scheduledTimerWithTimeInterval:0.25
+                                                             target:self
+                                                           selector:@selector(flushPendingTypingText)
+                                                           userInfo:nil
+                                                            repeats:NO];
+}
+
+- (void)flushPendingTypingText {
+    [self.typingFlushTimer invalidate];
+    self.typingFlushTimer = nil;
+
+    NSString *text = self.pendingTypingText;
+    self.pendingTypingText = nil;
     BrowserWebView *webView = self.hardwareTypingWebView;
-    if (webView == nil) {
+    if (text == nil || webView == nil) {
         return;
     }
     NSString *escaped = [self.domInteractionService javaScriptEscapedString:text];
@@ -1103,6 +1129,7 @@ static UIColor *kTextColor(void) {
 
 - (void)hardwareKeyboardControllerDidSubmit:(BrowserHardwareKeyboardController *)controller {
     (void)controller;
+    [self flushPendingTypingText];
     BrowserWebView *webView = self.hardwareTypingWebView;
     if (webView == nil) {
         return;
@@ -1393,6 +1420,8 @@ static UIColor *kTextColor(void) {
 }
 
 - (void)webViewDidStartLoad:(id)webView {
+    [[BrowserDiagnosticsLog sharedLog] logEvent:@"load"
+                                         detail:[(BrowserWebView *)webView request].URL.absoluteString];
     [self.tabCoordinator webViewDidStartLoad:webView];
 }
 
@@ -1432,6 +1461,12 @@ static UIColor *kTextColor(void) {
 // page is too heavy for this device, and the mobile site is the way out.
 - (void)browserWebViewWebContentProcessDidTerminate:(BrowserWebView *)webView {
     NSString *urlString = webView.request.URL.absoluteString ?: @"";
+    [[BrowserDiagnosticsLog sharedLog]
+        logEvent:@"CRASH"
+          detail:[NSString stringWithFormat:@"deaths=%lu  consecutive=%lu  %@",
+                  (unsigned long)webView.webContentTerminationCount,
+                  (unsigned long)(self.consecutiveWebContentCrashes + 1),
+                  urlString]];
 
     if ([urlString isEqualToString:self.lastWebContentCrashURLString]) {
         self.consecutiveWebContentCrashes += 1;
@@ -1482,6 +1517,11 @@ static UIColor *kTextColor(void) {
 }
 
 - (void)webView:(id)webView didFailLoadWithError:(NSError *)error {
+    [[BrowserDiagnosticsLog sharedLog]
+        logEvent:@"load-fail"
+          detail:[NSString stringWithFormat:@"%ld %@  %@",
+                  (long)error.code, error.localizedDescription ?: @"",
+                  [(BrowserWebView *)webView request].URL.absoluteString ?: @""]];
     BrowserTabViewModel *tab = [self.tabCoordinator tabForWebView:webView];
     if (tab == nil) {
         return;

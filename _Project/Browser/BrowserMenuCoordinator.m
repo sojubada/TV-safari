@@ -1,4 +1,6 @@
 #import "BrowserMenuCoordinator.h"
+
+#import "BrowserDiagnosticsLog.h"
 #import "BrowserPreferencesStore.h"
 #import "BrowserContentBlockerController.h"
 #import "BrowserWebView.h"
@@ -1479,6 +1481,23 @@ withAnimationCoordinator:(UIFocusAnimationCoordinator *)coordinator {
     ];
 }
 
+// Where the log actually landed. The folder it wants is outside the app, and
+// whether it may be written there is not something the app can know without
+// trying, so the answer is shown rather than assumed.
+- (BrowserAdvancedMenuItem *)diagnosticsLogLocationMenuItem {
+    NSString *path = [BrowserDiagnosticsLog sharedLog].logFilePath;
+    NSString *title = (path.length > 0)
+        ? [NSString stringWithFormat:@"진단 로그: %@", path]
+        : @"진단 로그: 쓸 수 있는 폴더 없음";
+    __weak typeof(self) weakSelf = self;
+    return [self markKeepsMenuOpen:[self advancedMenuItemWithTitle:title
+                                                             style:UIAlertActionStyleDefault
+                                                           handler:^{
+        [[BrowserDiagnosticsLog sharedLog] logEvent:@"note" detail:@"로그 위치 확인"];
+        (void)weakSelf;
+    }]];
+}
+
 - (NSArray<BrowserAdvancedMenuSection *> *)settingsMenuSections {
     return @[
         [BrowserAdvancedMenuSection sectionWithTitle:@"Remote" items:@[
@@ -1505,6 +1524,7 @@ withAnimationCoordinator:(UIFocusAnimationCoordinator *)coordinator {
         ]],
         [BrowserAdvancedMenuSection sectionWithTitle:@"Help" items:@[
             [self usageGuideMenuItem],
+            [self diagnosticsLogLocationMenuItem],
         ]],
     ];
 }
