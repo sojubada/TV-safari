@@ -1507,13 +1507,24 @@ static UIColor *kTextColor(void) {
 - (void)webViewDidStartLoad:(id)webView {
     // Anything typed belonged to the page being left.
     self.pendingTypingText = nil;
-    [[BrowserDiagnosticsLog sharedLog] logEvent:@"load"
-                                         detail:[(BrowserWebView *)webView request].URL.absoluteString];
+    [[BrowserDiagnosticsLog sharedLog]
+        logEvent:@"load"
+          detail:[NSString stringWithFormat:@"%@  %@",
+                  [[BrowserDiagnosticsLog sharedLog] memoryFootprintSummary],
+                  [(BrowserWebView *)webView request].URL.absoluteString ?: @""]];
     [self.tabCoordinator webViewDidStartLoad:webView];
 }
 
 - (void)webViewDidFinishLoad:(id)webView {
     if (webView == self.webview) {
+        // The figure right after a page settles is its true cost, and the gap
+        // between that and the one at the start is what the page actually
+        // took.
+        [[BrowserDiagnosticsLog sharedLog]
+            logEvent:@"done"
+              detail:[NSString stringWithFormat:@"%@  %@",
+                      [[BrowserDiagnosticsLog sharedLog] memoryFootprintSummary],
+                      [(BrowserWebView *)webView request].URL.absoluteString ?: @""]];
         [self.siteSweepController noteLoadFinished];
     }
     [self.tabCoordinator webViewDidFinishLoad:webView];
@@ -1556,15 +1567,19 @@ static UIColor *kTextColor(void) {
     // which is the one page it most wants to get past.
     if (self.siteSweepController.isRunning && webView == self.webview) {
         [[BrowserDiagnosticsLog sharedLog]
-            logEvent:@"CRASH" detail:[@"during sweep  " stringByAppendingString:urlString]];
+            logEvent:@"CRASH"
+              detail:[NSString stringWithFormat:@"during sweep  %@  %@",
+                      [[BrowserDiagnosticsLog sharedLog] memoryFootprintSummary], urlString]];
         [self.siteSweepController noteWebContentProcessDidTerminate];
         return;
     }
     [[BrowserDiagnosticsLog sharedLog]
         logEvent:@"CRASH"
-          detail:[NSString stringWithFormat:@"deaths=%lu  consecutive=%lu  %@",
+          detail:[NSString stringWithFormat:@"deaths=%lu  consecutive=%lu  %@  mobile=%@  %@",
                   (unsigned long)webView.webContentTerminationCount,
                   (unsigned long)(self.consecutiveWebContentCrashes + 1),
+                  [[BrowserDiagnosticsLog sharedLog] memoryFootprintSummary],
+                  self.preferencesStore.mobileModeEnabled ? @"on" : @"off",
                   urlString]];
 
     if ([urlString isEqualToString:self.lastWebContentCrashURLString]) {
@@ -1600,6 +1615,15 @@ static UIColor *kTextColor(void) {
     // that appears unbidden switched every site in the browser to its phone
     // version, for good. Naver had been coming up as the phone site ever
     // since, with nothing to say why.
+    // The message has been recommending reader mode with no way to get to it
+    // from here, which left Reload — the thing that just failed twice — as
+    // the only thing to try.
+    [alert addAction:[UIAlertAction actionWithTitle:@"Open in Reader Mode"
+                                              style:UIAlertActionStyleDefault
+                                            handler:^(__unused UIAlertAction *action) {
+        weakSelf.consecutiveWebContentCrashes = 0;
+        [weakSelf browserToggleReaderMode];
+    }]];
     [alert addAction:[UIAlertAction actionWithTitle:@"Reload"
                                               style:UIAlertActionStyleDefault
                                             handler:^(__unused UIAlertAction *action) {

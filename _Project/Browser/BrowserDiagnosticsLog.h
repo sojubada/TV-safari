@@ -30,6 +30,11 @@ NS_ASSUME_NONNULL_BEGIN
 /// app and no record of why.
 - (void)installCrashAndStallWatch;
 
+/// How much memory the app is using and how much it has left before the
+/// system takes it, as a short string for the log. This is the number the
+/// whole stability question turns on, and until now it was never measured.
+- (NSString *)memoryFootprintSummary;
+
 /// The whole log as a page the browser can show, newest first. The file sits
 /// in the app's own container, which nothing else on the box can navigate to,
 /// so the browser reads it to itself.

@@ -2,6 +2,9 @@
 
 #import <UIKit/UIKit.h>
 
+#import <mach/mach.h>
+#import <os/proc.h>
+
 #import <objc/runtime.h>
 
 #import <fcntl.h>
@@ -181,12 +184,35 @@ static void BrowserHandleFatalSignal(int signalNumber) {
     });
 }
 
+// phys_footprint is what the system measures an app against when it decides
+// who to kill, and os_proc_available_memory is what is left of the
+// allowance. A page that dies is a page that ran the second number to zero.
+- (NSString *)memoryFootprintSummary {
+    double usedMB = 0.0;
+    task_vm_info_data_t info;
+    mach_msg_type_number_t count = TASK_VM_INFO_COUNT;
+    if (task_info(mach_task_self(), TASK_VM_INFO, (task_info_t)&info, &count) == KERN_SUCCESS) {
+        usedMB = (double)info.phys_footprint / (1024.0 * 1024.0);
+    }
+
+    double freeMB = -1.0;
+    if (@available(tvOS 13.0, *)) {
+        freeMB = (double)os_proc_available_memory() / (1024.0 * 1024.0);
+    }
+
+    if (freeMB >= 0.0) {
+        return [NSString stringWithFormat:@"mem %.0fMB used, %.0fMB left", usedMB, freeMB];
+    }
+    return [NSString stringWithFormat:@"mem %.0fMB used", usedMB];
+}
+
 - (void)logSessionStart {
     NSString *version = [NSBundle mainBundle].infoDictionary[@"CFBundleShortVersionString"] ?: @"?";
     NSString *build = [NSBundle mainBundle].infoDictionary[@"CFBundleVersion"] ?: @"?";
     [self logEvent:@"session"
-            detail:[NSString stringWithFormat:@"--- launch v%@ (%@) tvOS %@ ---",
-                    version, build, [UIDevice currentDevice].systemVersion]];
+            detail:[NSString stringWithFormat:@"--- launch v%@ (%@) tvOS %@  %@ ---",
+                    version, build, [UIDevice currentDevice].systemVersion,
+                    [self memoryFootprintSummary]]];
 }
 
 - (void)logEvent:(NSString *)event detail:(NSString *)detail {
