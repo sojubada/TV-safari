@@ -5,7 +5,13 @@
 #import <objc/runtime.h>
 
 static NSString * const kBrowserContentRuleListStoreClassName = @"WKContentRuleListStore";
-static const NSTimeInterval kBrowserRuleListCompileTimeout = 3.0;
+// Only the cache lookup is waited on, and barely: a hit is a disk read. The
+// compile itself is never waited on, because it is seconds of work on this
+// device and the app has a web view to put on screen.
+static const NSTimeInterval kBrowserRuleListLookupTimeout = 1.0;
+// Changing the rules means changing this, or the store hands back the list
+// compiled from the old ones.
+static NSString * const kBrowserRuleListIdentifier = @"BrowserAdBlockRules-v2";
 
 @interface BrowserContentBlockerController ()
 
@@ -13,6 +19,7 @@ static const NSTimeInterval kBrowserRuleListCompileTimeout = 3.0;
 @property (nonatomic, copy) NSString *compilationStatusString;
 @property (nonatomic, strong, nullable) id compiledRuleListObject;
 @property (nonatomic, assign) BOOL compilationAttempted;
+@property (nonatomic, assign, readwrite) NSUInteger ruleCount;
 
 @end
 
@@ -34,6 +41,7 @@ static const NSTimeInterval kBrowserRuleListCompileTimeout = 3.0;
         _ruleListSupported = NO;
         _compiledRuleListObject = nil;
         _compilationAttempted = false;
+        _ruleCount = [self contentBlockingRulesJSON].count;
     }
     return self;
 }
@@ -93,8 +101,33 @@ static const NSTimeInterval kBrowserRuleListCompileTimeout = 3.0;
     ];
 }
 
-- (NSUInteger)ruleCount {
-    return [self contentBlockingRulesJSON].count;
+// The bundled list is the ad and tracker hosts from EasyPrivacy and EasyList,
+// narrowed to the one shape that converts without a filter engine behind it
+// — a bare host, blocked only when it is third-party — so a rule can never
+// take out the page it was meant to clean up. The hand-written rules stay in
+// front of them: they cover the few large networks whose EasyList entries
+// carry options this conversion deliberately leaves out.
+- (NSString *)encodedRuleListJSON {
+    NSArray<NSDictionary *> *handWritten = [self contentBlockingRulesJSON];
+
+    NSMutableArray<NSDictionary *> *combined = [handWritten mutableCopy];
+    NSString *bundledPath = [[NSBundle mainBundle] pathForResource:@"adblock-rules" ofType:@"json"];
+    if (bundledPath.length > 0) {
+        NSData *bundled = [NSData dataWithContentsOfFile:bundledPath];
+        id parsed = (bundled.length > 0)
+            ? [NSJSONSerialization JSONObjectWithData:bundled options:0 error:NULL]
+            : nil;
+        if ([parsed isKindOfClass:[NSArray class]]) {
+            [combined addObjectsFromArray:(NSArray *)parsed];
+        }
+    }
+
+    NSData *jsonData = [NSJSONSerialization dataWithJSONObject:combined options:0 error:NULL];
+    if (jsonData.length == 0) {
+        return nil;
+    }
+    self.ruleCount = combined.count;
+    return [[NSString alloc] initWithData:jsonData encoding:NSUTF8StringEncoding];
 }
 
 - (void)prepareRuleListIfNeeded {
@@ -119,60 +152,72 @@ static const NSTimeInterval kBrowserRuleListCompileTimeout = 3.0;
         return;
     }
 
-    NSArray<NSDictionary *> *rules = [self contentBlockingRulesJSON];
-    NSError *jsonError = nil;
-    NSData *jsonData = [NSJSONSerialization dataWithJSONObject:rules options:0 error:&jsonError];
-    if (jsonData == nil) {
-        self.ruleListSupported = NO;
-        self.compilationStatusString = [NSString stringWithFormat:@"Failed JSON: %@", jsonError.localizedDescription];
-        return;
-    }
-
-    NSString *jsonString = [[NSString alloc] initWithData:jsonData encoding:NSUTF8StringEncoding];
-    if (jsonString.length == 0) {
-        self.ruleListSupported = NO;
-        self.compilationStatusString = @"Failed: JSON string empty";
-        return;
-    }
-
     self.ruleListSupported = YES;
-    __block BOOL finished = NO;
-    __weak typeof(self) weakSelf = self;
 
-    void (^completionHandler)(id, NSError *) = ^(id ruleList, NSError *error) {
-        __strong typeof(weakSelf) strongSelf = weakSelf;
-        if (strongSelf != nil) {
-            if (error != nil) {
-                strongSelf.compiledRuleListObject = nil;
-                strongSelf.compilationStatusString = [NSString stringWithFormat:@"Failed Error: %@", error.localizedDescription];
-            } else if (ruleList != nil) {
+    // The store keeps what it compiled last time. Asking for it first is the
+    // whole difference between a list of this size being practical and the
+    // app spending every launch rebuilding it.
+    SEL lookUpSelector = NSSelectorFromString(@"lookUpContentRuleListForIdentifier:completionHandler:");
+    if ([store respondsToSelector:lookUpSelector]) {
+        __block BOOL lookedUp = NO;
+        __weak typeof(self) weakSelf = self;
+        void (^lookupHandler)(id, NSError *) = ^(id ruleList, __unused NSError *error) {
+            __strong typeof(weakSelf) strongSelf = weakSelf;
+            if (strongSelf != nil && ruleList != nil) {
                 strongSelf.compiledRuleListObject = ruleList;
-                strongSelf.compilationStatusString = @"Success (Rule List Active)";
-            } else {
-                strongSelf.compiledRuleListObject = nil;
-                strongSelf.compilationStatusString = @"Failed: Rule list nil";
+                strongSelf.compilationStatusString = @"Success (cached)";
+            }
+            lookedUp = YES;
+        };
+        ((void (*)(id, SEL, id, id))objc_msgSend)(store, lookUpSelector,
+                                                  kBrowserRuleListIdentifier, lookupHandler);
+
+        NSDate *deadline = [NSDate dateWithTimeIntervalSinceNow:kBrowserRuleListLookupTimeout];
+        while (!lookedUp && [deadline timeIntervalSinceNow] > 0) {
+            @autoreleasepool {
+                [[NSRunLoop currentRunLoop] runMode:NSDefaultRunLoopMode
+                                         beforeDate:[NSDate dateWithTimeIntervalSinceNow:0.01]];
             }
         }
-        finished = YES;
-    };
-
-    ((void (*)(id, SEL, id, id, id))objc_msgSend)(store, compileSelector, @"BrowserAdBlockRules-v1", jsonString, completionHandler);
-
-    // This runs during launch, before the first web view exists, because the
-    // compiled list has to be in hand when the configuration is built. An
-    // unbounded wait would therefore hang the app on a tvOS WebKit that
-    // accepts the selector but never calls back, so the wait is bounded and
-    // falls through to the JavaScript path instead.
-    NSDate *deadline = [NSDate dateWithTimeIntervalSinceNow:kBrowserRuleListCompileTimeout];
-    while (!finished && [deadline timeIntervalSinceNow] > 0) {
-        @autoreleasepool {
-            [[NSRunLoop currentRunLoop] runMode:NSDefaultRunLoopMode beforeDate:[NSDate dateWithTimeIntervalSinceNow:0.01]];
+        if (self.compiledRuleListObject != nil) {
+            return;
         }
     }
 
-    if (!finished) {
-        self.compilationStatusString = @"Failed: compile timed out";
-    }
+    // Nothing cached, so it has to be built. That is seconds of work on this
+    // device, and none of it is waited on: the first run browses without the
+    // list and every run after it starts with the list already there.
+    self.compilationStatusString = @"Compiling in background";
+    dispatch_async(dispatch_get_global_queue(QOS_CLASS_UTILITY, 0), ^{
+        NSString *jsonString = [self encodedRuleListJSON];
+        if (jsonString.length == 0) {
+            self.compilationStatusString = @"Failed: JSON empty";
+            return;
+        }
+        dispatch_async(dispatch_get_main_queue(), ^{
+            __weak typeof(self) weakSelf = self;
+            void (^completionHandler)(id, NSError *) = ^(id ruleList, NSError *error) {
+                __strong typeof(weakSelf) strongSelf = weakSelf;
+                if (strongSelf == nil) {
+                    return;
+                }
+                if (error != nil) {
+                    strongSelf.compilationStatusString =
+                        [NSString stringWithFormat:@"Failed Error: %@", error.localizedDescription];
+                } else if (ruleList != nil) {
+                    strongSelf.compiledRuleListObject = ruleList;
+                    strongSelf.compilationStatusString =
+                        [NSString stringWithFormat:@"Success (%lu rules, next launch)",
+                         (unsigned long)strongSelf.ruleCount];
+                } else {
+                    strongSelf.compilationStatusString = @"Failed: Rule list nil";
+                }
+            };
+            ((void (*)(id, SEL, id, id, id))objc_msgSend)(store, compileSelector,
+                                                          kBrowserRuleListIdentifier,
+                                                          jsonString, completionHandler);
+        });
+    });
 }
 
 - (id)compiledRuleList {

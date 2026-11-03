@@ -1493,6 +1493,29 @@ withAnimationCoordinator:(UIFocusAnimationCoordinator *)coordinator {
     }];
 }
 
+// Leaves the browser walking the bundled list on its own, writing down what
+// each site did. Hand the log over afterwards rather than describing each
+// problem as it happens.
+- (BrowserAdvancedMenuItem *)siteSweepMenuItem {
+    BOOL running = [self.host browserSiteSweepRunning];
+    NSString *title = running
+        ? [NSString stringWithFormat:@"사이트 점검 중지  (%@)", [self.host browserSiteSweepStatus]]
+        : @"사이트 점검 시작  (처음부터)";
+    __weak typeof(self) weakSelf = self;
+    return [self advancedMenuItemWithTitle:title style:UIAlertActionStyleDefault handler:^{
+        [weakSelf.host browserToggleSiteSweep];
+    }];
+}
+
+- (BrowserAdvancedMenuItem *)resumeSiteSweepMenuItem {
+    NSString *title = [NSString stringWithFormat:@"사이트 점검 이어서  (%@)",
+                       [self.host browserSiteSweepStatus]];
+    __weak typeof(self) weakSelf = self;
+    return [self advancedMenuItemWithTitle:title style:UIAlertActionStyleDefault handler:^{
+        [weakSelf.host browserResumeSiteSweep];
+    }];
+}
+
 - (NSArray<BrowserAdvancedMenuSection *> *)settingsMenuSections {
     return @[
         [BrowserAdvancedMenuSection sectionWithTitle:@"Remote" items:@[
@@ -1520,6 +1543,8 @@ withAnimationCoordinator:(UIFocusAnimationCoordinator *)coordinator {
         [BrowserAdvancedMenuSection sectionWithTitle:@"Help" items:@[
             [self usageGuideMenuItem],
             [self diagnosticsLogLocationMenuItem],
+            [self siteSweepMenuItem],
+            [self resumeSiteSweepMenuItem],
         ]],
     ];
 }

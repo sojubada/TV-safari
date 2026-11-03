@@ -13,6 +13,11 @@
 - (void)browserPresentViewController:(UIViewController *)viewController;
 - (void)browserLoadHomePage;
 - (void)browserShowHints;
+/// Starts or stops the walk through the bundled site list.
+- (void)browserToggleSiteSweep;
+- (void)browserResumeSiteSweep;
+- (BOOL)browserSiteSweepRunning;
+- (NSString *)browserSiteSweepStatus;
 - (void)browserShowTabOverview;
 - (void)browserCreateNewTabLoadingHomePage:(BOOL)loadHomePage;
 - (void)browserHideTopNav;

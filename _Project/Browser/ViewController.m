@@ -11,6 +11,7 @@
 #import "BrowserReaderModeController.h"
 #import "BrowserMenuCoordinator.h"
 #import "BrowserDiagnosticsLog.h"
+#import "BrowserSiteSweepController.h"
 #import "BrowserDOMInteractionService.h"
 #import "BrowserHardwareKeyboardController.h"
 #import "BrowserNavigationService.h"
@@ -68,13 +69,14 @@ static UIColor *kTextColor(void) {
 @end
 
 @interface ViewController () <BrowserMenuCoordinatorHost, BrowserPageActionCoordinatorHost, BrowserRemoteInputControllerHost, BrowserTabCoordinatorHost, BrowserTabOverviewControllerHost, BrowserTopBarViewDelegate,
-    BrowserHardwareKeyboardControllerDelegate>
+    BrowserHardwareKeyboardControllerDelegate, BrowserSiteSweepControllerDelegate>
 
 @property (nonatomic) BrowserContentBlockerController *contentBlockerController;
 @property (nonatomic) BrowserDarkModeController *darkModeController;
 @property (nonatomic) BrowserReaderModeController *readerModeController;
 @property (nonatomic) BrowserDOMInteractionService *domInteractionService;
 @property (nonatomic) BrowserHardwareKeyboardController *hardwareKeyboardController;
+@property (nonatomic) BrowserSiteSweepController *siteSweepController;
 /// Where the field being typed into lives, so each keystroke lands in the
 /// same element.
 @property (nonatomic) CGPoint hardwareTypingDOMPoint;
@@ -148,6 +150,8 @@ static UIColor *kTextColor(void) {
     self.hardwareKeyboardController = [BrowserHardwareKeyboardController new];
     self.hardwareKeyboardController.delegate = self;
     [self.hardwareKeyboardController prepareForKeyboardDetection];
+    self.siteSweepController = [BrowserSiteSweepController new];
+    self.siteSweepController.delegate = self;
     self.navigationService = [[BrowserNavigationService alloc] initWithPreferencesStore:self.preferencesStore];
     self.sessionStore = [BrowserSessionStore new];
     self.menuCoordinator = [[BrowserMenuCoordinator alloc] initWithHost:self preferencesStore:self.preferencesStore];
@@ -964,6 +968,40 @@ static UIColor *kTextColor(void) {
     [self.tabCoordinator closeTabAtIndex:tabIndex];
 }
 
+#pragma mark - Site sweep
+
+- (void)siteSweepController:(__unused BrowserSiteSweepController *)controller
+             wantsLoadOfURL:(NSURL *)URL {
+    [self.webview loadRequest:[NSURLRequest requestWithURL:URL]];
+}
+
+- (void)siteSweepControllerDidFinish:(__unused BrowserSiteSweepController *)controller {
+    [self showInputModeNotice:@"점검 끝"];
+}
+
+- (void)browserToggleSiteSweep {
+    if (self.siteSweepController.isRunning) {
+        [self.siteSweepController stop];
+        [self showInputModeNotice:@"점검 중지"];
+        return;
+    }
+    [self.siteSweepController startFromBeginning:YES];
+}
+
+- (void)browserResumeSiteSweep {
+    [self.siteSweepController startFromBeginning:NO];
+}
+
+- (BOOL)browserSiteSweepRunning {
+    return self.siteSweepController.isRunning;
+}
+
+- (NSString *)browserSiteSweepStatus {
+    return [NSString stringWithFormat:@"%lu / %lu",
+            (unsigned long)self.siteSweepController.currentIndex + 1,
+            (unsigned long)self.siteSweepController.siteCount];
+}
+
 #pragma mark - Hardware keyboard
 
 - (NSString *)browserPageActionCoordinatorKeyboardDetectionSummary {
@@ -1304,6 +1342,11 @@ static UIColor *kTextColor(void) {
 }
 
 - (void)browserRemoteInputControllerHandleMenuPress {
+    if (self.siteSweepController.isRunning) {
+        [self.siteSweepController stop];
+        [self showInputModeNotice:@"점검 중지"];
+        return;
+    }
     if (self.hardwareKeyboardController.isCapturing) {
         [self endHardwareTypingSession];
         return;
@@ -1467,6 +1510,9 @@ static UIColor *kTextColor(void) {
 }
 
 - (void)webViewDidFinishLoad:(id)webView {
+    if (webView == self.webview) {
+        [self.siteSweepController noteLoadFinished];
+    }
     [self.tabCoordinator webViewDidFinishLoad:webView];
     if ([webView isKindOfClass:[BrowserWebView class]]) {
         if (self.preferencesStore.forcedDarkModeEnabled) {
@@ -1502,6 +1548,15 @@ static UIColor *kTextColor(void) {
 // page is too heavy for this device, and the mobile site is the way out.
 - (void)browserWebViewWebContentProcessDidTerminate:(BrowserWebView *)webView {
     NSString *urlString = webView.request.URL.absoluteString ?: @"";
+    // During a sweep the crash is the finding, written down as the result for
+    // that site. A dialog here would stop the sweep at the first bad page,
+    // which is the one page it most wants to get past.
+    if (self.siteSweepController.isRunning && webView == self.webview) {
+        [[BrowserDiagnosticsLog sharedLog]
+            logEvent:@"CRASH" detail:[@"during sweep  " stringByAppendingString:urlString]];
+        [self.siteSweepController noteWebContentProcessDidTerminate];
+        return;
+    }
     [[BrowserDiagnosticsLog sharedLog]
         logEvent:@"CRASH"
           detail:[NSString stringWithFormat:@"deaths=%lu  consecutive=%lu  %@",
@@ -1537,22 +1592,30 @@ static UIColor *kTextColor(void) {
                   preferredStyle:UIAlertControllerStyleAlert];
 
     __weak typeof(self) weakSelf = self;
-    if (!self.preferencesStore.mobileModeEnabled) {
-        [alert addAction:[UIAlertAction actionWithTitle:@"Switch to Mobile and Reload"
-                                                  style:UIAlertActionStyleDefault
-                                                handler:^(__unused UIAlertAction *action) {
-            weakSelf.preferencesStore.mobileModeEnabled = YES;
-            weakSelf.preferencesStore.userAgent = BrowserPreferencesStore.mobileUserAgent;
-            weakSelf.consecutiveWebContentCrashes = 0;
-            [weakSelf.tabCoordinator recreateActiveWebViewPreservingCurrentURL];
-        }]];
-    }
+    // Reload first, because the first action is the one the remote has
+    // focused: mobile mode used to sit here, and a single press on a dialog
+    // that appears unbidden switched every site in the browser to its phone
+    // version, for good. Naver had been coming up as the phone site ever
+    // since, with nothing to say why.
     [alert addAction:[UIAlertAction actionWithTitle:@"Reload"
                                               style:UIAlertActionStyleDefault
                                             handler:^(__unused UIAlertAction *action) {
         weakSelf.consecutiveWebContentCrashes = 0;
         [weakSelf.webview reload];
     }]];
+    if (!self.preferencesStore.mobileModeEnabled) {
+        [alert addAction:[UIAlertAction actionWithTitle:@"Switch Every Site to Mobile and Reload"
+                                                  style:UIAlertActionStyleDefault
+                                                handler:^(__unused UIAlertAction *action) {
+            [[BrowserDiagnosticsLog sharedLog]
+                logEvent:@"mobile-mode"
+                  detail:@"switched on from the crash dialog — affects every site"];
+            weakSelf.preferencesStore.mobileModeEnabled = YES;
+            weakSelf.preferencesStore.userAgent = BrowserPreferencesStore.mobileUserAgent;
+            weakSelf.consecutiveWebContentCrashes = 0;
+            [weakSelf.tabCoordinator recreateActiveWebViewPreservingCurrentURL];
+        }]];
+    }
     [alert addAction:[UIAlertAction actionWithTitle:@"Leave It" style:UIAlertActionStyleCancel handler:nil]];
     [self browserPresentViewController:alert];
 }
@@ -1563,6 +1626,9 @@ static UIColor *kTextColor(void) {
           detail:[NSString stringWithFormat:@"%ld %@  %@",
                   (long)error.code, error.localizedDescription ?: @"",
                   [(BrowserWebView *)webView request].URL.absoluteString ?: @""]];
+    if (webView == self.webview) {
+        [self.siteSweepController noteLoadFailedWithError:error];
+    }
     BrowserTabViewModel *tab = [self.tabCoordinator tabForWebView:webView];
     if (tab == nil) {
         return;
