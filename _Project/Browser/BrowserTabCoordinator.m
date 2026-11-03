@@ -246,7 +246,6 @@ static CGFloat const kThumbnailStagingOffset = 4096.0;
             continue;
         }
         BrowserWebView *webView = self.webViewsByTabIdentifier[identifier];
-        [webView stopLoading];
         [webView removeFromSuperview];
         [released addObject:identifier];
     }
