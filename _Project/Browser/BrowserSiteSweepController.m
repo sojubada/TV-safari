@@ -1,5 +1,7 @@
 #import "BrowserSiteSweepController.h"
 
+#import <QuartzCore/QuartzCore.h>
+
 #import "BrowserDiagnosticsLog.h"
 
 static NSString * const kSweepIndexDefaultsKey = @"SiteSweepIndex";
