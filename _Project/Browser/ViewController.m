@@ -764,6 +764,11 @@ static UIColor *kTextColor(void) {
     [self loadHomePage];
 }
 
+- (void)browserClearMobileFallbackHosts {
+    [self.preferencesStore clearMobileFallbackHosts];
+    [[BrowserDiagnosticsLog sharedLog] logEvent:@"mobile-fallback" detail:@"list cleared"];
+}
+
 - (void)browserShowHints {
     [self showHintsAlert];
 }
@@ -1449,6 +1454,15 @@ static UIColor *kTextColor(void) {
 // down on this hardware. The phone agent gets a far lighter page.
 - (BOOL)isHeavyHost:(NSString *)host {
     NSString *lowercaseHost = host.lowercaseString ?: @"";
+    // Hosts that have already taken the web process down twice. The sweep
+    // found 28 sites that do it every single time — universities, KEPCO,
+    // GitHub, CNN — with two gigabytes of memory free and nothing of ours
+    // injected yet, so it is their desktop page meeting this WebKit. Asking
+    // them for the phone page is the one thing left that changes what
+    // arrives.
+    if ([self.preferencesStore isMobileFallbackHost:lowercaseHost]) {
+        return YES;
+    }
     for (NSString *heavy in @[@"youtube.com", @"youtu.be"]) {
         if ([lowercaseHost isEqualToString:heavy] ||
             [lowercaseHost hasSuffix:[@"." stringByAppendingString:heavy]]) {
@@ -1595,6 +1609,25 @@ static UIColor *kTextColor(void) {
 
     if (self.consecutiveWebContentCrashes <= 1) {
         [webView reload];
+        return;
+    }
+
+    // Twice in a row on the same address. Rather than put a dialog in front
+    // of someone who cannot do anything about it, remember the host and let
+    // the reload ask for its phone version, which is a different page and
+    // usually a far smaller one. The dialog is still there for the third
+    // time, when even that has not helped.
+    NSString *crashedHost = webView.request.URL.host;
+    if (crashedHost.length > 0 &&
+        self.preferencesStore.lightenHeavySitesEnabled &&
+        ![self.preferencesStore isMobileFallbackHost:crashedHost]) {
+        [self.preferencesStore addMobileFallbackHost:crashedHost];
+        [[BrowserDiagnosticsLog sharedLog]
+            logEvent:@"mobile-fallback"
+              detail:[NSString stringWithFormat:@"%@ crashed twice; its phone version from now on",
+                      crashedHost]];
+        self.consecutiveWebContentCrashes = 0;
+        [self.tabCoordinator recreateActiveWebViewPreservingCurrentURL];
         return;
     }
 

@@ -18,6 +18,7 @@
 - (void)browserResumeSiteSweep;
 - (BOOL)browserSiteSweepRunning;
 - (NSString *)browserSiteSweepStatus;
+- (void)browserClearMobileFallbackHosts;
 - (void)browserShowTabOverview;
 - (void)browserCreateNewTabLoadingHomePage:(BOOL)loadHomePage;
 - (void)browserHideTopNav;

@@ -2,6 +2,7 @@
 
 static NSString * const kUserAgentDefaultsKey = @"UserAgent";
 static NSString * const kMobileModeDefaultsKey = @"MobileMode";
+static NSString * const kMobileFallbackHostsDefaultsKey = @"MobileFallbackHosts";
 static NSString * const kShowTopNavigationBarDefaultsKey = @"ShowTopNavigationBar";
 static NSString * const kTextFontSizeDefaultsKey = @"TextFontSize";
 static NSString * const kScalePagesToFitDefaultsKey = @"ScalePagesToFit";
@@ -217,6 +218,41 @@ static NSUInteger const kMaximumReaderFontSize = 96;
 // The desktop build of a site like YouTube is the heaviest thing it serves,
 // and this device's web process cannot hold it: it dies and the page goes
 // blank. Those sites get the phone agent, which is a fraction of the weight.
+- (NSArray<NSString *> *)mobileFallbackHosts {
+    return [[self defaults] arrayForKey:kMobileFallbackHostsDefaultsKey] ?: @[];
+}
+
+- (BOOL)isMobileFallbackHost:(NSString *)host {
+    if (host.length == 0) {
+        return NO;
+    }
+    NSString *lowercase = host.lowercaseString;
+    for (NSString *stored in [self mobileFallbackHosts]) {
+        if ([lowercase isEqualToString:stored] ||
+            [lowercase hasSuffix:[@"." stringByAppendingString:stored]]) {
+            return YES;
+        }
+    }
+    return NO;
+}
+
+- (void)addMobileFallbackHost:(NSString *)host {
+    if (host.length == 0 || [self isMobileFallbackHost:host]) {
+        return;
+    }
+    NSMutableArray<NSString *> *hosts = [[self mobileFallbackHosts] mutableCopy];
+    [hosts addObject:host.lowercaseString];
+    // Bounded, so a long run of unlucky pages cannot grow it without end.
+    while (hosts.count > 200) {
+        [hosts removeObjectAtIndex:0];
+    }
+    [[self defaults] setObject:hosts forKey:kMobileFallbackHostsDefaultsKey];
+}
+
+- (void)clearMobileFallbackHosts {
+    [[self defaults] removeObjectForKey:kMobileFallbackHostsDefaultsKey];
+}
+
 - (BOOL)lightenHeavySitesEnabled {
     NSNumber *value = [[self defaults] objectForKey:kLightenHeavySitesEnabledDefaultsKey];
     return value ? value.boolValue : YES;

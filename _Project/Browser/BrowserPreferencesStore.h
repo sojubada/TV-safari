@@ -48,6 +48,14 @@ NS_ASSUME_NONNULL_BEGIN
 @property (nonatomic) NSUInteger readingBodyFontSize;
 @property (nonatomic) BOOL lightenHeavySitesEnabled;
 
+/// Hosts whose desktop version takes the web process down, and which are
+/// therefore asked for their phone version instead. Learned from crashes
+/// rather than listed in advance.
+@property (nonatomic, readonly) NSArray<NSString *> *mobileFallbackHosts;
+- (BOOL)isMobileFallbackHost:(nullable NSString *)host;
+- (void)addMobileFallbackHost:(nullable NSString *)host;
+- (void)clearMobileFallbackHosts;
+
 - (void)ensureUserAgentConsistency;
 
 @end

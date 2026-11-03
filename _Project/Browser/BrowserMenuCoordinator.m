@@ -1537,6 +1537,7 @@ withAnimationCoordinator:(UIFocusAnimationCoordinator *)coordinator {
         ]],
         [BrowserAdvancedMenuSection sectionWithTitle:@"Page" items:@[
             [self lightenHeavySitesToggleMenuItem],
+            [self mobileFallbackHostsMenuItem],
             [self userAgentModeMenuItem],
             [self topNavigationVisibilityMenuItem],
         ]],
@@ -1585,6 +1586,19 @@ withAnimationCoordinator:(UIFocusAnimationCoordinator *)coordinator {
                               anchorAt:anchorCenterX];
 }
 
+
+// The hosts the browser has learned to ask for the phone version, with a way
+// to forget them — a site that has been fixed since should get its desktop
+// page back.
+- (BrowserAdvancedMenuItem *)mobileFallbackHostsMenuItem {
+    NSUInteger count = self.preferencesStore.mobileFallbackHosts.count;
+    NSString *title = [NSString stringWithFormat:@"충돌해서 모바일로 여는 사이트  (%lu개, 눌러서 초기화)",
+                       (unsigned long)count];
+    __weak typeof(self) weakSelf = self;
+    return [self advancedMenuItemWithTitle:title style:UIAlertActionStyleDestructive handler:^{
+        [weakSelf.host browserClearMobileFallbackHosts];
+    }];
+}
 
 - (BrowserAdvancedMenuItem *)lightenHeavySitesToggleMenuItem {
     BOOL enabled = self.preferencesStore.lightenHeavySitesEnabled;
