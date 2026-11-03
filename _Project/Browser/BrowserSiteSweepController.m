@@ -134,7 +134,22 @@ static const NSTimeInterval kSweepSettleDelay = 1.5;
     [self recordOutcome:@"TIMEOUT" extra:nil];
 }
 
+// A timer does not fire while the app is in the background, and one site in
+// the last sweep sat on the clock for twenty-eight minutes because of it. The
+// elapsed time is checked against the clock as well, whenever anything else
+// happens.
+- (BOOL)expiredByWallClock {
+    if (!self.running || self.currentSettled) {
+        return NO;
+    }
+    return (CACurrentMediaTime() - self.currentStartTime) > (kSweepPerSiteTimeout * 2.0);
+}
+
 - (void)noteLoadFinished {
+    if ([self expiredByWallClock]) {
+        [self recordOutcome:@"TIMEOUT-late" extra:nil];
+        return;
+    }
     [self recordOutcome:@"ok" extra:nil];
 }
 

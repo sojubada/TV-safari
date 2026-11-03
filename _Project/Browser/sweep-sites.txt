@@ -27,7 +27,6 @@ https://terms.naver.com/
 https://book.naver.com/
 https://land.naver.com/
 https://auto.naver.com/
-https://health.naver.com/
 https://campaign.naver.com/
 https://nid.naver.com/nidlogin.login
 https://www.daum.net/
@@ -37,7 +36,7 @@ https://entertain.daum.net/
 https://finance.daum.net/
 https://map.kakao.com/
 https://cafe.daum.net/
-https://blog.daum.net/
+https://v.daum.net/
 https://tv.kakao.com/
 https://search.daum.net/search?q=%EB%82%A0%EC%94%A8
 https://www.kakaocorp.com/
@@ -70,10 +69,10 @@ https://www.ddaily.co.kr/
 https://www.inews24.com/
 https://www.ytn.co.kr/
 https://news.kbs.co.kr/
-https://www.imnews.imbc.com/
+https://imnews.imbc.com/
 https://news.sbs.co.kr/
 https://www.jtbc.co.kr/
-https://www.news.tvchosun.com/
+https://news.tvchosun.com/
 https://www.ichannela.com/
 https://www.mbn.co.kr/
 https://www.yna.co.kr/
@@ -85,9 +84,9 @@ https://www.pressian.com/
 https://www.mediatoday.co.kr/
 https://www.sisain.co.kr/
 https://www.sisajournal.com/
-https://www.weekly.chosun.com/
-https://www.shindonga.donga.com/
-https://www.hankyoreh21.co.kr/
+https://weekly.chosun.com/
+https://shindonga.donga.com/
+https://h21.hani.co.kr/
 https://www.ablenews.co.kr/
 https://www.dailian.co.kr/
 https://www.nongmin.com/
@@ -112,7 +111,7 @@ https://www.11st.co.kr/
 https://www.gmarket.co.kr/
 https://www.auction.co.kr/
 https://www.interpark.com/
-https://www.ssg.com/
+https://m.ssg.com/
 https://www.lotteon.com/
 https://www.wemakeprice.com/
 https://www.tmon.co.kr/
@@ -153,7 +152,6 @@ https://www.instiz.net/
 https://mlbpark.donga.com/
 https://todayhumor.co.kr/
 https://www.slrclub.com/
-https://cook.ppomppu.co.kr/
 https://www.82cook.com/
 https://www.gasengi.com/
 https://www.humoruniv.com/
@@ -167,8 +165,7 @@ https://www.quasarzone.com/
 https://www.coolenjoy.net/
 https://www.damoang.net/
 https://www.okky.kr/
-https://hashcode.co.kr/
-https://www.velog.io/
+https://velog.io/
 https://www.medium.com/
 https://www.github.com/
 https://www.stackoverflow.com/
@@ -190,7 +187,7 @@ https://www.nts.go.kr/
 https://www.customs.go.kr/
 https://www.nhis.or.kr/
 https://www.nps.or.kr/
-https://www.kcdc.go.kr/
+https://www.kdca.go.kr/
 https://www.weather.go.kr/
 https://www.kma.go.kr/
 https://www.airkorea.or.kr/
@@ -215,7 +212,7 @@ https://www.gb.go.kr/
 https://www.gyeongnam.go.kr/
 https://www.chungnam.go.kr/
 https://www.chungbuk.go.kr/
-https://www.gangwon.go.kr/
+https://state.gwd.go.kr/
 https://www.jeju.go.kr/
 https://www.naju.go.kr/
 https://www.kepco.co.kr/
@@ -245,7 +242,7 @@ https://www.shinhancard.com/
 https://www.lottecard.co.kr/
 https://www.bccard.com/
 https://www.samsunglife.com/
-https://www.kyobolife.co.kr/
+https://www.kyobo.co.kr/
 https://www.hanwhalife.com/
 https://www.kbinsure.co.kr/
 https://www.samsungfire.com/
@@ -345,7 +342,6 @@ https://www.airport.kr/
 https://www.koreanair.com/
 https://www.flyasiana.com/
 https://www.jejuair.net/
-https://t-express.co.kr/
 https://kobus.co.kr/
 https://www.yanolja.com/
 https://www.goodchoice.kr/
@@ -357,8 +353,7 @@ https://www.modetour.com/
 https://www.tourvis.com/
 https://visitkorea.or.kr/
 https://www.daangn.com/
-https://www.karrot.com/
-https://www.zigbang.com/
+https://zigbang.com/
 https://www.dabangapp.com/
 https://jobkorea.co.kr/
 https://saramin.co.kr/
@@ -406,7 +401,7 @@ https://newdaily.co.kr/
 https://www.skyedaily.com/
 https://www.viewsnnews.com/
 https://polinews.co.kr/
-https://thefact.co.kr/
+https://news.tf.co.kr/
 https://www.topstarnews.net/
 https://www.sportschosun.com/
 https://www.sportsseoul.com/

@@ -231,6 +231,29 @@ static CGFloat const kThumbnailStagingOffset = 4096.0;
 // Settings that belong to the browser rather than to one page — dark mode,
 // for one — have to reach the tabs sitting in the background too, or they
 // only take effect when you happen to switch to them.
+// Every tab holds a live web view, and every live web view is a web content
+// process of its own. On a device this short of memory that is what gets the
+// page on screen killed mid-load — the cost is paid for tabs nobody is
+// looking at. Switching to a tab already rebuilds its web view from the
+// stored address, so letting the others go costs a reload and nothing else.
+- (NSUInteger)releaseBackgroundTabWebViews {
+    BrowserTabViewModel *activeTab = self.activeTab;
+    NSString *keepIdentifier = activeTab.identifier;
+    NSMutableArray<NSString *> *released = [NSMutableArray array];
+
+    for (NSString *identifier in self.webViewsByTabIdentifier.allKeys) {
+        if (keepIdentifier != nil && [identifier isEqualToString:keepIdentifier]) {
+            continue;
+        }
+        BrowserWebView *webView = self.webViewsByTabIdentifier[identifier];
+        [webView stopLoading];
+        [webView removeFromSuperview];
+        [released addObject:identifier];
+    }
+    [self.webViewsByTabIdentifier removeObjectsForKeys:released];
+    return released.count;
+}
+
 - (NSArray<BrowserWebView *> *)allLoadedWebViews {
     return self.webViewsByTabIdentifier.allValues ?: @[];
 }

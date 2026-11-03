@@ -67,6 +67,9 @@ NS_ASSUME_NONNULL_BEGIN
 
 /// Every web view that currently exists, active and background alike.
 - (NSArray<BrowserWebView *> *)allLoadedWebViews;
+/// Drops every tab's web view but the one on screen. Each tab keeps its
+/// address, and gets a fresh web view when it is next switched to.
+- (NSUInteger)releaseBackgroundTabWebViews;
 
 - (void)updateTopNavAndWebView;
 - (void)setTopNavigationVisible:(BOOL)visible;

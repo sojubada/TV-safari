@@ -52,6 +52,15 @@ static void BrowserLogUncaughtException(NSException *exception) {
 
 - (BOOL)application:(UIApplication *)application didFinishLaunchingWithOptions:(NSDictionary *)launchOptions {
     NSSetUncaughtExceptionHandler(&BrowserLogUncaughtException);
+
+    // The cache had no ceiling, and a long run of sites filled the device:
+    // loads started failing with "No space left on device", which is not a
+    // thing a site can do anything about. A few tens of megabytes is plenty
+    // for revisiting pages and leaves the disk alone.
+    NSURLCache *cache = [[NSURLCache alloc] initWithMemoryCapacity:(8 * 1024 * 1024)
+                                                      diskCapacity:(48 * 1024 * 1024)
+                                                          diskPath:nil];
+    [NSURLCache setSharedURLCache:cache];
     [[BrowserDiagnosticsLog sharedLog] installCrashAndStallWatch];
 	// Override point for customization after application launch.
     if ([[NSUserDefaults standardUserDefaults] boolForKey:@"MobileMode"]) {

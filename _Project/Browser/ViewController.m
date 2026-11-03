@@ -1494,10 +1494,13 @@ static UIColor *kTextColor(void) {
     [super didReceiveMemoryWarning];
     // The log simply stops when the system takes the app for memory, so the
     // warnings leading up to it are the only sign of what happened.
+    NSUInteger released = [self.tabCoordinator releaseBackgroundTabWebViews];
+    [[NSURLCache sharedURLCache] removeAllCachedResponses];
     [[BrowserDiagnosticsLog sharedLog]
         logEvent:@"MEMORY-WARNING"
-          detail:[NSString stringWithFormat:@"tabs=%lu  %@",
+          detail:[NSString stringWithFormat:@"tabs=%lu  released=%lu  cache purged  %@",
                   (unsigned long)self.viewModel.tabs.count,
+                  (unsigned long)released,
                   self.webview.request.URL.absoluteString ?: @""]];
 }
 
