@@ -496,6 +496,10 @@ static void BrowserConfigurePrivateMediaPreferences(id configuration) {
     if (request == nil || self.runtimeWebView == nil) {
         return;
     }
+    // A new address always wins. Asked for one while another is still in
+    // flight, WebKit will finish with the first one in its own time, and
+    // until it does the browser looks dead to anyone using it.
+    [self stopLoading];
     self.lastRequest = request;
     SEL selector = NSSelectorFromString(@"loadRequest:");
     if ([self.runtimeWebView respondsToSelector:selector]) {
@@ -511,6 +515,14 @@ static void BrowserConfigurePrivateMediaPreferences(id configuration) {
     if ([self.runtimeWebView respondsToSelector:selector]) {
         ((id (*)(id, SEL, id, id))objc_msgSend)(self.runtimeWebView, selector, html, nil);
     }
+}
+
+- (void)stopLoading {
+    SEL selector = NSSelectorFromString(@"stopLoading");
+    if (self.runtimeWebView != nil && [self.runtimeWebView respondsToSelector:selector]) {
+        ((void (*)(id, SEL))objc_msgSend)(self.runtimeWebView, selector);
+    }
+    self.loading = NO;
 }
 
 - (void)reload {

@@ -95,6 +95,7 @@ static UIColor *kTextColor(void) {
 /// runs JavaScript synchronously, which pumps the run loop, and doing that on
 /// every letter of a heavy page is enough to take its web process down.
 @property (nonatomic, nullable) NSTimer *typingFlushTimer;
+@property (nonatomic, nullable) NSTimer *stuckLoadTimer;
 @property (nonatomic, copy, nullable) NSString *pendingTypingText;
 /// The address the field being typed into belongs to. A page that has moved
 /// on since is a different page, and text left over from the old one must not
@@ -973,11 +974,47 @@ static UIColor *kTextColor(void) {
     [self.tabCoordinator closeTabAtIndex:tabIndex];
 }
 
+#pragma mark - Stuck loads
+
+// A page that never finishes keeps the web view, and every address asked for
+// afterwards waits behind it — in the last sweep one hung site swallowed the
+// nineteen that followed, none of which were ever even started. Nothing in
+// this browser could cancel a load until now, so there was no way out of it
+// but to wait, and in that log the wait was twenty-two minutes.
+static const NSTimeInterval kStuckLoadTimeout = 40.0;
+
+- (void)startStuckLoadWatchdog {
+    [self cancelStuckLoadWatchdog];
+    self.stuckLoadTimer = [NSTimer scheduledTimerWithTimeInterval:kStuckLoadTimeout
+                                                           target:self
+                                                         selector:@selector(handleStuckLoad)
+                                                         userInfo:nil
+                                                          repeats:NO];
+}
+
+- (void)cancelStuckLoadWatchdog {
+    [self.stuckLoadTimer invalidate];
+    self.stuckLoadTimer = nil;
+}
+
+- (void)handleStuckLoad {
+    self.stuckLoadTimer = nil;
+    [[BrowserDiagnosticsLog sharedLog]
+        logEvent:@"stuck"
+          detail:[NSString stringWithFormat:@"gave up after %.0fs  %@",
+                  kStuckLoadTimeout, self.webview.request.URL.absoluteString ?: @""]];
+    [self.webview stopLoading];
+}
+
 #pragma mark - Site sweep
 
 - (void)siteSweepController:(__unused BrowserSiteSweepController *)controller
              wantsLoadOfURL:(NSURL *)URL {
     [self.webview loadRequest:[NSURLRequest requestWithURL:URL]];
+}
+
+- (void)siteSweepControllerWantsStop:(__unused BrowserSiteSweepController *)controller {
+    [self.webview stopLoading];
 }
 
 - (void)siteSweepControllerDidFinish:(__unused BrowserSiteSweepController *)controller {
@@ -1521,6 +1558,10 @@ static UIColor *kTextColor(void) {
 - (void)webViewDidStartLoad:(id)webView {
     // Anything typed belonged to the page being left.
     self.pendingTypingText = nil;
+    if (webView == self.webview) {
+        [self.siteSweepController noteLoadStarted];
+        [self startStuckLoadWatchdog];
+    }
     [[BrowserDiagnosticsLog sharedLog]
         logEvent:@"load"
           detail:[NSString stringWithFormat:@"%@  %@",
@@ -1531,6 +1572,7 @@ static UIColor *kTextColor(void) {
 
 - (void)webViewDidFinishLoad:(id)webView {
     if (webView == self.webview) {
+        [self cancelStuckLoadWatchdog];
         // The figure right after a page settles is its true cost, and the gap
         // between that and the one at the start is what the page actually
         // took.
@@ -1687,6 +1729,7 @@ static UIColor *kTextColor(void) {
                   (long)error.code, error.localizedDescription ?: @"",
                   [(BrowserWebView *)webView request].URL.absoluteString ?: @""]];
     if (webView == self.webview) {
+        [self cancelStuckLoadWatchdog];
         [self.siteSweepController noteLoadFailedWithError:error];
     }
     BrowserTabViewModel *tab = [self.tabCoordinator tabForWebView:webView];

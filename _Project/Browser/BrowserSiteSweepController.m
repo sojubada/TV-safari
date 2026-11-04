@@ -20,6 +20,9 @@ static const NSTimeInterval kSweepSettleDelay = 1.5;
 @property (nonatomic, nullable) NSTimer *timeoutTimer;
 @property (nonatomic) CFTimeInterval currentStartTime;
 @property (nonatomic) BOOL currentSettled;
+/// Whether the web view ever began this one. Without it a result of
+/// TIMEOUT cannot be told apart from a site that was never tried.
+@property (nonatomic) BOOL sawLoadStart;
 @end
 
 @implementation BrowserSiteSweepController
@@ -114,7 +117,10 @@ static const NSTimeInterval kSweepSettleDelay = 1.5;
     }
 
     self.currentSettled = NO;
+    self.sawLoadStart = NO;
     self.currentStartTime = CACurrentMediaTime();
+    // Belt and braces: nothing from the last site should still be in flight.
+    [self.delegate siteSweepControllerWantsStop:self];
     [[BrowserDiagnosticsLog sharedLog]
         logEvent:@"sweep-open"
           detail:[NSString stringWithFormat:@"%lu/%lu  %@",
@@ -131,7 +137,11 @@ static const NSTimeInterval kSweepSettleDelay = 1.5;
 }
 
 - (void)handleTimeout {
-    [self recordOutcome:@"TIMEOUT" extra:nil];
+    [self.delegate siteSweepControllerWantsStop:self];
+    // A site the web view never even began is not a slow site: it is the one
+    // before it still holding on. Recorded apart, so the figures mean what
+    // they say.
+    [self recordOutcome:(self.sawLoadStart ? @"TIMEOUT" : @"BLOCKED") extra:nil];
 }
 
 // A timer does not fire while the app is in the background, and one site in
@@ -143,6 +153,10 @@ static const NSTimeInterval kSweepSettleDelay = 1.5;
         return NO;
     }
     return (CACurrentMediaTime() - self.currentStartTime) > (kSweepPerSiteTimeout * 2.0);
+}
+
+- (void)noteLoadStarted {
+    self.sawLoadStart = YES;
 }
 
 - (void)noteLoadFinished {

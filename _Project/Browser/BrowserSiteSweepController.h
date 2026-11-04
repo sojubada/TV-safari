@@ -10,6 +10,10 @@ NS_ASSUME_NONNULL_BEGIN
 - (void)siteSweepController:(BrowserSiteSweepController *)controller
               wantsLoadOfURL:(NSURL *)URL;
 - (void)siteSweepControllerDidFinish:(BrowserSiteSweepController *)controller;
+/// Abandon whatever is loading. A page that never settles otherwise holds
+/// the web view and every site after it is recorded as a timeout it had
+/// nothing to do with.
+- (void)siteSweepControllerWantsStop:(BrowserSiteSweepController *)controller;
 @end
 
 /// Walks a bundled list of sites, one at a time, and writes down what each
@@ -32,6 +36,7 @@ NS_ASSUME_NONNULL_BEGIN
 - (void)stop;
 
 /// Called by the host as the page being swept settles one way or the other.
+- (void)noteLoadStarted;
 - (void)noteLoadFinished;
 - (void)noteLoadFailedWithError:(nullable NSError *)error;
 - (void)noteWebContentProcessDidTerminate;

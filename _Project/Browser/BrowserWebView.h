@@ -41,6 +41,9 @@ NS_ASSUME_NONNULL_BEGIN
       allowsInlineMediaPlayback:(BOOL)allowsInlineMediaPlayback NS_DESIGNATED_INITIALIZER;
 
 - (void)loadRequest:(NSURLRequest * _Nullable)request;
+/// Abandons whatever is in flight. Without this a page that never finishes
+/// holds the web view, and every address asked for after it simply waits.
+- (void)stopLoading;
 
 /// Shows a page the app built itself, with no network behind it. Used for the
 /// diagnostic log, which lives in a folder nothing else on the box can reach.
