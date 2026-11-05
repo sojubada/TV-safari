@@ -97,6 +97,7 @@ static UIColor *kTextColor(void) {
 @property (nonatomic, nullable) NSTimer *typingFlushTimer;
 @property (nonatomic, nullable) NSTimer *stuckLoadTimer;
 @property (nonatomic, copy, nullable) NSString *stuckLoadURLString;
+@property (nonatomic) CFTimeInterval lastScrollDiagnosticTime;
 @property (nonatomic, copy, nullable) NSString *pendingTypingText;
 /// The address the field being typed into belongs to. A page that has moved
 /// on since is a different page, and text left over from the old one must not
@@ -726,6 +727,54 @@ static UIColor *kTextColor(void) {
                                             : CGAffineTransformIdentity;
         self.topMenuView.alpha = hidden ? 0.0 : 1.0;
     } completion:nil];
+}
+
+// A page that will not scroll, and a page that goes white below the fold,
+// both come down to what the document thinks its own height is and which
+// element is actually the scrolling one. Guessing at that from the outside
+// has not worked, so it is asked — at most once every few seconds, because
+// the answer costs a synchronous script evaluation.
+- (void)browserRemoteInputControllerNoteScrollWentNowhere {
+    CFTimeInterval now = CACurrentMediaTime();
+    if ((now - self.lastScrollDiagnosticTime) < 5.0) {
+        return;
+    }
+    self.lastScrollDiagnosticTime = now;
+
+    NSString *report = [self.webview stringByEvaluatingJavaScriptFromString:
+        @"(function(){try{"
+         "var d=document.documentElement, b=document.body;"
+         "var cs=window.getComputedStyle(b);"
+         "var inner=0, innerTag='';"
+         "var all=document.querySelectorAll('div,main,section');"
+         "for(var i=0;i<all.length && i<400;i++){"
+             "var e=all[i];"
+             "if(e.scrollHeight>e.clientHeight+40 && e.clientHeight>200){"
+                 "inner=e.scrollHeight; innerTag=(e.tagName+'.'+(e.className||'')).slice(0,40); break;"
+             "}"
+         "}"
+         "return 'scrollY='+Math.round(window.scrollY)"
+             "+' innerH='+Math.round(window.innerHeight)"
+             "+' docH='+Math.round(d.scrollHeight)"
+             "+' bodyH='+Math.round(b?b.scrollHeight:0)"
+             "+' bodyOverflow='+(cs?cs.overflowY:'?')"
+             "+' innerScroller='+(inner?innerTag+'@'+inner:'none');"
+         "}catch(e){return 'probe failed: '+e;}})()"];
+
+    [[BrowserDiagnosticsLog sharedLog]
+        logEvent:@"scroll-stuck"
+          detail:[NSString stringWithFormat:@"%@  %@",
+                  report.length > 0 ? report : @"(no answer)",
+                  self.webview.request.URL.absoluteString ?: @""]];
+}
+
+- (CGFloat)browserRemoteInputControllerPageScale {
+    BrowserWebView *webView = self.webview;
+    if (webView == nil) {
+        return 1.0;
+    }
+    CGFloat scale = webView.transform.a;
+    return (scale > 0.01) ? scale : 1.0;
 }
 
 - (CGFloat)browserRemoteInputControllerTopBarBottomEdge {

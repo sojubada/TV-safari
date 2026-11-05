@@ -303,6 +303,16 @@ static NSString *BrowserPressPhaseString(UIPressPhase phase) {
 }
 
 - (BOOL)applyManualScrollDelta:(CGPoint)delta {
+    // The finger moved this many points on the screen; the page is laid out
+    // narrow and blown up to fill that screen, so in the page's own
+    // coordinates it moved fewer. Without this the page scrolls half again
+    // as far as the hand did, which reads as the page jumping, running past
+    // what has been drawn, and reaching the end early.
+    CGFloat pageScale = [self.host browserRemoteInputControllerPageScale];
+    if (pageScale > 0.01 && pageScale != 1.0) {
+        delta = CGPointMake(delta.x / pageScale, delta.y / pageScale);
+    }
+
     UIScrollView *scrollView = [self.host browserRemoteInputControllerActiveScrollView];
     if (scrollView != nil) {
         CGPoint contentOffset = scrollView.contentOffset;
@@ -325,6 +335,8 @@ static NSString *BrowserPressPhaseString(UIPressPhase phase) {
     BOOL moved = [self enqueueJavaScriptScrollDelta:delta];
     if (moved) {
         [self.host browserRemoteInputControllerDidScrollVertically:delta.y];
+    } else if (fabs(delta.y) > 4.0) {
+        [self.host browserRemoteInputControllerNoteScrollWentNowhere];
     }
     return moved;
 }

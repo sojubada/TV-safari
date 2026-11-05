@@ -25,6 +25,13 @@ NS_ASSUME_NONNULL_BEGIN
 /// hidden. The pointer snaps into the bar at this line, and page edge
 /// auto-scroll starts below it.
 - (CGFloat)browserRemoteInputControllerTopBarBottomEdge;
+/// How much the page is blown up by to fill the screen, 1.0 when it is not.
+/// A finger moves in screen points and the page scrolls in its own, and the
+/// two are not the same number once the page is scaled.
+- (CGFloat)browserRemoteInputControllerPageScale;
+/// Called when a scroll gesture moved nothing at all, so the reason can be
+/// written down rather than guessed at.
+- (void)browserRemoteInputControllerNoteScrollWentNowhere;
 /// Reports page scrolling so the bar can get out of the way going down
 /// and come back coming up.
 - (void)browserRemoteInputControllerDidScrollVertically:(CGFloat)deltaY;
