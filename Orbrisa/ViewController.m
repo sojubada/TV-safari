@@ -8,6 +8,7 @@
 
 #import "BrowserMenuCoordinator.h"
 #import "BrowserLocalization.h"
+#import "BrowserLog.h"
 #import "BrowserDOMInteractionService.h"
 #import "BrowserNavigationService.h"
 #import "BrowserPageActionCoordinator.h"
@@ -22,6 +23,7 @@
 #import "BrowserReaderViewController.h"
 #import "BrowserFeedStore.h"
 #import "BrowserFeedsViewController.h"
+#import "BrowserHardwareKeyboardController.h"
 #import "ViewController.h"
 
 static NSString * const kBrowserGlobalSelectPressEndedNotification = @"BrowserGlobalSelectPressEndedNotification";
@@ -527,7 +529,7 @@ static UIImage *BrowserGuideSymbol(NSArray<NSString *> *names, CGFloat pointSize
 
 @end
 
-@interface ViewController () <BrowserMenuCoordinatorHost, BrowserPageActionCoordinatorHost, BrowserRemoteInputControllerHost, BrowserTabCoordinatorHost, BrowserTabOverviewControllerHost, BrowserTopBarViewDelegate, BrowserVideoPlaybackCoordinatorHost>
+@interface ViewController () <BrowserHardwareKeyboardControllerDelegate, BrowserMenuCoordinatorHost, BrowserPageActionCoordinatorHost, BrowserRemoteInputControllerHost, BrowserTabCoordinatorHost, BrowserTabOverviewControllerHost, BrowserTopBarViewDelegate, BrowserVideoPlaybackCoordinatorHost>
 
 @property (nonatomic) BrowserDOMInteractionService *domInteractionService;
 @property (nonatomic) BrowserMenuCoordinator *menuCoordinator;
@@ -556,6 +558,24 @@ static UIImage *BrowserGuideSymbol(NSArray<NSString *> *names, CGFloat pointSize
 @property (nonatomic) CGFloat lastScrollPosition;
 @property (nonatomic, weak) UIScrollView *lastScrollView;
 @property (nonatomic, getter=isTopBarScrolledAway) BOOL topBarScrolledAway;
+
+// Bluetooth keyboard typing (두벌식 Hangul / English) straight into a field.
+@property (nonatomic) BrowserHardwareKeyboardController *hardwareKeyboardController;
+@property (nonatomic) CGPoint hardwareTypingDOMPoint;
+@property (nonatomic, weak) BrowserWebView *hardwareTypingWebView;
+@property (nonatomic, copy) NSString *hardwareTypingFieldType;
+/// YES when the address bar is being typed into rather than a page field.
+@property (nonatomic) BOOL hardwareTypingIntoAddressBar;
+@property (nonatomic) BOOL skipHardwareAddressTypingOnce;
+@property (nonatomic, copy) NSString *typingPageURLString;
+@property (nonatomic, copy) NSString *pendingTypingText;
+@property (nonatomic, copy) NSString *addressTypingText;
+@property (nonatomic) NSTimer *typingFlushTimer;
+@property (nonatomic) NSTimer *typingProofTimer;
+@property (nonatomic) UIView *typingBarView;
+@property (nonatomic) UILabel *typingLanguageLabel;
+@property (nonatomic) UILabel *typingTextLabel;
+@property (nonatomic) UILabel *inputModeLabel;
 
 @end
 
@@ -597,6 +617,9 @@ static UIImage *BrowserGuideSymbol(NSArray<NSString *> *names, CGFloat pointSize
     self.sessionStore = [BrowserSessionStore new];
     self.menuCoordinator = [[BrowserMenuCoordinator alloc] initWithHost:self preferencesStore:self.preferencesStore];
     self.remoteInputController = [[BrowserRemoteInputController alloc] initWithHost:self rootView:self.view];
+    self.hardwareKeyboardController = [BrowserHardwareKeyboardController new];
+    self.hardwareKeyboardController.delegate = self;
+    [self.hardwareKeyboardController prepareForKeyboardDetection];
     [self.view addSubview:self.remoteInputController.cursorView];
     self.videoPlaybackCoordinator = [[BrowserVideoPlaybackCoordinator alloc] initWithHost:self
                                                                       domInteractionService:self.domInteractionService];
@@ -948,6 +971,12 @@ static UIImage *BrowserGuideSymbol(NSArray<NSString *> *names, CGFloat pointSize
 }
 
 - (void)showInputURLorSearchGoogle {
+    // A Bluetooth keyboard types the address in place, Korean included.
+    BOOL skipHardwareTyping = self.skipHardwareAddressTypingOnce;
+    self.skipHardwareAddressTypingOnce = NO;
+    if (!skipHardwareTyping && [self beginAddressBarHardwareTyping]) {
+        return;
+    }
     // Straight to the Apple TV keyboard, without the "Enter URL or Search Terms" window in between.
     // An almost invisible text field: becoming first responder brings up the full-screen tvOS keyboard.
     UIView *hostView = self.view;
@@ -1771,6 +1800,318 @@ static CGFloat const kShowTopBarButtonHitSlop = 24.0;
     [self.tabCoordinator closeTabAtIndex:tabIndex];
 }
 
+#pragma mark - Hardware keyboard (두벌식 Hangul / English)
+
+- (BOOL)browserPageActionCoordinatorBeginHardwareTypingForFieldType:(NSString *)fieldType
+                                                         atDOMPoint:(CGPoint)point
+                                                            webView:(BrowserWebView *)webView
+                                                       existingText:(NSString *)existingText {
+    if (webView == nil || !self.hardwareKeyboardController.isKeyboardConnected) {
+        return NO;
+    }
+    [self endHardwareTypingSession];
+    if (![self.hardwareKeyboardController beginCaptureWithExistingText:existingText]) {
+        return NO;
+    }
+    self.hardwareTypingIntoAddressBar = NO;
+    self.hardwareTypingDOMPoint = point;
+    self.hardwareTypingWebView = webView;
+    self.hardwareTypingFieldType = fieldType ?: @"text";
+    self.typingPageURLString = webView.request.URL.absoluteString ?: @"";
+
+    // The element has to hold the caret itself, or the page won't show what
+    // is typed and won't react to it (search suggestions and the like).
+    [self.domInteractionService evaluateEditableElementJavaScriptAtPoint:point
+                                                                 webView:webView
+                                                                    body:@"var target = browserEditableTarget();"
+                                                                         "if (!target) { return 'false'; }"
+                                                                         "if (target.focus) { target.focus(); }"
+                                                                         "return 'true';"];
+    [self showTypingBarWithText:existingText];
+    [self armTypingProofTimer];
+    return YES;
+}
+
+- (BOOL)beginAddressBarHardwareTyping {
+    if (!self.hardwareKeyboardController.isKeyboardConnected) {
+        return NO;
+    }
+    [self endHardwareTypingSession];
+    if (![self.hardwareKeyboardController beginCaptureWithExistingText:@""]) {
+        return NO;
+    }
+    self.hardwareTypingIntoAddressBar = YES;
+    self.hardwareTypingWebView = nil;
+    self.addressTypingText = @"";
+    [self showTypingBarWithText:@""];
+    [self armTypingProofTimer];
+    return YES;
+}
+
+// A keyboard that has answered once needs no proving; otherwise, if nothing
+// is typed for a moment, it isn't really listening and the Apple TV keyboard
+// takes over.
+- (void)armTypingProofTimer {
+    [self.typingProofTimer invalidate];
+    self.typingProofTimer = nil;
+    if (self.hardwareKeyboardController.isKeyboardProven) {
+        return;
+    }
+    self.typingProofTimer = [NSTimer scheduledTimerWithTimeInterval:2.5
+                                                             target:self
+                                                           selector:@selector(handleTypingProofTimeout)
+                                                           userInfo:nil
+                                                            repeats:NO];
+}
+
+- (void)handleTypingProofTimeout {
+    self.typingProofTimer = nil;
+    if (!self.hardwareKeyboardController.isCapturing) {
+        return;
+    }
+    BOOL addressBar = self.hardwareTypingIntoAddressBar;
+    CGPoint point = self.hardwareTypingDOMPoint;
+    BrowserWebView *webView = self.hardwareTypingWebView;
+    NSString *fieldType = self.hardwareTypingFieldType ?: @"text";
+    [self endHardwareTypingSession];
+    if (addressBar) {
+        self.skipHardwareAddressTypingOnce = YES;
+        [self showInputURLorSearchGoogle];
+    } else if (webView != nil) {
+        [self.pageActionCoordinator presentSystemKeyboardForFieldType:fieldType atDOMPoint:point webView:webView];
+    }
+}
+
+- (void)endHardwareTypingSession {
+    [self.typingProofTimer invalidate];
+    self.typingProofTimer = nil;
+    if (!self.hardwareKeyboardController.isCapturing && self.typingBarView.hidden) {
+        return;
+    }
+    [self flushPendingTypingText];
+    self.typingPageURLString = nil;
+    [self.hardwareKeyboardController endCapture];
+    self.hardwareTypingWebView = nil;
+    self.hardwareTypingIntoAddressBar = NO;
+    self.addressTypingText = nil;
+    self.typingBarView.hidden = YES;
+}
+
+#pragma mark Typing bar
+
+- (void)showTypingBarWithText:(NSString *)text {
+    if (self.typingBarView == nil) {
+        UIView *bar = [[UIView alloc] initWithFrame:CGRectZero];
+        bar.backgroundColor = [UIColor colorWithWhite:0.05 alpha:0.94];
+        bar.layer.cornerRadius = 22.0;
+        bar.userInteractionEnabled = NO;
+
+        UILabel *language = [[UILabel alloc] initWithFrame:CGRectZero];
+        language.font = [UIFont systemFontOfSize:30.0 weight:UIFontWeightBold];
+        language.textColor = [UIColor colorWithRed:0.45 green:0.76 blue:1.0 alpha:1.0];
+        language.textAlignment = NSTextAlignmentCenter;
+        [bar addSubview:language];
+
+        UILabel *body = [[UILabel alloc] initWithFrame:CGRectZero];
+        body.font = [UIFont systemFontOfSize:36.0 weight:UIFontWeightRegular];
+        body.textColor = UIColor.whiteColor;
+        body.lineBreakMode = NSLineBreakByTruncatingHead;
+        [bar addSubview:body];
+
+        [self.view addSubview:bar];
+        self.typingBarView = bar;
+        self.typingLanguageLabel = language;
+        self.typingTextLabel = body;
+    }
+
+    CGFloat width = MIN(1400.0, CGRectGetWidth(self.view.bounds) - 160.0);
+    CGFloat height = 96.0;
+    // The address goes where the address bar is; a page field near the bottom,
+    // clear of the page's own suggestions under the field.
+    CGFloat y = self.hardwareTypingIntoAddressBar ? 150.0 : CGRectGetHeight(self.view.bounds) - height - 80.0;
+    self.typingBarView.frame = CGRectMake(floor((CGRectGetWidth(self.view.bounds) - width) / 2.0), y, width, height);
+    self.typingLanguageLabel.frame = CGRectMake(24.0, 0.0, 110.0, height);
+    self.typingTextLabel.frame = CGRectMake(146.0, 0.0, width - 170.0, height);
+    [self.view bringSubviewToFront:self.typingBarView];
+    self.typingBarView.hidden = NO;
+    self.typingBarView.alpha = 1.0;
+    [self updateTypingBarWithText:text ?: @""];
+}
+
+- (void)updateTypingBarWithText:(NSString *)text {
+    self.typingLanguageLabel.text = self.hardwareKeyboardController.isKoreanInputActive ? @"한" : @"EN";
+
+    BOOL secure = !self.hardwareTypingIntoAddressBar && [self.hardwareTypingFieldType isEqualToString:@"password"];
+    NSString *shown = text;
+    if (secure) {
+        shown = [@"" stringByPaddingToLength:text.length withString:@"•" startingAtIndex:0];
+    }
+    NSString *placeholder = self.hardwareTypingIntoAddressBar ? @"주소 또는 검색어  ·  한/영 키 또는 Caps Lock" : @" ";
+    NSMutableAttributedString *attributed =
+        [[NSMutableAttributedString alloc] initWithString:shown.length > 0 ? shown : placeholder];
+    if (shown.length == 0) {
+        [attributed addAttribute:NSForegroundColorAttributeName
+                           value:[UIColor colorWithWhite:1.0 alpha:0.4]
+                           range:NSMakeRange(0, attributed.length)];
+    }
+    // The syllable still being composed is the tail of the text: underline it
+    // the way an input method does.
+    NSString *composing = self.hardwareKeyboardController.composingText ?: @"";
+    if (!secure && composing.length > 0 && shown.length >= composing.length) {
+        NSRange range = NSMakeRange(shown.length - composing.length, composing.length);
+        [attributed addAttribute:NSUnderlineStyleAttributeName value:@(NSUnderlineStyleSingle) range:range];
+        [attributed addAttribute:NSForegroundColorAttributeName
+                           value:[UIColor colorWithRed:1.0 green:0.86 blue:0.45 alpha:1.0]
+                           range:range];
+    }
+    self.typingTextLabel.attributedText = attributed;
+}
+
+// A keyboard carries no sign of which language it is typing, so the app says
+// so for a moment when it changes.
+- (void)showInputModeNotice:(NSString *)text {
+    if (self.inputModeLabel == nil) {
+        UILabel *label = [[UILabel alloc] initWithFrame:CGRectZero];
+        label.textAlignment = NSTextAlignmentCenter;
+        label.font = [UIFont systemFontOfSize:34.0 weight:UIFontWeightSemibold];
+        label.textColor = UIColor.whiteColor;
+        label.backgroundColor = [UIColor colorWithWhite:0.0 alpha:0.78];
+        label.layer.cornerRadius = 18.0;
+        label.layer.masksToBounds = YES;
+        label.userInteractionEnabled = NO;
+        [self.view addSubview:label];
+        self.inputModeLabel = label;
+    }
+    UILabel *label = self.inputModeLabel;
+    label.text = text;
+    CGFloat width = 240.0;
+    CGFloat height = 72.0;
+    CGFloat y = self.hardwareTypingIntoAddressBar ? 262.0 : CGRectGetHeight(self.view.bounds) - height - 196.0;
+    label.frame = CGRectMake(floor((CGRectGetWidth(self.view.bounds) - width) / 2.0), y, width, height);
+    [self.view bringSubviewToFront:label];
+    [label.layer removeAllAnimations];
+    label.alpha = 1.0;
+    [UIView animateWithDuration:0.3 delay:1.1 options:UIViewAnimationOptionCurveEaseIn animations:^{
+        label.alpha = 0.0;
+    } completion:nil];
+}
+
+#pragma mark BrowserHardwareKeyboardControllerDelegate
+
+- (void)hardwareKeyboardController:(BrowserHardwareKeyboardController *)controller didChangeText:(NSString *)text {
+    (void)controller;
+    // A key arrived, so the keyboard has proved itself.
+    [self.typingProofTimer invalidate];
+    self.typingProofTimer = nil;
+    [self updateTypingBarWithText:text];
+
+    if (self.hardwareTypingIntoAddressBar) {
+        self.addressTypingText = text;
+        return;
+    }
+    if (self.hardwareTypingWebView == nil) {
+        return;
+    }
+    // Written into the page a moment after the last key, not on every key, so
+    // a long word isn't a burst of script calls.
+    self.pendingTypingText = text;
+    [self.typingFlushTimer invalidate];
+    self.typingFlushTimer = [NSTimer scheduledTimerWithTimeInterval:0.25
+                                                             target:self
+                                                           selector:@selector(flushPendingTypingText)
+                                                           userInfo:nil
+                                                            repeats:NO];
+}
+
+- (void)flushPendingTypingText {
+    [self.typingFlushTimer invalidate];
+    self.typingFlushTimer = nil;
+
+    NSString *text = self.pendingTypingText;
+    self.pendingTypingText = nil;
+    BrowserWebView *webView = self.hardwareTypingWebView;
+    if (text == nil || webView == nil) {
+        return;
+    }
+    // After a search the page has changed, and writing the old text would land
+    // in whatever field now sits at the same spot.
+    NSString *currentURLString = webView.request.URL.absoluteString ?: @"";
+    if (self.typingPageURLString != nil && ![currentURLString isEqualToString:self.typingPageURLString]) {
+        BrowserLog(@"[Typing] dropped: page changed under the field");
+        return;
+    }
+    NSString *escaped = [self.domInteractionService javaScriptEscapedString:text];
+    [self.domInteractionService evaluateEditableElementJavaScriptAtPoint:self.hardwareTypingDOMPoint
+                                                                 webView:webView
+                                                                    body:[NSString stringWithFormat:
+                                                                          @"var target = browserEditableTarget();"
+                                                                          "if (!target) { return 'false'; }"
+                                                                          "if (typeof target.value !== 'undefined') {"
+                                                                              "target.value = '%@';"
+                                                                              "if (target.setSelectionRange) {"
+                                                                                  "try { target.setSelectionRange(target.value.length, target.value.length); } catch (error) {}"
+                                                                              "}"
+                                                                          "} else {"
+                                                                              "target.textContent = '%@';"
+                                                                          "}"
+                                                                          "target.dispatchEvent(new Event('input', { bubbles: true }));"
+                                                                          "return 'true';", escaped, escaped]];
+}
+
+- (void)hardwareKeyboardControllerDidSubmit:(BrowserHardwareKeyboardController *)controller {
+    (void)controller;
+    if (self.hardwareTypingIntoAddressBar) {
+        NSString *text = [self.addressTypingText ?: @"" stringByTrimmingCharactersInSet:NSCharacterSet.whitespaceAndNewlineCharacterSet];
+        [self endHardwareTypingSession];
+        if (text.length > 0) {
+            [self openAddressOrSearch:text];
+        }
+        return;
+    }
+
+    BrowserWebView *webView = self.hardwareTypingWebView;
+    CGPoint point = self.hardwareTypingDOMPoint;
+    NSString *fieldType = self.hardwareTypingFieldType ?: @"text";
+    NSString *text = self.pendingTypingText;
+    [self.typingFlushTimer invalidate];
+    self.typingFlushTimer = nil;
+    self.pendingTypingText = nil;
+    NSString *pageURL = self.typingPageURLString;
+    NSString *currentURL = webView.request.URL.absoluteString ?: @"";
+    [self endHardwareTypingSession];
+    if (webView == nil || (pageURL != nil && ![currentURL isEqualToString:pageURL])) {
+        return;
+    }
+    if (text == nil) {
+        text = [self.domInteractionService evaluateEditableElementJavaScriptAtPoint:point
+                                                                             webView:webView
+                                                                                body:@"var target = browserEditableTarget();"
+                                                                                     "if (!target) { return ''; }"
+                                                                                     "if (typeof target.value !== 'undefined') { return target.value; }"
+                                                                                     "return target.textContent || '';"] ?: @"";
+    }
+    // Return in a text box ends the line rather than sending; elsewhere it
+    // sends, like Enter on a computer.
+    if ([fieldType isEqualToString:@"textarea"]) {
+        [self.pageActionCoordinator fillEditableElementAtPoint:point webView:webView text:text];
+    } else {
+        [self.pageActionCoordinator fillAndSendEditableElementAtPoint:point webView:webView text:text];
+    }
+}
+
+- (void)hardwareKeyboardControllerDidCancel:(BrowserHardwareKeyboardController *)controller {
+    (void)controller;
+    [self endHardwareTypingSession];
+}
+
+- (void)hardwareKeyboardController:(BrowserHardwareKeyboardController *)controller didChangeKoreanInput:(BOOL)koreanInput {
+    (void)controller;
+    [self.typingProofTimer invalidate];
+    self.typingProofTimer = nil;
+    self.typingLanguageLabel.text = koreanInput ? @"한" : @"EN";
+    [self showInputModeNotice:koreanInput ? @"한글" : @"English"];
+}
+
 #pragma mark - BrowserPageActionCoordinatorHost
 
 - (void)browserPageActionCoordinatorPresentViewController:(UIViewController *)viewController {
@@ -1839,10 +2180,25 @@ static CGFloat const kShowTopBarButtonHitSlop = 24.0;
 }
 
 - (void)browserRemoteInputControllerHandlePrimaryAction {
+    // A click lands somewhere new, so the field being typed into is finished
+    // with. A click on another field starts typing again with that one.
+    [self endHardwareTypingSession];
     [self browserHandlePrimaryAction];
 }
 
+- (BOOL)browserRemoteInputControllerHardwareTypingActive {
+    return self.hardwareKeyboardController.isCapturing;
+}
+
+- (BOOL)browserRemoteInputControllerHandleHardwareKeyPress:(UIPress *)press {
+    return [self.hardwareKeyboardController handleKeyPress:press];
+}
+
 - (void)browserRemoteInputControllerHandleMenuPress {
+    if (self.hardwareKeyboardController.isCapturing) {
+        [self endHardwareTypingSession];
+        return;
+    }
     UIAlertController *alertController = (UIAlertController *)self.presentedViewController;
     if (alertController != nil) {
         [self.presentedViewController dismissViewControllerAnimated:YES completion:nil];

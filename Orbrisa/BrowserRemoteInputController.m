@@ -185,8 +185,19 @@ static NSString *BrowserPressPhaseString(UIPressPhase phase) {
     }
 }
 
+- (BOOL)hardwareTypingActive {
+    return [self.host respondsToSelector:@selector(browserRemoteInputControllerHardwareTypingActive)] &&
+        [self.host browserRemoteInputControllerHardwareTypingActive];
+}
+
 - (void)handleGlobalSelectPressEndedNotification {
     if ([self.host browserRemoteInputControllerPresentedViewController] != nil) {
+        return;
+    }
+
+    // Return on a Bluetooth keyboard arrives as a Select press too; while
+    // typing it sends the field, and must not also click the page.
+    if ([self hardwareTypingActive]) {
         return;
     }
 
@@ -363,6 +374,11 @@ static NSTimeInterval const kBrowserLinkNavigationHoldDuration = 0.7;
 
 - (void)handlePressesBegan:(NSSet<UIPress *> *)presses withEvent:(UIPressesEvent *)event {
     UIPress *press = presses.anyObject;
+    // Arrow keys while typing are the keyboard's, not a hold for link navigation.
+    if ([self hardwareTypingActive]) {
+        (void)event;
+        return;
+    }
     if (press.type == UIPressTypeDownArrow) {
         self.downArrowHoldFired = NO;
         [NSObject cancelPreviousPerformRequestsWithTarget:self selector:@selector(handleDownArrowLongPress) object:nil];
@@ -384,6 +400,14 @@ static NSTimeInterval const kBrowserLinkNavigationHoldDuration = 0.7;
     UIPress *press = presses.anyObject;
     if (press == nil) {
         return NO;
+    }
+
+    // A field is being typed into from a Bluetooth keyboard, so a key goes to
+    // it before the handling below can read it as a direction or a button.
+    if ([self.host respondsToSelector:@selector(browserRemoteInputControllerHandleHardwareKeyPress:)] &&
+        [self.host browserRemoteInputControllerHandleHardwareKeyPress:press]) {
+        self.lastDirectSelectPressTimestamp = CACurrentMediaTime();
+        return YES;
     }
 
     if (press.type == UIPressTypeDownArrow) {

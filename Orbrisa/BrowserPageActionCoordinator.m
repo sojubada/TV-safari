@@ -25,6 +25,8 @@ static UIColor *BrowserPageActionTextColor(void) {
 @property (nonatomic) BOOL bypassVideoChoice;
 /// When the video question was answered: the same press must not also click the page (e.g. YouTube's double-click = full screen).
 @property (nonatomic) CFTimeInterval videoChoiceAnsweredAt;
+/// Set for one field prompt: go to the Apple TV keyboard even with a hardware keyboard attached.
+@property (nonatomic) BOOL skipHardwareTypingOnce;
 
 @end
 
@@ -83,6 +85,25 @@ static UIColor *BrowserPageActionTextColor(void) {
                                                                                                   "return target.placeholder || target.getAttribute('aria-label') || '';"];
     if ([placeholder isEqualToString:@""]) {
         placeholder = [fieldTitle isEqualToString:fieldType] ? BrowserLocalized(@"Text Input") : [NSString stringWithFormat:BrowserLocalized(@"%@ Input"), fieldTitle];
+    }
+    // With a Bluetooth keyboard attached the letters go straight into the page
+    // (Korean included), so the full-screen Apple TV keyboard isn't needed.
+    BOOL skipHardwareTyping = self.skipHardwareTypingOnce;
+    self.skipHardwareTypingOnce = NO;
+    if (!skipHardwareTyping &&
+        [self.host respondsToSelector:@selector(browserPageActionCoordinatorBeginHardwareTypingForFieldType:atDOMPoint:webView:existingText:)]) {
+        NSString *existingText = [self.domInteractionService evaluateEditableElementJavaScriptAtPoint:point
+                                                                                               webView:webView
+                                                                                                  body:@"var target = browserEditableTarget();"
+                                                                                                       "if (!target) { return ''; }"
+                                                                                                       "if (typeof target.value !== 'undefined') { return target.value; }"
+                                                                                                       "return target.textContent || '';"];
+        if ([self.host browserPageActionCoordinatorBeginHardwareTypingForFieldType:fieldType
+                                                                         atDOMPoint:point
+                                                                            webView:webView
+                                                                       existingText:existingText ?: @""]) {
+            return;
+        }
     }
     // Go straight to the Apple TV keyboard, without the "Input Text" window in between.
     if ([self presentDirectKeyboardForFieldType:fieldType point:point webView:webView placeholder:placeholder]) {
@@ -264,6 +285,16 @@ static UIColor *BrowserPageActionTextColor(void) {
         return NO;
     }
     return YES;
+}
+
+- (void)presentSystemKeyboardForFieldType:(NSString *)fieldType
+                               atDOMPoint:(CGPoint)point
+                                  webView:(BrowserWebView *)webView {
+    if (webView == nil) {
+        return;
+    }
+    self.skipHardwareTypingOnce = YES;
+    [self presentEditableFieldPromptForFieldType:fieldType point:point webView:webView];
 }
 
 - (void)fillEditableElementAtPoint:(CGPoint)point webView:(BrowserWebView *)webView text:(NSString *)text {

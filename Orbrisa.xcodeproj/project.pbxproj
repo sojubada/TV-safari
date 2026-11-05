@@ -39,6 +39,8 @@
 		B002B8721BAE420500C744AF /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = B002B8711BAE420500C744AF /* Assets.xcassets */; };
 		B0B1C2D3E4F5061728394012 /* BrowserReaderViewController.m in Sources */ = {isa = PBXBuildFile; fileRef = B0B1C2D3E4F5061728394011 /* BrowserReaderViewController.m */; };
 		B0B1C2D3E4F5061728394015 /* BrowserFeedStore.m in Sources */ = {isa = PBXBuildFile; fileRef = B0B1C2D3E4F5061728394014 /* BrowserFeedStore.m */; };
+		D1A0000000000000000001A3 /* BrowserHardwareKeyboardController.m in Sources */ = {isa = PBXBuildFile; fileRef = D1A0000000000000000001A2 /* BrowserHardwareKeyboardController.m */; };
+		D1A0000000000000000000A3 /* BrowserHangulComposer.m in Sources */ = {isa = PBXBuildFile; fileRef = D1A0000000000000000000A2 /* BrowserHangulComposer.m */; };
 		B0B1C2D3E4F5061728394018 /* BrowserFeedsViewController.m in Sources */ = {isa = PBXBuildFile; fileRef = B0B1C2D3E4F5061728394017 /* BrowserFeedsViewController.m */; };
 		B0B1C2D3E4F506172839401A /* ReaderExtract.js in Resources */ = {isa = PBXBuildFile; fileRef = B0B1C2D3E4F5061728394019 /* ReaderExtract.js */; };
 		B0B1C2D3E4F506172839401C /* FeedDetect.js in Resources */ = {isa = PBXBuildFile; fileRef = B0B1C2D3E4F506172839401B /* FeedDetect.js */; };
@@ -132,6 +134,10 @@
 		B0B1C2D3E4F5061728394011 /* BrowserReaderViewController.m */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.objc; path = BrowserReaderViewController.m; sourceTree = "<group>"; };
 		B0B1C2D3E4F5061728394013 /* BrowserFeedStore.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = BrowserFeedStore.h; sourceTree = "<group>"; };
 		B0B1C2D3E4F5061728394014 /* BrowserFeedStore.m */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.objc; path = BrowserFeedStore.m; sourceTree = "<group>"; };
+		D1A0000000000000000001A1 /* BrowserHardwareKeyboardController.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = BrowserHardwareKeyboardController.h; sourceTree = "<group>"; };
+		D1A0000000000000000001A2 /* BrowserHardwareKeyboardController.m */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.objc; path = BrowserHardwareKeyboardController.m; sourceTree = "<group>"; };
+		D1A0000000000000000000A1 /* BrowserHangulComposer.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = BrowserHangulComposer.h; sourceTree = "<group>"; };
+		D1A0000000000000000000A2 /* BrowserHangulComposer.m */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.objc; path = BrowserHangulComposer.m; sourceTree = "<group>"; };
 		B0B1C2D3E4F5061728394016 /* BrowserFeedsViewController.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = BrowserFeedsViewController.h; sourceTree = "<group>"; };
 		B0B1C2D3E4F5061728394017 /* BrowserFeedsViewController.m */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.objc; path = BrowserFeedsViewController.m; sourceTree = "<group>"; };
 		B0B1C2D3E4F5061728394019 /* ReaderExtract.js */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.javascript; path = ReaderExtract.js; sourceTree = "<group>"; };
@@ -262,6 +268,10 @@
 				B0B1C2D3E4F5061728394011 /* BrowserReaderViewController.m */,
 				B0B1C2D3E4F5061728394013 /* BrowserFeedStore.h */,
 				B0B1C2D3E4F5061728394014 /* BrowserFeedStore.m */,
+				D1A0000000000000000001A1 /* BrowserHardwareKeyboardController.h */,
+				D1A0000000000000000001A2 /* BrowserHardwareKeyboardController.m */,
+				D1A0000000000000000000A1 /* BrowserHangulComposer.h */,
+				D1A0000000000000000000A2 /* BrowserHangulComposer.m */,
 				B0B1C2D3E4F5061728394016 /* BrowserFeedsViewController.h */,
 				B0B1C2D3E4F5061728394017 /* BrowserFeedsViewController.m */,
 				B0B1C2D3E4F5061728394019 /* ReaderExtract.js */,
@@ -490,6 +500,8 @@
 			files = (
 				B0B1C2D3E4F5061728394012 /* BrowserReaderViewController.m in Sources */,
 				B0B1C2D3E4F5061728394015 /* BrowserFeedStore.m in Sources */,
+				D1A0000000000000000001A3 /* BrowserHardwareKeyboardController.m in Sources */,
+				D1A0000000000000000000A3 /* BrowserHangulComposer.m in Sources */,
 				B0B1C2D3E4F5061728394018 /* BrowserFeedsViewController.m in Sources */,
 				A1B49A482D67F2B3001D58A1 /* BrowserTabViewModel.m in Sources */,
 				A1B49A552D68143D001D58A1 /* BrowserMenuCoordinator.m in Sources */,
@@ -553,7 +565,7 @@
 				APPLICATION_EXTENSION_API_ONLY = YES;
 				CODE_SIGN_ENTITLEMENTS = OrbrisaTopShelf/OrbrisaTopShelf.entitlements;
 				CODE_SIGN_STYLE = Automatic;
-				CURRENT_PROJECT_VERSION = 2;
+				CURRENT_PROJECT_VERSION = 3;
 				GENERATE_INFOPLIST_FILE = NO;
 				INFOPLIST_FILE = OrbrisaTopShelf/Info.plist;
 				LD_RUNPATH_SEARCH_PATHS = (
@@ -561,7 +573,7 @@
 					"@executable_path/Frameworks",
 					"@executable_path/../../Frameworks",
 				);
-				MARKETING_VERSION = 1.1.0;
+				MARKETING_VERSION = 1.1.1;
 				PRODUCT_BUNDLE_IDENTIFIER = "$(ORBRISA_BUNDLE_ID).TopShelf";
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				SKIP_INSTALL = YES;
@@ -576,7 +588,7 @@
 				APPLICATION_EXTENSION_API_ONLY = YES;
 				CODE_SIGN_ENTITLEMENTS = OrbrisaTopShelf/OrbrisaTopShelf.entitlements;
 				CODE_SIGN_STYLE = Automatic;
-				CURRENT_PROJECT_VERSION = 2;
+				CURRENT_PROJECT_VERSION = 3;
 				GENERATE_INFOPLIST_FILE = NO;
 				INFOPLIST_FILE = OrbrisaTopShelf/Info.plist;
 				LD_RUNPATH_SEARCH_PATHS = (
@@ -584,7 +596,7 @@
 					"@executable_path/Frameworks",
 					"@executable_path/../../Frameworks",
 				);
-				MARKETING_VERSION = 1.1.0;
+				MARKETING_VERSION = 1.1.1;
 				PRODUCT_BUNDLE_IDENTIFIER = "$(ORBRISA_BUNDLE_ID).TopShelf";
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				SKIP_INSTALL = YES;
@@ -711,7 +723,7 @@
 				ASSETCATALOG_COMPILER_LAUNCHIMAGE_NAME = LaunchImage;
 				CODE_SIGN_ENTITLEMENTS = Orbrisa/Orbrisa.entitlements;
 				CODE_SIGN_IDENTITY = "iPhone Developer";
-				CURRENT_PROJECT_VERSION = 2;
+				CURRENT_PROJECT_VERSION = 3;
 				EMBED_ASSET_PACKS_IN_PRODUCT_BUNDLE = YES;
 				ENABLE_ON_DEMAND_RESOURCES = NO;
 				FRAMEWORK_SEARCH_PATHS = "";
@@ -720,7 +732,7 @@
 					"$(inherited)",
 					"@executable_path/Frameworks",
 				);
-				MARKETING_VERSION = 1.1.0;
+				MARKETING_VERSION = 1.1.1;
 				OTHER_LDFLAGS = (
 					"$(inherited)",
 					"-lc++",
@@ -744,7 +756,7 @@
 				ASSETCATALOG_COMPILER_LAUNCHIMAGE_NAME = LaunchImage;
 				CODE_SIGN_ENTITLEMENTS = Orbrisa/Orbrisa.entitlements;
 				CODE_SIGN_IDENTITY = "iPhone Developer";
-				CURRENT_PROJECT_VERSION = 2;
+				CURRENT_PROJECT_VERSION = 3;
 				EMBED_ASSET_PACKS_IN_PRODUCT_BUNDLE = YES;
 				ENABLE_ON_DEMAND_RESOURCES = NO;
 				FRAMEWORK_SEARCH_PATHS = "";
@@ -753,7 +765,7 @@
 					"$(inherited)",
 					"@executable_path/Frameworks",
 				);
-				MARKETING_VERSION = 1.1.0;
+				MARKETING_VERSION = 1.1.1;
 				OTHER_LDFLAGS = (
 					"$(inherited)",
 					"-lc++",

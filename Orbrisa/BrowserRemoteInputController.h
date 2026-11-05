@@ -31,6 +31,13 @@ NS_ASSUME_NONNULL_BEGIN
 /// Up at the top of the page while the bar is hidden: select the red show-bar button. NO if it isn't shown.
 - (BOOL)browserRemoteInputControllerLinkNavigationSelectShowBarButton;
 
+@optional
+/// YES while a Bluetooth keyboard is typing into a field.
+- (BOOL)browserRemoteInputControllerHardwareTypingActive;
+/// A key from a Bluetooth keyboard, offered to the typing session first.
+/// YES when it was used, so it isn't also read as a remote press.
+- (BOOL)browserRemoteInputControllerHandleHardwareKeyPress:(UIPress *)press;
+
 @end
 
 @interface BrowserRemoteInputController : NSObject
