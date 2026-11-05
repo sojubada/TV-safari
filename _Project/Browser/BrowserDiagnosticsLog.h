@@ -41,6 +41,12 @@ NS_ASSUME_NONNULL_BEGIN
 /// whole stability question turns on, and until now it was never measured.
 - (NSString *)memoryFootprintSummary;
 
+/// Free space on the device in megabytes, -1 if it cannot be read. Twice now
+/// the device has run out mid-sweep and loads failed with "No space left on
+/// device"; this is how that is seen coming instead of after.
++ (long long)freeDiskMegabytes;
++ (void)trimStandardErrorIfLarge;
+
 /// The whole log as a page the browser can show, newest first. The file sits
 /// in the app's own container, which nothing else on the box can navigate to,
 /// so the browser reads it to itself.

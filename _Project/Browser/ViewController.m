@@ -99,6 +99,8 @@ static UIColor *kTextColor(void) {
 @property (nonatomic, nullable) NSTimer *stuckLoadTimer;
 @property (nonatomic, copy, nullable) NSString *stuckLoadURLString;
 @property (nonatomic) CFTimeInterval lastScrollDiagnosticTime;
+@property (nonatomic) BOOL cacheTrimInFlight;
+@property (nonatomic) NSUInteger loadsSinceDiskCheck;
 @property (nonatomic, copy, nullable) NSString *pendingTypingText;
 /// The address the field being typed into belongs to. A page that has moved
 /// on since is a different page, and text left over from the old one must not
@@ -152,6 +154,7 @@ static UIColor *kTextColor(void) {
     self.domInteractionService = [BrowserDOMInteractionService new];
     [[BrowserDiagnosticsLog sharedLog] logSessionStart];
     [[BrowserDiagnosticsLog sharedLog] logEvent:@"media-safety" detail:BrowserMediaSafetySummary()];
+    [self trimCachesIfDiskIsLow];
     self.hardwareKeyboardController = [BrowserHardwareKeyboardController new];
     self.hardwareKeyboardController.delegate = self;
     [self.hardwareKeyboardController prepareForKeyboardDetection];
@@ -1037,6 +1040,37 @@ static UIColor *kTextColor(void) {
     [self.tabCoordinator closeTabAtIndex:tabIndex];
 }
 
+#pragma mark - Storage
+
+// Below this much free space the caches are trimmed. Apple TV storage is
+// small and shared with every other app, and WebKit will fill whatever it is
+// given.
+static const long long kBrowserLowDiskMegabytes = 1500;
+
+- (void)trimCachesBecause:(NSString *)reason {
+    if (self.cacheTrimInFlight) {
+        return;
+    }
+    self.cacheTrimInFlight = YES;
+    long long before = [BrowserDiagnosticsLog freeDiskMegabytes];
+    __weak typeof(self) weakSelf = self;
+    [BrowserWebView trimCachesWithCompletion:^{
+        weakSelf.cacheTrimInFlight = NO;
+        [[BrowserDiagnosticsLog sharedLog]
+            logEvent:@"cache-trim"
+              detail:[NSString stringWithFormat:@"%@  disk %lldMB -> %lldMB free",
+                      reason, before, [BrowserDiagnosticsLog freeDiskMegabytes]]];
+    }];
+}
+
+- (void)trimCachesIfDiskIsLow {
+    [BrowserDiagnosticsLog trimStandardErrorIfLarge];
+    long long free = [BrowserDiagnosticsLog freeDiskMegabytes];
+    if (free >= 0 && free < kBrowserLowDiskMegabytes) {
+        [self trimCachesBecause:[NSString stringWithFormat:@"low disk (%lldMB)", free]];
+    }
+}
+
 #pragma mark - Stuck loads
 
 // A page that never finishes keeps the web view, and every address asked for
@@ -1669,6 +1703,11 @@ static const NSTimeInterval kStuckLoadTimeout = 30.0;
                       [[BrowserDiagnosticsLog sharedLog] memoryFootprintSummary],
                       [(BrowserWebView *)webView request].URL.absoluteString ?: @""]];
         [self.siteSweepController noteLoadFinished];
+        self.loadsSinceDiskCheck += 1;
+        if (self.loadsSinceDiskCheck >= 25) {
+            self.loadsSinceDiskCheck = 0;
+            [self trimCachesIfDiskIsLow];
+        }
     }
     [self.tabCoordinator webViewDidFinishLoad:webView];
     if ([webView isKindOfClass:[BrowserWebView class]]) {
@@ -1818,6 +1857,9 @@ static const NSTimeInterval kStuckLoadTimeout = 30.0;
     if (webView == self.webview) {
         [self cancelStuckLoadWatchdog];
         [self.siteSweepController noteLoadFailedWithError:error];
+    }
+    if (error.code == ENOSPC) {
+        [self trimCachesBecause:@"a load failed: no space left on device"];
     }
     BrowserTabViewModel *tab = [self.tabCoordinator tabForWebView:webView];
     if (tab == nil) {

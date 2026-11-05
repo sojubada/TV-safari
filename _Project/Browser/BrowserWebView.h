@@ -110,6 +110,10 @@ typedef NS_ENUM(NSInteger, BrowserScriptEvaluationStatus) {
 + (NSArray<NSHTTPCookie *> * _Nonnull)allCookies;
 + (void)restoreCookiesFromData:(NSData * _Nullable)cookieData;
 + (void)clearCachedDataWithCompletion:(void (^ _Nullable)(void))completion;
+/// Caches only: the network cache, offline app caches, service-worker
+/// CacheStorage and registrations. Cookies, localStorage and IndexedDB stay,
+/// so nobody is signed out. Safe to run automatically.
++ (void)trimCachesWithCompletion:(void (^ _Nullable)(void))completion;
 + (void)clearCookiesWithCompletion:(void (^ _Nullable)(void))completion;
 + (void)resetWebsiteDataWithCompletion:(void (^ _Nullable)(void))completion;
 

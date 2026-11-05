@@ -7,7 +7,9 @@
 
 #import <objc/runtime.h>
 
+#import <execinfo.h>
 #import <fcntl.h>
+#import <sys/stat.h>
 #import <string.h>
 #import <signal.h>
 #import <unistd.h>
@@ -50,6 +52,20 @@ static void BrowserHandleFatalSignal(int signalNumber) {
         case SIGFPE:  BrowserWriteRaw("SIGNAL  SIGFPE\n"); break;
         case SIGTRAP: BrowserWriteRaw("SIGNAL  SIGTRAP\n"); break;
         default:      BrowserWriteRaw("SIGNAL  other\n"); break;
+    }
+    // Where it came from. No symbol names in a release build, but the image
+    // each frame belongs to — this app, WebKit, libsystem — and its offset is
+    // already the difference between a bug here and a bug underneath.
+    // backtrace_symbols_fd writes straight to the descriptor without
+    // allocating, which is what makes it usable here.
+    static void *frames[48];
+    int frameCount = backtrace(frames, 48);
+    if (frameCount > 0 && gBrowserLogPathBytes[0] != 0) {
+        int fd = open(gBrowserLogPathBytes, O_WRONLY | O_APPEND | O_CREAT, 0644);
+        if (fd >= 0) {
+            backtrace_symbols_fd(frames, frameCount, fd);
+            close(fd);
+        }
     }
     // Hand it back to the system so the crash still happens as it would have.
     signal(signalNumber, SIG_DFL);
@@ -131,6 +147,8 @@ static void BrowserHandleFatalSignal(int signalNumber) {
     }
     strncpy(gBrowserLogPathBytes, path.fileSystemRepresentation, sizeof(gBrowserLogPathBytes) - 1);
 
+    [self captureStandardErrorFromPreviousLaunch];
+
     signal(SIGSEGV, BrowserHandleFatalSignal);
     signal(SIGBUS, BrowserHandleFatalSignal);
     signal(SIGABRT, BrowserHandleFatalSignal);
@@ -187,6 +205,16 @@ static void BrowserHandleFatalSignal(int signalNumber) {
 // phys_footprint is what the system measures an app against when it decides
 // who to kill, and os_proc_available_memory is what is left of the
 // allowance. A page that dies is a page that ran the second number to zero.
++ (long long)freeDiskMegabytes {
+    NSDictionary<NSFileAttributeKey, id> *attributes =
+        [[NSFileManager defaultManager] attributesOfFileSystemForPath:NSHomeDirectory() error:NULL];
+    NSNumber *freeBytes = attributes[NSFileSystemFreeSize];
+    if (freeBytes == nil) {
+        return -1;
+    }
+    return freeBytes.longLongValue / (1024 * 1024);
+}
+
 - (NSString *)memoryFootprintSummary {
     double usedMB = 0.0;
     task_vm_info_data_t info;
@@ -206,13 +234,55 @@ static void BrowserHandleFatalSignal(int signalNumber) {
     return [NSString stringWithFormat:@"mem %.0fMB used", usedMB];
 }
 
++ (void)trimStandardErrorIfLarge {
+    struct stat info;
+    int fd = fileno(stderr);
+    if (fd >= 0 && fstat(fd, &info) == 0 && S_ISREG(info.st_mode) && info.st_size > 1024 * 1024) {
+        ftruncate(fd, 0);
+    }
+}
+
+- (void)captureStandardErrorFromPreviousLaunch {
+    NSString *directory = [self.logFilePath stringByDeletingLastPathComponent];
+    if (directory.length == 0) {
+        return;
+    }
+    NSString *current = [directory stringByAppendingPathComponent:@"tv-safari-stderr.log"];
+    NSString *previous = [directory stringByAppendingPathComponent:@"tv-safari-stderr.prev.log"];
+    NSFileManager *fileManager = [NSFileManager defaultManager];
+
+    // What the last launch said on its way out.
+    [fileManager removeItemAtPath:previous error:NULL];
+    if ([fileManager fileExistsAtPath:current]) {
+        [fileManager moveItemAtPath:current toPath:previous error:NULL];
+        NSString *text = [NSString stringWithContentsOfFile:previous encoding:NSUTF8StringEncoding error:NULL];
+        NSMutableArray<NSString *> *kept = [NSMutableArray array];
+        for (NSString *line in [text componentsSeparatedByString:@"\n"]) {
+            if (line.length == 0 || [line containsString:@"[InputTrace]"]) {
+                continue;
+            }
+            [kept addObject:line.length > 300 ? [line substringToIndex:300] : line];
+        }
+        NSUInteger start = kept.count > 20 ? kept.count - 20 : 0;
+        for (NSUInteger i = start; i < kept.count; i++) {
+            [self logEventSynchronously:@"prev-stderr" detail:kept[i]];
+        }
+    }
+
+    // From here on, this launch's own.
+    FILE *redirected = freopen(current.fileSystemRepresentation, "a", stderr);
+    if (redirected != NULL) {
+        setvbuf(stderr, NULL, _IONBF, 0);
+    }
+}
+
 - (void)logSessionStart {
     NSString *version = [NSBundle mainBundle].infoDictionary[@"CFBundleShortVersionString"] ?: @"?";
     NSString *build = [NSBundle mainBundle].infoDictionary[@"CFBundleVersion"] ?: @"?";
     [self logEvent:@"session"
-            detail:[NSString stringWithFormat:@"--- launch v%@ (%@) tvOS %@  %@ ---",
+            detail:[NSString stringWithFormat:@"--- launch v%@ (%@) tvOS %@  %@  disk %lldMB free ---",
                     version, build, [UIDevice currentDevice].systemVersion,
-                    [self memoryFootprintSummary]]];
+                    [self memoryFootprintSummary], [[self class] freeDiskMegabytes]]];
 }
 
 - (void)logEventSynchronously:(NSString *)event detail:(NSString *)detail {

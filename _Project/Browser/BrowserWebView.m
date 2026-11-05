@@ -1229,6 +1229,35 @@ windowFeatures:(id)windowFeatures {
     [self removeWebsiteDataTypes:websiteDataTypes completion:completion];
 }
 
+// WebKit's network cache and service-worker storage have no ceiling of their
+// own: reports on GitHub put them at 983 MB and 2.8 GB on desktops
+// (th-lange/eve-online-tooling #1114, steipete/CodexBar #4942), and a run
+// through a few hundred sites fills an Apple TV. The NSURLCache cap set at
+// launch never touched any of it — WKWebView keeps its own. The usual fix is
+// to remove the cache types only and leave everything that holds a login.
++ (void)trimCachesWithCompletion:(void (^)(void))completion {
+    NSArray<NSString *> *cacheMarkers = @[@"DiskCache", @"MemoryCache",
+                                          @"OfflineWebApplicationCache",
+                                          @"FetchCache", @"ServiceWorkerRegistrations"];
+    NSMutableSet<NSString *> *types = [NSMutableSet set];
+    for (NSString *dataType in [self allWebsiteDataTypes]) {
+        for (NSString *marker in cacheMarkers) {
+            if ([dataType containsString:marker]) {
+                [types addObject:dataType];
+                break;
+            }
+        }
+    }
+    [[NSURLCache sharedURLCache] removeAllCachedResponses];
+    if (types.count == 0) {
+        if (completion != nil) {
+            completion();
+        }
+        return;
+    }
+    [self removeWebsiteDataTypes:types completion:completion];
+}
+
 + (void)clearCookiesWithCompletion:(void (^)(void))completion {
     id cookieStore = [self defaultCookieStore];
     SEL getAllCookiesSelector = NSSelectorFromString(@"getAllCookies:");
