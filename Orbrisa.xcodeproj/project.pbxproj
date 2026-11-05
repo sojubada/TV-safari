@@ -1,0 +1,824 @@
+// !$*UTF8*$!
+{
+	archiveVersion = 1;
+	classes = {
+	};
+	objectVersion = 54;
+	objects = {
+
+/* Begin PBXBuildFile section */
+		9675E1FC20855F6500A4A84A /* Foundation.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 9675E1FB20855F6500A4A84A /* Foundation.framework */; };
+		9675E1FF20857AEF00A4A84A /* UIKit.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 9675E1FE20857AEF00A4A84A /* UIKit.framework */; };
+		A0B1C2D3E4F5061728394A60 /* Localizable.strings in Resources */ = {isa = PBXBuildFile; fileRef = A0B1C2D3E4F5061728394A5F /* Localizable.strings */; };
+		A0B1C2D3E4F5061728394A61 /* Localizable.strings in Resources */ = {isa = PBXBuildFile; fileRef = A0B1C2D3E4F5061728394A5F /* Localizable.strings */; };
+		A1B49A482D67F2B3001D58A1 /* BrowserTabViewModel.m in Sources */ = {isa = PBXBuildFile; fileRef = A1B49A472D67F2B3001D58A1 /* BrowserTabViewModel.m */; };
+		A1B49A4B2D67F2C3001D58A1 /* BrowserViewModel.m in Sources */ = {isa = PBXBuildFile; fileRef = A1B49A4A2D67F2C3001D58A1 /* BrowserViewModel.m */; };
+		A1B49A4E2D680900001D58A1 /* BrowserNavigationService.m in Sources */ = {isa = PBXBuildFile; fileRef = A1B49A4D2D680900001D58A1 /* BrowserNavigationService.m */; };
+		A1B49A552D68143D001D58A1 /* BrowserMenuCoordinator.m in Sources */ = {isa = PBXBuildFile; fileRef = A1B49A542D68143D001D58A1 /* BrowserMenuCoordinator.m */; };
+		A1B49A582D6828D4001D58A1 /* BrowserSessionStore.m in Sources */ = {isa = PBXBuildFile; fileRef = A1B49A572D6828D4001D58A1 /* BrowserSessionStore.m */; };
+		A1B49A5B2D684000001D58A1 /* BrowserTopBarView.m in Sources */ = {isa = PBXBuildFile; fileRef = A1B49A5A2D684000001D58A1 /* BrowserTopBarView.m */; };
+		A1B49A5D2D69F100001D58A1 /* WebCoreNSURLSessionTaskTransactionMetrics+AddPrivacyStance.m in Sources */ = {isa = PBXBuildFile; fileRef = A1B49A5C2D69F100001D58A1 /* WebCoreNSURLSessionTaskTransactionMetrics+AddPrivacyStance.m */; };
+		A1B49A632D6A3800001D58A1 /* BrowserWebView.m in Sources */ = {isa = PBXBuildFile; fileRef = A1B49A622D6A3800001D58A1 /* BrowserWebView.m */; };
+		A1B49A682D6AD500001D58A1 /* UIApplication+BrowserSelectPressForwarding.m in Sources */ = {isa = PBXBuildFile; fileRef = A1B49A672D6AD500001D58A1 /* UIApplication+BrowserSelectPressForwarding.m */; };
+		A1B49A6C2D6B1000001D58A1 /* BrowserNativeVideoPlayerViewController.m in Sources */ = {isa = PBXBuildFile; fileRef = A1B49A6B2D6B1000001D58A1 /* BrowserNativeVideoPlayerViewController.m */; };
+		A1B49A722D6B7000001D58A1 /* BrowserYouTubeExtractor.m in Sources */ = {isa = PBXBuildFile; fileRef = A1B49A712D6B7000001D58A1 /* BrowserYouTubeExtractor.m */; };
+		A1B49A742D6C1000001D58A1 /* BrowserNativeVideoAssetLoader.m in Sources */ = {isa = PBXBuildFile; fileRef = A1B49A732D6C1000001D58A1 /* BrowserNativeVideoAssetLoader.m */; };
+		A1B49A842D6D2000001D58A1 /* BrowserDOMInteractionService.m in Sources */ = {isa = PBXBuildFile; fileRef = A1B49A832D6D2000001D58A1 /* BrowserDOMInteractionService.m */; };
+		A1B49A872D6D2000001D58A1 /* BrowserVideoPlaybackCoordinator.m in Sources */ = {isa = PBXBuildFile; fileRef = A1B49A862D6D2000001D58A1 /* BrowserVideoPlaybackCoordinator.m */; };
+		A1B49A892D700000001D58A1 /* BrowserPreferencesStore.m in Sources */ = {isa = PBXBuildFile; fileRef = A1B49A882D700000001D58A1 /* BrowserPreferencesStore.m */; };
+		A1B49A8C2D700010001D58A1 /* BrowserTabCoordinator.m in Sources */ = {isa = PBXBuildFile; fileRef = A1B49A8B2D700010001D58A1 /* BrowserTabCoordinator.m */; };
+		A1B49A8F2D700020001D58A1 /* BrowserTabOverviewController.m in Sources */ = {isa = PBXBuildFile; fileRef = A1B49A8E2D700020001D58A1 /* BrowserTabOverviewController.m */; };
+		A1B49A922D700030001D58A1 /* BrowserPageActionCoordinator.m in Sources */ = {isa = PBXBuildFile; fileRef = A1B49A912D700030001D58A1 /* BrowserPageActionCoordinator.m */; };
+		A1B49A952D700040001D58A1 /* BrowserRemoteInputController.m in Sources */ = {isa = PBXBuildFile; fileRef = A1B49A942D700040001D58A1 /* BrowserRemoteInputController.m */; };
+		ABE100000000000000000007 /* ContentProvider.m in Sources */ = {isa = PBXBuildFile; fileRef = ABE100000000000000000002 /* ContentProvider.m */; };
+		ABE100000000000000000008 /* OrbrisaTopShelf.appex in Embed Foundation Extensions */ = {isa = PBXBuildFile; fileRef = ABE100000000000000000006 /* OrbrisaTopShelf.appex */; settings = {ATTRIBUTES = (RemoveHeadersOnCopy, ); }; };
+		B002B8671BAE420500C744AF /* main.m in Sources */ = {isa = PBXBuildFile; fileRef = B002B8661BAE420500C744AF /* main.m */; };
+		B002B86A1BAE420500C744AF /* AppDelegate.m in Sources */ = {isa = PBXBuildFile; fileRef = B002B8691BAE420500C744AF /* AppDelegate.m */; };
+		B002B86D1BAE420500C744AF /* ViewController.m in Sources */ = {isa = PBXBuildFile; fileRef = B002B86C1BAE420500C744AF /* ViewController.m */; };
+		B002B8701BAE420500C744AF /* Main.storyboard in Resources */ = {isa = PBXBuildFile; fileRef = B002B86E1BAE420500C744AF /* Main.storyboard */; };
+		B002B8721BAE420500C744AF /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = B002B8711BAE420500C744AF /* Assets.xcassets */; };
+		B0B1C2D3E4F5061728394012 /* BrowserReaderViewController.m in Sources */ = {isa = PBXBuildFile; fileRef = B0B1C2D3E4F5061728394011 /* BrowserReaderViewController.m */; };
+		B0B1C2D3E4F5061728394015 /* BrowserFeedStore.m in Sources */ = {isa = PBXBuildFile; fileRef = B0B1C2D3E4F5061728394014 /* BrowserFeedStore.m */; };
+		B0B1C2D3E4F5061728394018 /* BrowserFeedsViewController.m in Sources */ = {isa = PBXBuildFile; fileRef = B0B1C2D3E4F5061728394017 /* BrowserFeedsViewController.m */; };
+		B0B1C2D3E4F506172839401A /* ReaderExtract.js in Resources */ = {isa = PBXBuildFile; fileRef = B0B1C2D3E4F5061728394019 /* ReaderExtract.js */; };
+		B0B1C2D3E4F506172839401C /* FeedDetect.js in Resources */ = {isa = PBXBuildFile; fileRef = B0B1C2D3E4F506172839401B /* FeedDetect.js */; };
+		C0FFEE00A1B2C3D4E5F60003 /* VLCKit in Frameworks */ = {isa = PBXBuildFile; productRef = C0FFEE00A1B2C3D4E5F60002 /* VLCKit */; };
+/* End PBXBuildFile section */
+
+/* Begin PBXContainerItemProxy section */
+		ABE10000000000000000000F /* PBXContainerItemProxy */ = {
+			isa = PBXContainerItemProxy;
+			containerPortal = B002B85A1BAE420500C744AF /* Project object */;
+			proxyType = 1;
+			remoteGlobalIDString = ABE10000000000000000000A;
+			remoteInfo = OrbrisaTopShelf;
+		};
+/* End PBXContainerItemProxy section */
+
+/* Begin PBXCopyFilesBuildPhase section */
+		ABE10000000000000000000E /* Embed Foundation Extensions */ = {
+			isa = PBXCopyFilesBuildPhase;
+			buildActionMask = 2147483647;
+			dstPath = "";
+			dstSubfolderSpec = 13;
+			files = (
+				ABE100000000000000000008 /* OrbrisaTopShelf.appex in Embed Foundation Extensions */,
+			);
+			name = "Embed Foundation Extensions";
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXCopyFilesBuildPhase section */
+
+/* Begin PBXFileReference section */
+		9675E1FB20855F6500A4A84A /* Foundation.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = Foundation.framework; path = System/Library/Frameworks/Foundation.framework; sourceTree = SDKROOT; };
+		9675E1FE20857AEF00A4A84A /* UIKit.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = UIKit.framework; path = System/Library/Frameworks/UIKit.framework; sourceTree = SDKROOT; };
+		A0B1C2D3E4F5061728394A5B /* BrowserLog.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = BrowserLog.h; sourceTree = "<group>"; };
+		A0B1C2D3E4F5061728394A5C /* BrowserLocalization.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = BrowserLocalization.h; sourceTree = "<group>"; };
+		A0B1C2D3E4F5061728394A5D /* en */ = {isa = PBXFileReference; lastKnownFileType = text.plist.strings; name = en; path = en.lproj/Localizable.strings; sourceTree = "<group>"; };
+		A0B1C2D3E4F5061728394A5E /* de */ = {isa = PBXFileReference; lastKnownFileType = text.plist.strings; name = de; path = de.lproj/Localizable.strings; sourceTree = "<group>"; };
+		A1B49A462D67F2B3001D58A1 /* BrowserTabViewModel.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = BrowserTabViewModel.h; sourceTree = "<group>"; };
+		A1B49A472D67F2B3001D58A1 /* BrowserTabViewModel.m */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.objc; path = BrowserTabViewModel.m; sourceTree = "<group>"; };
+		A1B49A492D67F2C3001D58A1 /* BrowserViewModel.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = BrowserViewModel.h; sourceTree = "<group>"; };
+		A1B49A4A2D67F2C3001D58A1 /* BrowserViewModel.m */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.objc; path = BrowserViewModel.m; sourceTree = "<group>"; };
+		A1B49A4C2D680900001D58A1 /* BrowserNavigationService.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = BrowserNavigationService.h; sourceTree = "<group>"; };
+		A1B49A4D2D680900001D58A1 /* BrowserNavigationService.m */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.objc; path = BrowserNavigationService.m; sourceTree = "<group>"; };
+		A1B49A532D68143D001D58A1 /* BrowserMenuCoordinator.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = BrowserMenuCoordinator.h; sourceTree = "<group>"; };
+		A1B49A542D68143D001D58A1 /* BrowserMenuCoordinator.m */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.objc; path = BrowserMenuCoordinator.m; sourceTree = "<group>"; };
+		A1B49A562D6828D4001D58A1 /* BrowserSessionStore.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = BrowserSessionStore.h; sourceTree = "<group>"; };
+		A1B49A572D6828D4001D58A1 /* BrowserSessionStore.m */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.objc; path = BrowserSessionStore.m; sourceTree = "<group>"; };
+		A1B49A592D684000001D58A1 /* BrowserTopBarView.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = BrowserTopBarView.h; sourceTree = "<group>"; };
+		A1B49A5A2D684000001D58A1 /* BrowserTopBarView.m */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.objc; path = BrowserTopBarView.m; sourceTree = "<group>"; };
+		A1B49A5C2D69F100001D58A1 /* WebCoreNSURLSessionTaskTransactionMetrics+AddPrivacyStance.m */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.objc; path = "WebCoreNSURLSessionTaskTransactionMetrics+AddPrivacyStance.m"; sourceTree = "<group>"; };
+		A1B49A622D6A3800001D58A1 /* BrowserWebView.m */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.objc; path = BrowserWebView.m; sourceTree = "<group>"; };
+		A1B49A642D6A3900001D58A1 /* BrowserWebView.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = BrowserWebView.h; sourceTree = "<group>"; };
+		A1B49A672D6AD500001D58A1 /* UIApplication+BrowserSelectPressForwarding.m */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.objc; path = "UIApplication+BrowserSelectPressForwarding.m"; sourceTree = "<group>"; };
+		A1B49A692D6B1000001D58A1 /* BrowserNativeVideoPlayerViewController.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = BrowserNativeVideoPlayerViewController.h; sourceTree = "<group>"; };
+		A1B49A6B2D6B1000001D58A1 /* BrowserNativeVideoPlayerViewController.m */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.objc; path = BrowserNativeVideoPlayerViewController.m; sourceTree = "<group>"; };
+		A1B49A702D6B7000001D58A1 /* BrowserYouTubeExtractor.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = BrowserYouTubeExtractor.h; sourceTree = "<group>"; };
+		A1B49A712D6B7000001D58A1 /* BrowserYouTubeExtractor.m */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.objc; path = BrowserYouTubeExtractor.m; sourceTree = "<group>"; };
+		A1B49A732D6C1000001D58A1 /* BrowserNativeVideoAssetLoader.m */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.objc; path = BrowserNativeVideoAssetLoader.m; sourceTree = "<group>"; };
+		A1B49A752D6C1000001D58A1 /* BrowserNativeVideoAssetLoader.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = BrowserNativeVideoAssetLoader.h; sourceTree = "<group>"; };
+		A1B49A822D6D2000001D58A1 /* BrowserDOMInteractionService.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = BrowserDOMInteractionService.h; sourceTree = "<group>"; };
+		A1B49A832D6D2000001D58A1 /* BrowserDOMInteractionService.m */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.objc; path = BrowserDOMInteractionService.m; sourceTree = "<group>"; };
+		A1B49A852D6D2000001D58A1 /* BrowserVideoPlaybackCoordinator.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = BrowserVideoPlaybackCoordinator.h; sourceTree = "<group>"; };
+		A1B49A862D6D2000001D58A1 /* BrowserVideoPlaybackCoordinator.m */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.objc; path = BrowserVideoPlaybackCoordinator.m; sourceTree = "<group>"; };
+		A1B49A872D700000001D58A1 /* BrowserPreferencesStore.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = BrowserPreferencesStore.h; sourceTree = "<group>"; };
+		A1B49A882D700000001D58A1 /* BrowserPreferencesStore.m */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.objc; path = BrowserPreferencesStore.m; sourceTree = "<group>"; };
+		A1B49A8A2D700010001D58A1 /* BrowserTabCoordinator.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = BrowserTabCoordinator.h; sourceTree = "<group>"; };
+		A1B49A8B2D700010001D58A1 /* BrowserTabCoordinator.m */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.objc; path = BrowserTabCoordinator.m; sourceTree = "<group>"; };
+		A1B49A8D2D700020001D58A1 /* BrowserTabOverviewController.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = BrowserTabOverviewController.h; sourceTree = "<group>"; };
+		A1B49A8E2D700020001D58A1 /* BrowserTabOverviewController.m */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.objc; path = BrowserTabOverviewController.m; sourceTree = "<group>"; };
+		A1B49A902D700030001D58A1 /* BrowserPageActionCoordinator.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = BrowserPageActionCoordinator.h; sourceTree = "<group>"; };
+		A1B49A912D700030001D58A1 /* BrowserPageActionCoordinator.m */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.objc; path = BrowserPageActionCoordinator.m; sourceTree = "<group>"; };
+		A1B49A932D700040001D58A1 /* BrowserRemoteInputController.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = BrowserRemoteInputController.h; sourceTree = "<group>"; };
+		A1B49A942D700040001D58A1 /* BrowserRemoteInputController.m */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.objc; path = BrowserRemoteInputController.m; sourceTree = "<group>"; };
+		ABE100000000000000000001 /* ContentProvider.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = ContentProvider.h; sourceTree = "<group>"; };
+		ABE100000000000000000002 /* ContentProvider.m */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.objc; path = ContentProvider.m; sourceTree = "<group>"; };
+		ABE100000000000000000003 /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist.xml; path = Info.plist; sourceTree = "<group>"; };
+		ABE100000000000000000004 /* OrbrisaTopShelf.entitlements */ = {isa = PBXFileReference; lastKnownFileType = text.plist.entitlements; path = OrbrisaTopShelf.entitlements; sourceTree = "<group>"; };
+		ABE100000000000000000005 /* Orbrisa.entitlements */ = {isa = PBXFileReference; lastKnownFileType = text.plist.entitlements; path = Orbrisa.entitlements; sourceTree = "<group>"; };
+		ABE100000000000000000006 /* OrbrisaTopShelf.appex */ = {isa = PBXFileReference; explicitFileType = "wrapper.app-extension"; includeInIndex = 0; path = OrbrisaTopShelf.appex; sourceTree = BUILT_PRODUCTS_DIR; };
+		ABE100000000000000000014 /* Orbrisa.xcconfig */ = {isa = PBXFileReference; lastKnownFileType = text.xcconfig; name = Orbrisa.xcconfig; path = Configs/Orbrisa.xcconfig; sourceTree = "<group>"; };
+		B002B8621BAE420500C744AF /* Orbrisa.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = Orbrisa.app; sourceTree = BUILT_PRODUCTS_DIR; };
+		B002B8661BAE420500C744AF /* main.m */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.objc; path = main.m; sourceTree = "<group>"; };
+		B002B8681BAE420500C744AF /* AppDelegate.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = AppDelegate.h; sourceTree = "<group>"; };
+		B002B8691BAE420500C744AF /* AppDelegate.m */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.objc; path = AppDelegate.m; sourceTree = "<group>"; };
+		B002B86B1BAE420500C744AF /* ViewController.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = ViewController.h; sourceTree = "<group>"; };
+		B002B86C1BAE420500C744AF /* ViewController.m */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.objc; path = ViewController.m; sourceTree = "<group>"; };
+		B002B86F1BAE420500C744AF /* Base */ = {isa = PBXFileReference; lastKnownFileType = file.storyboard; name = Base; path = Base.lproj/Main.storyboard; sourceTree = "<group>"; };
+		B002B8711BAE420500C744AF /* Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Assets.xcassets; sourceTree = "<group>"; };
+		B002B8731BAE420500C744AF /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist.xml; path = Info.plist; sourceTree = "<group>"; };
+		B0B1C2D3E4F5061728394010 /* BrowserReaderViewController.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = BrowserReaderViewController.h; sourceTree = "<group>"; };
+		B0B1C2D3E4F5061728394011 /* BrowserReaderViewController.m */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.objc; path = BrowserReaderViewController.m; sourceTree = "<group>"; };
+		B0B1C2D3E4F5061728394013 /* BrowserFeedStore.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = BrowserFeedStore.h; sourceTree = "<group>"; };
+		B0B1C2D3E4F5061728394014 /* BrowserFeedStore.m */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.objc; path = BrowserFeedStore.m; sourceTree = "<group>"; };
+		B0B1C2D3E4F5061728394016 /* BrowserFeedsViewController.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = BrowserFeedsViewController.h; sourceTree = "<group>"; };
+		B0B1C2D3E4F5061728394017 /* BrowserFeedsViewController.m */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.objc; path = BrowserFeedsViewController.m; sourceTree = "<group>"; };
+		B0B1C2D3E4F5061728394019 /* ReaderExtract.js */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.javascript; path = ReaderExtract.js; sourceTree = "<group>"; };
+		B0B1C2D3E4F506172839401B /* FeedDetect.js */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.javascript; path = FeedDetect.js; sourceTree = "<group>"; };
+		B0F6B4611BAEBF9900E2F26B /* README.md */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = net.daringfireball.markdown; path = README.md; sourceTree = "<group>"; };
+/* End PBXFileReference section */
+
+/* Begin PBXFrameworksBuildPhase section */
+		ABE10000000000000000000C /* Frameworks */ = {
+			isa = PBXFrameworksBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		B002B85F1BAE420500C744AF /* Frameworks */ = {
+			isa = PBXFrameworksBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				9675E1FF20857AEF00A4A84A /* UIKit.framework in Frameworks */,
+				9675E1FC20855F6500A4A84A /* Foundation.framework in Frameworks */,
+				C0FFEE00A1B2C3D4E5F60003 /* VLCKit in Frameworks */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXFrameworksBuildPhase section */
+
+/* Begin PBXGroup section */
+		9675E1FA20855F6500A4A84A /* Frameworks */ = {
+			isa = PBXGroup;
+			children = (
+				9675E1FE20857AEF00A4A84A /* UIKit.framework */,
+				9675E1FB20855F6500A4A84A /* Foundation.framework */,
+			);
+			name = Frameworks;
+			sourceTree = "<group>";
+		};
+		A1B49A772D6D0000001D58A1 /* App */ = {
+			isa = PBXGroup;
+			children = (
+				B002B8681BAE420500C744AF /* AppDelegate.h */,
+				B002B8691BAE420500C744AF /* AppDelegate.m */,
+			);
+			name = App;
+			sourceTree = "<group>";
+		};
+		A1B49A792D6D0000001D58A1 /* Models */ = {
+			isa = PBXGroup;
+			children = (
+				A1B49A462D67F2B3001D58A1 /* BrowserTabViewModel.h */,
+				A1B49A472D67F2B3001D58A1 /* BrowserTabViewModel.m */,
+			);
+			name = Models;
+			sourceTree = "<group>";
+		};
+		A1B49A7A2D6D0000001D58A1 /* ViewModels */ = {
+			isa = PBXGroup;
+			children = (
+				A1B49A492D67F2C3001D58A1 /* BrowserViewModel.h */,
+				A1B49A4A2D67F2C3001D58A1 /* BrowserViewModel.m */,
+			);
+			name = ViewModels;
+			sourceTree = "<group>";
+		};
+		A1B49A7B2D6D0000001D58A1 /* Coordinators */ = {
+			isa = PBXGroup;
+			children = (
+				A1B49A532D68143D001D58A1 /* BrowserMenuCoordinator.h */,
+				A1B49A542D68143D001D58A1 /* BrowserMenuCoordinator.m */,
+				A1B49A902D700030001D58A1 /* BrowserPageActionCoordinator.h */,
+				A1B49A912D700030001D58A1 /* BrowserPageActionCoordinator.m */,
+				A1B49A932D700040001D58A1 /* BrowserRemoteInputController.h */,
+				A1B49A942D700040001D58A1 /* BrowserRemoteInputController.m */,
+				A1B49A8A2D700010001D58A1 /* BrowserTabCoordinator.h */,
+				A1B49A8B2D700010001D58A1 /* BrowserTabCoordinator.m */,
+				A1B49A8D2D700020001D58A1 /* BrowserTabOverviewController.h */,
+				A1B49A8E2D700020001D58A1 /* BrowserTabOverviewController.m */,
+				A1B49A852D6D2000001D58A1 /* BrowserVideoPlaybackCoordinator.h */,
+				A1B49A862D6D2000001D58A1 /* BrowserVideoPlaybackCoordinator.m */,
+			);
+			name = Coordinators;
+			sourceTree = "<group>";
+		};
+		A1B49A7C2D6D0000001D58A1 /* Services */ = {
+			isa = PBXGroup;
+			children = (
+				A1B49A822D6D2000001D58A1 /* BrowserDOMInteractionService.h */,
+				A1B49A832D6D2000001D58A1 /* BrowserDOMInteractionService.m */,
+				A1B49A4C2D680900001D58A1 /* BrowserNavigationService.h */,
+				A1B49A4D2D680900001D58A1 /* BrowserNavigationService.m */,
+				A1B49A872D700000001D58A1 /* BrowserPreferencesStore.h */,
+				A1B49A882D700000001D58A1 /* BrowserPreferencesStore.m */,
+				A1B49A562D6828D4001D58A1 /* BrowserSessionStore.h */,
+				A1B49A572D6828D4001D58A1 /* BrowserSessionStore.m */,
+			);
+			name = Services;
+			sourceTree = "<group>";
+		};
+		A1B49A7D2D6D0000001D58A1 /* UI */ = {
+			isa = PBXGroup;
+			children = (
+				A1B49A7E2D6D0000001D58A1 /* Controllers */,
+				A1B49A7F2D6D0000001D58A1 /* Views */,
+			);
+			name = UI;
+			sourceTree = "<group>";
+		};
+		A1B49A7E2D6D0000001D58A1 /* Controllers */ = {
+			isa = PBXGroup;
+			children = (
+				B002B86B1BAE420500C744AF /* ViewController.h */,
+				B002B86C1BAE420500C744AF /* ViewController.m */,
+				A1B49A692D6B1000001D58A1 /* BrowserNativeVideoPlayerViewController.h */,
+				A1B49A6B2D6B1000001D58A1 /* BrowserNativeVideoPlayerViewController.m */,
+			);
+			name = Controllers;
+			sourceTree = "<group>";
+		};
+		A1B49A7F2D6D0000001D58A1 /* Views */ = {
+			isa = PBXGroup;
+			children = (
+				A1B49A592D684000001D58A1 /* BrowserTopBarView.h */,
+				A1B49A5A2D684000001D58A1 /* BrowserTopBarView.m */,
+				A1B49A642D6A3900001D58A1 /* BrowserWebView.h */,
+				A0B1C2D3E4F5061728394A5B /* BrowserLog.h */,
+				A0B1C2D3E4F5061728394A5C /* BrowserLocalization.h */,
+				B0B1C2D3E4F5061728394010 /* BrowserReaderViewController.h */,
+				B0B1C2D3E4F5061728394011 /* BrowserReaderViewController.m */,
+				B0B1C2D3E4F5061728394013 /* BrowserFeedStore.h */,
+				B0B1C2D3E4F5061728394014 /* BrowserFeedStore.m */,
+				B0B1C2D3E4F5061728394016 /* BrowserFeedsViewController.h */,
+				B0B1C2D3E4F5061728394017 /* BrowserFeedsViewController.m */,
+				B0B1C2D3E4F5061728394019 /* ReaderExtract.js */,
+				B0B1C2D3E4F506172839401B /* FeedDetect.js */,
+				A0B1C2D3E4F5061728394A5F /* Localizable.strings */,
+				A1B49A622D6A3800001D58A1 /* BrowserWebView.m */,
+			);
+			name = Views;
+			sourceTree = "<group>";
+		};
+		A1B49A802D6D0000001D58A1 /* Video */ = {
+			isa = PBXGroup;
+			children = (
+				A1B49A752D6C1000001D58A1 /* BrowserNativeVideoAssetLoader.h */,
+				A1B49A732D6C1000001D58A1 /* BrowserNativeVideoAssetLoader.m */,
+				A1B49A702D6B7000001D58A1 /* BrowserYouTubeExtractor.h */,
+				A1B49A712D6B7000001D58A1 /* BrowserYouTubeExtractor.m */,
+			);
+			name = Video;
+			sourceTree = "<group>";
+		};
+		A1B49A812D6D0000001D58A1 /* Runtime */ = {
+			isa = PBXGroup;
+			children = (
+				A1B49A672D6AD500001D58A1 /* UIApplication+BrowserSelectPressForwarding.m */,
+				A1B49A5C2D69F100001D58A1 /* WebCoreNSURLSessionTaskTransactionMetrics+AddPrivacyStance.m */,
+			);
+			name = Runtime;
+			sourceTree = "<group>";
+		};
+		ABE100000000000000000009 /* OrbrisaTopShelf */ = {
+			isa = PBXGroup;
+			children = (
+				ABE100000000000000000001 /* ContentProvider.h */,
+				ABE100000000000000000002 /* ContentProvider.m */,
+				ABE100000000000000000003 /* Info.plist */,
+				ABE100000000000000000004 /* OrbrisaTopShelf.entitlements */,
+			);
+			path = OrbrisaTopShelf;
+			sourceTree = "<group>";
+		};
+		B002B8591BAE420500C744AF = {
+			isa = PBXGroup;
+			children = (
+				B0F6B4611BAEBF9900E2F26B /* README.md */,
+				ABE100000000000000000014 /* Orbrisa.xcconfig */,
+				B002B8641BAE420500C744AF /* Orbrisa */,
+				ABE100000000000000000009 /* OrbrisaTopShelf */,
+				B002B8631BAE420500C744AF /* Products */,
+				9675E1FA20855F6500A4A84A /* Frameworks */,
+			);
+			sourceTree = "<group>";
+		};
+		B002B8631BAE420500C744AF /* Products */ = {
+			isa = PBXGroup;
+			children = (
+				B002B8621BAE420500C744AF /* Orbrisa.app */,
+				ABE100000000000000000006 /* OrbrisaTopShelf.appex */,
+			);
+			name = Products;
+			sourceTree = "<group>";
+		};
+		B002B8641BAE420500C744AF /* Orbrisa */ = {
+			isa = PBXGroup;
+			children = (
+				A1B49A772D6D0000001D58A1 /* App */,
+				A1B49A792D6D0000001D58A1 /* Models */,
+				A1B49A7A2D6D0000001D58A1 /* ViewModels */,
+				A1B49A7B2D6D0000001D58A1 /* Coordinators */,
+				A1B49A7C2D6D0000001D58A1 /* Services */,
+				A1B49A7D2D6D0000001D58A1 /* UI */,
+				A1B49A802D6D0000001D58A1 /* Video */,
+				A1B49A812D6D0000001D58A1 /* Runtime */,
+				B002B8651BAE420500C744AF /* Supporting Files */,
+			);
+			path = Orbrisa;
+			sourceTree = "<group>";
+		};
+		B002B8651BAE420500C744AF /* Supporting Files */ = {
+			isa = PBXGroup;
+			children = (
+				B002B8661BAE420500C744AF /* main.m */,
+				B002B86E1BAE420500C744AF /* Main.storyboard */,
+				B002B8711BAE420500C744AF /* Assets.xcassets */,
+				B002B8731BAE420500C744AF /* Info.plist */,
+				ABE100000000000000000005 /* Orbrisa.entitlements */,
+			);
+			name = "Supporting Files";
+			sourceTree = "<group>";
+		};
+/* End PBXGroup section */
+
+/* Begin PBXNativeTarget section */
+		ABE10000000000000000000A /* OrbrisaTopShelf */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = ABE100000000000000000013 /* Build configuration list for PBXNativeTarget "OrbrisaTopShelf" */;
+			buildPhases = (
+				ABE10000000000000000000B /* Sources */,
+				ABE10000000000000000000C /* Frameworks */,
+				ABE10000000000000000000D /* Resources */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+			);
+			name = OrbrisaTopShelf;
+			productName = OrbrisaTopShelf;
+			productReference = ABE100000000000000000006 /* OrbrisaTopShelf.appex */;
+			productType = "com.apple.product-type.tv-app-extension";
+		};
+		B002B8611BAE420500C744AF /* Orbrisa */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = B002B8761BAE420500C744AF /* Build configuration list for PBXNativeTarget "Orbrisa" */;
+			buildPhases = (
+				B002B85E1BAE420500C744AF /* Sources */,
+				B002B85F1BAE420500C744AF /* Frameworks */,
+				B002B8601BAE420500C744AF /* Resources */,
+				9693F8451BF5A99E00077BAB /* ShellScript */,
+				ABE10000000000000000000E /* Embed Foundation Extensions */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+				ABE100000000000000000010 /* PBXTargetDependency */,
+			);
+			name = Orbrisa;
+			packageProductDependencies = (
+				C0FFEE00A1B2C3D4E5F60002 /* VLCKit */,
+			);
+			productName = Orbrisa;
+			productReference = B002B8621BAE420500C744AF /* Orbrisa.app */;
+			productType = "com.apple.product-type.application";
+		};
+/* End PBXNativeTarget section */
+
+/* Begin PBXProject section */
+		B002B85A1BAE420500C744AF /* Project object */ = {
+			isa = PBXProject;
+			attributes = {
+				BuildIndependentTargetsInParallel = YES;
+				LastUpgradeCheck = 2710;
+				ORGANIZATIONNAME = "di marco studio";
+				TargetAttributes = {
+					ABE10000000000000000000A = {
+						CreatedOnToolsVersion = 27.0;
+					};
+					B002B8611BAE420500C744AF = {
+						CreatedOnToolsVersion = 7.1;
+					};
+				};
+			};
+			buildConfigurationList = B002B85D1BAE420500C744AF /* Build configuration list for PBXProject "Orbrisa" */;
+			compatibilityVersion = "Xcode 3.2";
+			developmentRegion = en;
+			hasScannedForEncodings = 0;
+			knownRegions = (
+				en,
+				Base,
+				de,
+			);
+			mainGroup = B002B8591BAE420500C744AF;
+			packageReferences = (
+				C0FFEE00A1B2C3D4E5F60001 /* XCRemoteSwiftPackageReference "vlckit" */,
+			);
+			productRefGroup = B002B8631BAE420500C744AF /* Products */;
+			projectDirPath = "";
+			projectRoot = "";
+			targets = (
+				B002B8611BAE420500C744AF /* Orbrisa */,
+				ABE10000000000000000000A /* OrbrisaTopShelf */,
+			);
+		};
+/* End PBXProject section */
+
+/* Begin PBXResourcesBuildPhase section */
+		ABE10000000000000000000D /* Resources */ = {
+			isa = PBXResourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				A0B1C2D3E4F5061728394A61 /* Localizable.strings in Resources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		B002B8601BAE420500C744AF /* Resources */ = {
+			isa = PBXResourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				B0B1C2D3E4F506172839401A /* ReaderExtract.js in Resources */,
+				B0B1C2D3E4F506172839401C /* FeedDetect.js in Resources */,
+				B002B8721BAE420500C744AF /* Assets.xcassets in Resources */,
+				B002B8701BAE420500C744AF /* Main.storyboard in Resources */,
+				A0B1C2D3E4F5061728394A60 /* Localizable.strings in Resources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXResourcesBuildPhase section */
+
+/* Begin PBXShellScriptBuildPhase section */
+		9693F8451BF5A99E00077BAB /* ShellScript */ = {
+			isa = PBXShellScriptBuildPhase;
+			buildActionMask = 8;
+			files = (
+			);
+			inputPaths = (
+			);
+			outputPaths = (
+			);
+			runOnlyForDeploymentPostprocessing = 1;
+			shellPath = /bin/sh;
+			shellScript = "echo \"Versioning is controlled by MARKETING_VERSION/CURRENT_PROJECT_VERSION.\"\n";
+		};
+/* End PBXShellScriptBuildPhase section */
+
+/* Begin PBXSourcesBuildPhase section */
+		ABE10000000000000000000B /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				ABE100000000000000000007 /* ContentProvider.m in Sources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		B002B85E1BAE420500C744AF /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				B0B1C2D3E4F5061728394012 /* BrowserReaderViewController.m in Sources */,
+				B0B1C2D3E4F5061728394015 /* BrowserFeedStore.m in Sources */,
+				B0B1C2D3E4F5061728394018 /* BrowserFeedsViewController.m in Sources */,
+				A1B49A482D67F2B3001D58A1 /* BrowserTabViewModel.m in Sources */,
+				A1B49A552D68143D001D58A1 /* BrowserMenuCoordinator.m in Sources */,
+				A1B49A922D700030001D58A1 /* BrowserPageActionCoordinator.m in Sources */,
+				A1B49A952D700040001D58A1 /* BrowserRemoteInputController.m in Sources */,
+				A1B49A8C2D700010001D58A1 /* BrowserTabCoordinator.m in Sources */,
+				A1B49A8F2D700020001D58A1 /* BrowserTabOverviewController.m in Sources */,
+				A1B49A872D6D2000001D58A1 /* BrowserVideoPlaybackCoordinator.m in Sources */,
+				A1B49A842D6D2000001D58A1 /* BrowserDOMInteractionService.m in Sources */,
+				A1B49A4E2D680900001D58A1 /* BrowserNavigationService.m in Sources */,
+				A1B49A892D700000001D58A1 /* BrowserPreferencesStore.m in Sources */,
+				A1B49A582D6828D4001D58A1 /* BrowserSessionStore.m in Sources */,
+				A1B49A5B2D684000001D58A1 /* BrowserTopBarView.m in Sources */,
+				A1B49A6C2D6B1000001D58A1 /* BrowserNativeVideoPlayerViewController.m in Sources */,
+				A1B49A722D6B7000001D58A1 /* BrowserYouTubeExtractor.m in Sources */,
+				A1B49A742D6C1000001D58A1 /* BrowserNativeVideoAssetLoader.m in Sources */,
+				A1B49A682D6AD500001D58A1 /* UIApplication+BrowserSelectPressForwarding.m in Sources */,
+				A1B49A632D6A3800001D58A1 /* BrowserWebView.m in Sources */,
+				A1B49A5D2D69F100001D58A1 /* WebCoreNSURLSessionTaskTransactionMetrics+AddPrivacyStance.m in Sources */,
+				A1B49A4B2D67F2C3001D58A1 /* BrowserViewModel.m in Sources */,
+				B002B86D1BAE420500C744AF /* ViewController.m in Sources */,
+				B002B86A1BAE420500C744AF /* AppDelegate.m in Sources */,
+				B002B8671BAE420500C744AF /* main.m in Sources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXSourcesBuildPhase section */
+
+/* Begin PBXTargetDependency section */
+		ABE100000000000000000010 /* PBXTargetDependency */ = {
+			isa = PBXTargetDependency;
+			target = ABE10000000000000000000A /* OrbrisaTopShelf */;
+			targetProxy = ABE10000000000000000000F /* PBXContainerItemProxy */;
+		};
+/* End PBXTargetDependency section */
+
+/* Begin PBXVariantGroup section */
+		A0B1C2D3E4F5061728394A5F /* Localizable.strings */ = {
+			isa = PBXVariantGroup;
+			children = (
+				A0B1C2D3E4F5061728394A5D /* en */,
+				A0B1C2D3E4F5061728394A5E /* de */,
+			);
+			name = Localizable.strings;
+			sourceTree = "<group>";
+		};
+		B002B86E1BAE420500C744AF /* Main.storyboard */ = {
+			isa = PBXVariantGroup;
+			children = (
+				B002B86F1BAE420500C744AF /* Base */,
+			);
+			name = Main.storyboard;
+			sourceTree = "<group>";
+		};
+/* End PBXVariantGroup section */
+
+/* Begin XCBuildConfiguration section */
+		ABE100000000000000000011 /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				APPLICATION_EXTENSION_API_ONLY = YES;
+				CODE_SIGN_ENTITLEMENTS = OrbrisaTopShelf/OrbrisaTopShelf.entitlements;
+				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = 2;
+				GENERATE_INFOPLIST_FILE = NO;
+				INFOPLIST_FILE = OrbrisaTopShelf/Info.plist;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+					"@executable_path/../../Frameworks",
+				);
+				MARKETING_VERSION = 1.1.0;
+				PRODUCT_BUNDLE_IDENTIFIER = "$(ORBRISA_BUNDLE_ID).TopShelf";
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SKIP_INSTALL = YES;
+				TARGETED_DEVICE_FAMILY = 3;
+				TVOS_DEPLOYMENT_TARGET = 15.6;
+			};
+			name = Debug;
+		};
+		ABE100000000000000000012 /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				APPLICATION_EXTENSION_API_ONLY = YES;
+				CODE_SIGN_ENTITLEMENTS = OrbrisaTopShelf/OrbrisaTopShelf.entitlements;
+				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = 2;
+				GENERATE_INFOPLIST_FILE = NO;
+				INFOPLIST_FILE = OrbrisaTopShelf/Info.plist;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+					"@executable_path/../../Frameworks",
+				);
+				MARKETING_VERSION = 1.1.0;
+				PRODUCT_BUNDLE_IDENTIFIER = "$(ORBRISA_BUNDLE_ID).TopShelf";
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SKIP_INSTALL = YES;
+				TARGETED_DEVICE_FAMILY = 3;
+				TVOS_DEPLOYMENT_TARGET = 15.6;
+			};
+			name = Release;
+		};
+		B002B8741BAE420500C744AF /* Debug */ = {
+			isa = XCBuildConfiguration;
+			baseConfigurationReference = ABE100000000000000000014 /* Orbrisa.xcconfig */;
+			buildSettings = {
+				ALWAYS_SEARCH_USER_PATHS = NO;
+				CLANG_ANALYZER_LOCALIZABILITY_NONLOCALIZED = YES;
+				CLANG_CXX_LANGUAGE_STANDARD = "gnu++0x";
+				CLANG_CXX_LIBRARY = "libc++";
+				CLANG_ENABLE_MODULES = YES;
+				CLANG_ENABLE_OBJC_ARC = YES;
+				CLANG_WARN_BLOCK_CAPTURE_AUTORELEASING = YES;
+				CLANG_WARN_BOOL_CONVERSION = YES;
+				CLANG_WARN_COMMA = YES;
+				CLANG_WARN_CONSTANT_CONVERSION = YES;
+				CLANG_WARN_DEPRECATED_OBJC_IMPLEMENTATIONS = YES;
+				CLANG_WARN_DIRECT_OBJC_ISA_USAGE = YES_ERROR;
+				CLANG_WARN_EMPTY_BODY = YES;
+				CLANG_WARN_ENUM_CONVERSION = YES;
+				CLANG_WARN_INFINITE_RECURSION = YES;
+				CLANG_WARN_INT_CONVERSION = YES;
+				CLANG_WARN_NON_LITERAL_NULL_CONVERSION = YES;
+				CLANG_WARN_OBJC_IMPLICIT_RETAIN_SELF = YES;
+				CLANG_WARN_OBJC_LITERAL_CONVERSION = YES;
+				CLANG_WARN_OBJC_ROOT_CLASS = YES_ERROR;
+				CLANG_WARN_QUOTED_INCLUDE_IN_FRAMEWORK_HEADER = NO;
+				CLANG_WARN_RANGE_LOOP_ANALYSIS = YES;
+				CLANG_WARN_STRICT_PROTOTYPES = YES;
+				CLANG_WARN_SUSPICIOUS_MOVE = YES;
+				CLANG_WARN_UNREACHABLE_CODE = YES;
+				CLANG_WARN__DUPLICATE_METHOD_MATCH = YES;
+				COPY_PHASE_STRIP = NO;
+				DEBUG_INFORMATION_FORMAT = dwarf;
+				ENABLE_STRICT_OBJC_MSGSEND = YES;
+				ENABLE_TESTABILITY = YES;
+				ENABLE_USER_SCRIPT_SANDBOXING = YES;
+				GCC_C_LANGUAGE_STANDARD = gnu99;
+				GCC_DYNAMIC_NO_PIC = NO;
+				GCC_NO_COMMON_BLOCKS = YES;
+				GCC_OPTIMIZATION_LEVEL = 0;
+				GCC_PREPROCESSOR_DEFINITIONS = (
+					"DEBUG=1",
+					"$(inherited)",
+				);
+				GCC_WARN_64_TO_32_BIT_CONVERSION = YES;
+				GCC_WARN_ABOUT_RETURN_TYPE = YES_ERROR;
+				GCC_WARN_UNDECLARED_SELECTOR = YES;
+				GCC_WARN_UNINITIALIZED_AUTOS = YES_AGGRESSIVE;
+				GCC_WARN_UNUSED_FUNCTION = YES;
+				GCC_WARN_UNUSED_VARIABLE = YES;
+				MTL_ENABLE_DEBUG_INFO = YES;
+				ONLY_ACTIVE_ARCH = YES;
+				SDKROOT = appletvos;
+				STRING_CATALOG_GENERATE_SYMBOLS = YES;
+				TARGETED_DEVICE_FAMILY = 3;
+				TVOS_DEPLOYMENT_TARGET = 12.0;
+			};
+			name = Debug;
+		};
+		B002B8751BAE420500C744AF /* Release */ = {
+			isa = XCBuildConfiguration;
+			baseConfigurationReference = ABE100000000000000000014 /* Orbrisa.xcconfig */;
+			buildSettings = {
+				ALWAYS_SEARCH_USER_PATHS = NO;
+				CLANG_ANALYZER_LOCALIZABILITY_NONLOCALIZED = YES;
+				CLANG_CXX_LANGUAGE_STANDARD = "gnu++0x";
+				CLANG_CXX_LIBRARY = "libc++";
+				CLANG_ENABLE_MODULES = YES;
+				CLANG_ENABLE_OBJC_ARC = YES;
+				CLANG_WARN_BLOCK_CAPTURE_AUTORELEASING = YES;
+				CLANG_WARN_BOOL_CONVERSION = YES;
+				CLANG_WARN_COMMA = YES;
+				CLANG_WARN_CONSTANT_CONVERSION = YES;
+				CLANG_WARN_DEPRECATED_OBJC_IMPLEMENTATIONS = YES;
+				CLANG_WARN_DIRECT_OBJC_ISA_USAGE = YES_ERROR;
+				CLANG_WARN_EMPTY_BODY = YES;
+				CLANG_WARN_ENUM_CONVERSION = YES;
+				CLANG_WARN_INFINITE_RECURSION = YES;
+				CLANG_WARN_INT_CONVERSION = YES;
+				CLANG_WARN_NON_LITERAL_NULL_CONVERSION = YES;
+				CLANG_WARN_OBJC_IMPLICIT_RETAIN_SELF = YES;
+				CLANG_WARN_OBJC_LITERAL_CONVERSION = YES;
+				CLANG_WARN_OBJC_ROOT_CLASS = YES_ERROR;
+				CLANG_WARN_QUOTED_INCLUDE_IN_FRAMEWORK_HEADER = NO;
+				CLANG_WARN_RANGE_LOOP_ANALYSIS = YES;
+				CLANG_WARN_STRICT_PROTOTYPES = YES;
+				CLANG_WARN_SUSPICIOUS_MOVE = YES;
+				CLANG_WARN_UNREACHABLE_CODE = YES;
+				CLANG_WARN__DUPLICATE_METHOD_MATCH = YES;
+				COPY_PHASE_STRIP = NO;
+				DEBUG_INFORMATION_FORMAT = "dwarf-with-dsym";
+				ENABLE_NS_ASSERTIONS = NO;
+				ENABLE_STRICT_OBJC_MSGSEND = YES;
+				ENABLE_USER_SCRIPT_SANDBOXING = YES;
+				GCC_C_LANGUAGE_STANDARD = gnu99;
+				GCC_NO_COMMON_BLOCKS = YES;
+				GCC_WARN_64_TO_32_BIT_CONVERSION = YES;
+				GCC_WARN_ABOUT_RETURN_TYPE = YES_ERROR;
+				GCC_WARN_UNDECLARED_SELECTOR = YES;
+				GCC_WARN_UNINITIALIZED_AUTOS = YES_AGGRESSIVE;
+				GCC_WARN_UNUSED_FUNCTION = YES;
+				GCC_WARN_UNUSED_VARIABLE = YES;
+				MTL_ENABLE_DEBUG_INFO = NO;
+				SDKROOT = appletvos;
+				STRING_CATALOG_GENERATE_SYMBOLS = YES;
+				TARGETED_DEVICE_FAMILY = 3;
+				TVOS_DEPLOYMENT_TARGET = 12.0;
+				VALIDATE_PRODUCT = YES;
+			};
+			name = Release;
+		};
+		B002B8771BAE420500C744AF /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ALWAYS_SEARCH_USER_PATHS = NO;
+				ASSETCATALOG_COMPILER_APPICON_NAME = "App Icon & Top Shelf Image";
+				ASSETCATALOG_COMPILER_LAUNCHIMAGE_NAME = LaunchImage;
+				CODE_SIGN_ENTITLEMENTS = Orbrisa/Orbrisa.entitlements;
+				CODE_SIGN_IDENTITY = "iPhone Developer";
+				CURRENT_PROJECT_VERSION = 2;
+				EMBED_ASSET_PACKS_IN_PRODUCT_BUNDLE = YES;
+				ENABLE_ON_DEMAND_RESOURCES = NO;
+				FRAMEWORK_SEARCH_PATHS = "";
+				INFOPLIST_FILE = Orbrisa/Info.plist;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+				);
+				MARKETING_VERSION = 1.1.0;
+				OTHER_LDFLAGS = (
+					"$(inherited)",
+					"-lc++",
+					"-lxml2",
+					"-lz",
+					"-lbz2",
+					"-liconv",
+				);
+				PRODUCT_BUNDLE_IDENTIFIER = "$(ORBRISA_BUNDLE_ID)";
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SCAN_ALL_SOURCE_FILES_FOR_INCLUDES = NO;
+				TVOS_DEPLOYMENT_TARGET = 15.6;
+			};
+			name = Debug;
+		};
+		B002B8781BAE420500C744AF /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ALWAYS_SEARCH_USER_PATHS = NO;
+				ASSETCATALOG_COMPILER_APPICON_NAME = "App Icon & Top Shelf Image";
+				ASSETCATALOG_COMPILER_LAUNCHIMAGE_NAME = LaunchImage;
+				CODE_SIGN_ENTITLEMENTS = Orbrisa/Orbrisa.entitlements;
+				CODE_SIGN_IDENTITY = "iPhone Developer";
+				CURRENT_PROJECT_VERSION = 2;
+				EMBED_ASSET_PACKS_IN_PRODUCT_BUNDLE = YES;
+				ENABLE_ON_DEMAND_RESOURCES = NO;
+				FRAMEWORK_SEARCH_PATHS = "";
+				INFOPLIST_FILE = Orbrisa/Info.plist;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+				);
+				MARKETING_VERSION = 1.1.0;
+				OTHER_LDFLAGS = (
+					"$(inherited)",
+					"-lc++",
+					"-lxml2",
+					"-lz",
+					"-lbz2",
+					"-liconv",
+				);
+				PRODUCT_BUNDLE_IDENTIFIER = "$(ORBRISA_BUNDLE_ID)";
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SCAN_ALL_SOURCE_FILES_FOR_INCLUDES = NO;
+				TVOS_DEPLOYMENT_TARGET = 15.6;
+			};
+			name = Release;
+		};
+/* End XCBuildConfiguration section */
+
+/* Begin XCConfigurationList section */
+		ABE100000000000000000013 /* Build configuration list for PBXNativeTarget "OrbrisaTopShelf" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				ABE100000000000000000011 /* Debug */,
+				ABE100000000000000000012 /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Release;
+		};
+		B002B85D1BAE420500C744AF /* Build configuration list for PBXProject "Orbrisa" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				B002B8741BAE420500C744AF /* Debug */,
+				B002B8751BAE420500C744AF /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Release;
+		};
+		B002B8761BAE420500C744AF /* Build configuration list for PBXNativeTarget "Orbrisa" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				B002B8771BAE420500C744AF /* Debug */,
+				B002B8781BAE420500C744AF /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Release;
+		};
+/* End XCConfigurationList section */
+
+/* Begin XCRemoteSwiftPackageReference section */
+		C0FFEE00A1B2C3D4E5F60001 /* XCRemoteSwiftPackageReference "vlckit" */ = {
+			isa = XCRemoteSwiftPackageReference;
+			repositoryURL = "https://github.com/videolan/vlckit";
+			requirement = {
+				kind = exactVersion;
+				version = "4.0.0-a25";
+			};
+		};
+/* End XCRemoteSwiftPackageReference section */
+
+/* Begin XCSwiftPackageProductDependency section */
+		C0FFEE00A1B2C3D4E5F60002 /* VLCKit */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = C0FFEE00A1B2C3D4E5F60001 /* XCRemoteSwiftPackageReference "vlckit" */;
+			productName = VLCKit;
+		};
+/* End XCSwiftPackageProductDependency section */
+	};
+	rootObject = B002B85A1BAE420500C744AF /* Project object */;
+}

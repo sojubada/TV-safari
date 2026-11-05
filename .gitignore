@@ -1,14 +1,31 @@
-# Xcode
-build/
-DerivedData/
-*.xcuserstate
-xcuserdata/
-*.moved-aside
-*.hmap
-*.ipa
-*.dSYM.zip
-*.dSYM
-Payload/
-
 # macOS
 .DS_Store
+
+# Local signing (team ID, bundle ID) – see Configs/Local.xcconfig.example
+Configs/Local.xcconfig
+
+# Xcode user state
+xcuserdata/
+*.xcuserstate
+*.xcscmblueprint
+*.xccheckout
+*.moved-aside
+
+# Build output
+build/
+DerivedData/
+.build/
+*.ipa
+*.dSYM
+*.dSYM.zip
+*.xcresult
+*.xcarchive
+
+# Editors
+.vscode/
+.idea/
+
+# Local backups
+_backup*/
+*.vor-*
+*.orig

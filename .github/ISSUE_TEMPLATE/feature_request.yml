@@ -1,0 +1,25 @@
+name: Feature request
+description: An idea for Orbrisa
+labels: [enhancement]
+body:
+  - type: textarea
+    id: idea
+    attributes:
+      label: What would you like?
+    validations:
+      required: true
+  - type: textarea
+    id: why
+    attributes:
+      label: Why? What problem does it solve?
+    validations:
+      required: true
+  - type: textarea
+    id: alternatives
+    attributes:
+      label: Alternatives you considered
+  - type: textarea
+    id: sketch
+    attributes:
+      label: Sketch, mockup or example (optional)
+      description: A drawing, a screenshot from another app or a photo helps a lot – just drag and drop it here.

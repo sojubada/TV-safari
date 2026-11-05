@@ -1,0 +1,33 @@
+{
+  "images": [
+    {
+      "filename": "orbrisa-shelfwide@1x.png",
+      "idiom": "tv",
+      "scale": "1x"
+    },
+    {
+      "filename": "orbrisa-shelfwide-de@1x.png",
+      "idiom": "tv",
+      "locale": "de",
+      "scale": "1x"
+    },
+    {
+      "filename": "orbrisa-shelfwide@2x.png",
+      "idiom": "tv",
+      "scale": "2x"
+    },
+    {
+      "filename": "orbrisa-shelfwide-de@2x.png",
+      "idiom": "tv",
+      "locale": "de",
+      "scale": "2x"
+    }
+  ],
+  "info": {
+    "author": "xcode",
+    "version": 1
+  },
+  "properties": {
+    "localizable": true
+  }
+}

@@ -4,7 +4,7 @@ on:
   workflow_dispatch:
     inputs:
       deployment_target:
-        description: "tvOS deployment target (Xcode 26.x supports 15 and above)"
+        description: "tvOS deployment target"
         required: false
         default: "15.6"
       release_tag:
@@ -16,9 +16,6 @@ on:
         required: false
         type: boolean
         default: false
-  push:
-    tags:
-      - "v*"
 
 permissions:
   contents: write
@@ -34,74 +31,73 @@ jobs:
       - name: Select the newest installed Xcode
         run: |
           set -euo pipefail
-          ls -d /Applications/Xcode*.app
           XC=$(ls -d /Applications/Xcode*.app | sort -V | tail -1)
           echo "Using $XC"
           sudo xcode-select -s "$XC"
           xcodebuild -version
-          echo "--- available tvOS SDKs ---"
           xcodebuild -showsdks | grep -i appletv
 
-      - name: Build Browser.app (unsigned, device arm64)
+      - name: Build Orbrisa.app (unsigned, device arm64)
         run: |
           set -euo pipefail
           TARGET="${{ github.event.inputs.deployment_target || '15.6' }}"
           echo "Building with TVOS_DEPLOYMENT_TARGET=$TARGET"
           xcodebuild \
-            -project _Project/Browser.xcodeproj \
-            -scheme Browser \
+            -project Orbrisa.xcodeproj \
+            -scheme Orbrisa \
             -configuration Release \
             -sdk appletvos \
+            -destination 'generic/platform=tvOS' \
             -derivedDataPath build \
             TVOS_DEPLOYMENT_TARGET="$TARGET" \
-            ONLY_ACTIVE_ARCH=NO \
             CODE_SIGN_IDENTITY="" \
             CODE_SIGNING_REQUIRED=NO \
             CODE_SIGNING_ALLOWED=NO \
-            CODE_SIGN_ENTITLEMENTS="" \
             DEVELOPMENT_TEAM="" \
             PROVISIONING_PROFILE_SPECIFIER="" \
-            clean build
+            clean build 2>&1 | tee build.log | grep -E "error:|warning: .*(only available|is unavailable|introduced in)" || true
+          test "${PIPESTATUS[0]}" -eq 0
+          echo "--- APIs newer than the deployment target (each must be guarded) ---"
+          grep -E "only available on tvOS|is only available" build.log | sort -u | head -50 || true
 
       - name: Package into an unsigned .ipa
         id: package
         run: |
           set -euo pipefail
-          APP=$(find build/Build/Products/Release-appletvos -maxdepth 1 -name '*.app' | head -1)
-          if [ -z "$APP" ]; then
-            echo "::error::No .app produced by the build"
-            find build/Build/Products -maxdepth 3 || true
-            exit 1
-          fi
-          echo "Found app bundle: $APP"
+          APP=build/Build/Products/Release-appletvos/Orbrisa.app
+          test -d "$APP"
 
-          # An unsigned build carries no signature or provisioning profile.
-          #
-          # It briefly carried an ad-hoc signature with no-sandbox, so the log
-          # could go in the media folder. Pages stopped rendering from that
-          # build onward — Naver came up blank but for the outline of its
-          # search box — and taking the app out of its sandbox is the only
-          # thing that changed. WebKit's own processes are sandboxed relative
-          # to the app that hosts them, so that is not a change the web content
-          # process survives. The log lives in the app's own folder and is read
-          # from the menu instead.
           rm -rf "$APP/_CodeSignature" "$APP/embedded.mobileprovision"
+          find "$APP" -name embedded.mobileprovision -delete
 
-          echo "--- binary architectures ---"
           BIN="$APP/$(/usr/libexec/PlistBuddy -c 'Print :CFBundleExecutable' "$APP/Info.plist")"
           lipo -info "$BIN"
-          echo "--- minimum OS recorded in the bundle ---"
+          echo "--- minimum OS recorded in each bundle ---"
           /usr/libexec/PlistBuddy -c 'Print :MinimumOSVersion' "$APP/Info.plist" || true
+          for plist in "$APP"/PlugIns/*/Info.plist "$APP"/Frameworks/*/Info.plist; do
+            [ -f "$plist" ] || continue
+            echo "$(dirname "$plist" | xargs basename): $(/usr/libexec/PlistBuddy -c 'Print :MinimumOSVersion' "$plist" 2>/dev/null || echo '-')"
+          done
+          echo "--- minos in each Mach-O (must be <= 16.6) ---"
+          TOO_NEW=0
+          while read -r f; do
+            if file "$f" | grep -q Mach-O; then
+              MINOS=$(vtool -show-build "$f" 2>/dev/null | awk '/minos/{print $2}' | sort -uV | tail -1)
+              echo "$(basename "$f"): ${MINOS:-?}"
+              if [ -n "$MINOS" ] && [ "$(printf '%s\n16.6\n' "$MINOS" | sort -V | tail -1)" != "16.6" ]; then
+                echo "::error::$f needs tvOS $MINOS, newer than 16.6"
+                TOO_NEW=1
+              fi
+            fi
+          done < <(find "$APP" -type f \( -perm -u+x -o -name '*.dylib' \))
+          [ "$TOO_NEW" -eq 0 ]
 
           VERSION=$(/usr/libexec/PlistBuddy -c 'Print :CFBundleShortVersionString' "$APP/Info.plist")
-          IPA="tvOSBrowser-${VERSION}-unsigned.ipa"
-
-          rm -rf Payload
-          mkdir -p Payload
+          IPA="Orbrisa-${VERSION}-tvOS15.6-unsigned.ipa"
+          rm -rf Payload && mkdir -p Payload
           cp -R "$APP" Payload/
           zip -qry "$IPA" Payload
           rm -rf Payload
-
           ls -lh "$IPA"
           echo "ipa=$IPA" >> "$GITHUB_OUTPUT"
           echo "version=$VERSION" >> "$GITHUB_OUTPUT"
@@ -110,12 +106,12 @@ jobs:
       - name: Upload the IPA as a workflow artifact
         uses: actions/upload-artifact@v4
         with:
-          name: tvOSBrowser-unsigned-ipa
+          name: Orbrisa-unsigned-ipa
           path: ${{ steps.package.outputs.ipa }}
           if-no-files-found: error
 
       - name: Publish a release with the IPA
-        if: github.event_name != 'workflow_dispatch' || inputs.publish_release
+        if: inputs.publish_release
         env:
           GH_TOKEN: ${{ github.token }}
           IPA: ${{ steps.package.outputs.ipa }}
@@ -123,19 +119,10 @@ jobs:
           SHA256: ${{ steps.package.outputs.sha256 }}
         run: |
           set -euo pipefail
-
           TAG="${{ github.event.inputs.release_tag }}"
-          if [ -z "$TAG" ]; then
-            if [ "${GITHUB_REF_TYPE:-}" = "tag" ]; then
-              TAG="${GITHUB_REF_NAME}"
-            else
-              TAG="build-${GITHUB_RUN_NUMBER}"
-            fi
-          fi
-          echo "Publishing release $TAG"
-
+          [ -n "$TAG" ] || TAG="build-${GITHUB_RUN_NUMBER}"
           cat > notes.md <<NOTES
-          Unsigned tvOS build of \`jvanakker/tvOSBrowser\`, produced by GitHub Actions.
+          Orbrisa (fdm96/Orbrisa) built for tvOS 15.6+ (tested target: Apple TV on tvOS 16.6, installed with TrollStore).
 
           | | |
           |---|---|
@@ -143,15 +130,9 @@ jobs:
           | Xcode | $(xcodebuild -version | head -1) |
           | tvOS deployment target | ${{ github.event.inputs.deployment_target || '15.6' }} |
           | SHA-256 | \`$SHA256\` |
-
-          **This .ipa is unsigned.** It will not install as-is. Sign it with your own
-          Apple ID or developer certificate before installing — see the repository README.
           NOTES
-
           if gh release view "$TAG" >/dev/null 2>&1; then
             gh release upload "$TAG" "$IPA" --clobber
           else
-            gh release create "$TAG" "$IPA" \
-              --title "tvOS Browser $VERSION ($TAG)" \
-              --notes-file notes.md
+            gh release create "$TAG" "$IPA" --title "Orbrisa $VERSION for tvOS 16 ($TAG)" --notes-file notes.md
           fi

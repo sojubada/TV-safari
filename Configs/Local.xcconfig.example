@@ -1,0 +1,7 @@
+// Copy to Configs/Local.xcconfig and fill in. This file is ignored by git.
+
+// Your Apple Developer team ID (Xcode → Settings → Accounts, or developer.apple.com → Membership).
+DEVELOPMENT_TEAM = ABCDE12345
+
+// A bundle ID that is unique to you, e.g. com.yourname.orbrisa
+ORBRISA_BUNDLE_ID = com.yourname.orbrisa

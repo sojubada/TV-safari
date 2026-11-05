@@ -1,0 +1,10 @@
+// Orbrisa – shared build settings
+//
+// Your own signing team and bundle ID go into Configs/Local.xcconfig (not committed):
+//   cp Configs/Local.xcconfig.example Configs/Local.xcconfig
+// The Top Shelf extension gets "<bundle id>.TopShelf", the App Group is "group.<bundle id>".
+
+ORBRISA_BUNDLE_ID = com.sojubada.orbrisa
+DEVELOPMENT_TEAM =
+
+#include? "Local.xcconfig"
