@@ -58,7 +58,12 @@ jobs:
             clean build 2>&1 | tee build.log | grep -E "error:|warning: .*(only available|is unavailable|introduced in)" || true
           test "${PIPESTATUS[0]}" -eq 0
           echo "--- APIs newer than the deployment target (each must be guarded) ---"
-          grep -E "only available on tvOS|is only available" build.log | sort -u | head -50 || true
+          # Each of these is a call that does not exist on the older tvOS and
+          # ends the app there, so the build stops instead of publishing it.
+          if grep -E "is only available on tvOS" build.log | sort -u; then
+            echo "::error::Unguarded API newer than the deployment target"
+            exit 1
+          fi
 
       - name: Package into an unsigned .ipa
         id: package

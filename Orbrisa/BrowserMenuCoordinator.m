@@ -65,6 +65,17 @@ typedef void (^BrowserAdvancedMenuItemHandler)(void);
 
 @implementation BrowserMenuToggleView
 
+// tvOS 16 has no registerForTraitChanges:; follow light/dark the older way.
+- (void)traitCollectionDidChange:(UITraitCollection *)previousTraitCollection {
+    [super traitCollectionDidChange:previousTraitCollection];
+    if (@available(tvOS 17.0, *)) {
+        return;
+    }
+    if (previousTraitCollection.userInterfaceStyle != self.traitCollection.userInterfaceStyle) {
+        [self update];
+    }
+}
+
 - (instancetype)initWithFrame:(CGRect)frame {
     self = [super initWithFrame:CGRectMake(0.0, 0.0, 80.0, 46.0)];
     if (self) {
@@ -78,7 +89,9 @@ typedef void (^BrowserAdvancedMenuItemHandler)(void);
         _knobView.layer.shadowRadius = 3.0;
         _knobView.layer.shadowOffset = CGSizeMake(0.0, 2.0);
         [self addSubview:_knobView];
-        [self registerForTraitChanges:@[UITraitUserInterfaceStyle.class] withTarget:self action:@selector(update)];
+        if (@available(tvOS 17.0, *)) {
+            [self registerForTraitChanges:@[UITraitUserInterfaceStyle.class] withTarget:self action:@selector(update)];
+        }
         [self update];
     }
     return self;

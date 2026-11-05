@@ -561,6 +561,22 @@ static UIImage *BrowserGuideSymbol(NSArray<NSString *> *names, CGFloat pointSize
 
 @implementation ViewController
 
++ (void)postForceDarkPagesChangeIfFollowingSystem {
+    if (BrowserWebView.forceDarkPages && BrowserWebView.appearanceMode == 0) {
+        [[NSNotificationCenter defaultCenter] postNotificationName:BrowserForceDarkPagesDidChangeNotification object:nil];
+    }
+}
+
+- (void)traitCollectionDidChange:(UITraitCollection *)previousTraitCollection {
+    [super traitCollectionDidChange:previousTraitCollection];
+    if (@available(tvOS 17.0, *)) {
+        return;
+    }
+    if (previousTraitCollection.userInterfaceStyle != self.traitCollection.userInterfaceStyle) {
+        [ViewController postForceDarkPagesChangeIfFollowingSystem];
+    }
+}
+
 #pragma mark - Lifecycle
 
 - (void)viewDidLoad {
@@ -636,11 +652,14 @@ static UIImage *BrowserGuideSymbol(NSArray<NSString *> *names, CGFloat pointSize
     [self.tabCoordinator restoreInitialStateOrCreateFirstTab];
 
     // "Automatic" dark mode: when the Apple TV switches between light and dark, the pages follow right away.
-    [self registerForTraitChanges:@[UITraitUserInterfaceStyle.class] withHandler:^(__unused id<UITraitEnvironment> environment, __unused UITraitCollection *previous) {
-        if (BrowserWebView.forceDarkPages && BrowserWebView.appearanceMode == 0) {
-            [[NSNotificationCenter defaultCenter] postNotificationName:BrowserForceDarkPagesDidChangeNotification object:nil];
-        }
-    }];
+    // registerForTraitChanges: is tvOS 17+. On tvOS 16 calling it ends the app
+    // at launch (unrecognised selector), so there traitCollectionDidChange:
+    // below does the same job.
+    if (@available(tvOS 17.0, *)) {
+        [self registerForTraitChanges:@[UITraitUserInterfaceStyle.class] withHandler:^(__unused id<UITraitEnvironment> environment, __unused UITraitCollection *previous) {
+            [ViewController postForceDarkPagesChangeIfFollowingSystem];
+        }];
+    }
 
     __weak typeof(self) weakSelf = self;
     self.topBarScrollTimer = [NSTimer scheduledTimerWithTimeInterval:0.08 repeats:YES block:^(__unused NSTimer *timer) {
