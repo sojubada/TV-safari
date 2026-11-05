@@ -501,6 +501,9 @@ static void BrowserConfigurePrivateMediaPreferences(id configuration) {
     // until it does the browser looks dead to anyone using it.
     [self stopLoading];
     self.lastRequest = request;
+    if ([self.delegate respondsToSelector:@selector(webView:didRequestLoadOfURL:)]) {
+        [self.delegate webView:self didRequestLoadOfURL:request.URL];
+    }
     SEL selector = NSSelectorFromString(@"loadRequest:");
     if ([self.runtimeWebView respondsToSelector:selector]) {
         ((id (*)(id, SEL, id))objc_msgSend)(self.runtimeWebView, selector, request);

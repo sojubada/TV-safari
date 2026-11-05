@@ -11,7 +11,7 @@ static NSString * const kSweepRunningDefaultsKey = @"SiteSweepRunning";
 static const NSTimeInterval kSweepPerSiteTimeout = 25.0;
 // A moment between sites, so the one just finished can be torn down before
 // the next is built. Back to back, the memory of both overlaps.
-static const NSTimeInterval kSweepSettleDelay = 1.5;
+static const NSTimeInterval kSweepSettleDelay = 2.5;
 
 @interface BrowserSiteSweepController ()
 @property (nonatomic, readwrite, getter=isRunning) BOOL running;
@@ -137,11 +137,16 @@ static const NSTimeInterval kSweepSettleDelay = 1.5;
 }
 
 - (void)handleTimeout {
+    BOOL neverStarted = !self.sawLoadStart;
     [self.delegate siteSweepControllerWantsStop:self];
-    // A site the web view never even began is not a slow site: it is the one
-    // before it still holding on. Recorded apart, so the figures mean what
-    // they say.
-    [self recordOutcome:(self.sawLoadStart ? @"TIMEOUT" : @"BLOCKED") extra:nil];
+    // A site the web view never even began is not a slow site: the process
+    // behind it has stopped answering, and every site after it will be
+    // recorded as the same thing until something replaces that process. One
+    // was enough to swallow nineteen in a row.
+    if (neverStarted) {
+        [self.delegate siteSweepControllerWantsFreshWebView:self];
+    }
+    [self recordOutcome:(neverStarted ? @"BLOCKED" : @"TIMEOUT") extra:nil];
 }
 
 // A timer does not fire while the app is in the background, and one site in

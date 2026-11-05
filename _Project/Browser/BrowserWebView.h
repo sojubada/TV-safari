@@ -9,6 +9,11 @@ NS_ASSUME_NONNULL_BEGIN
 @optional
 - (BOOL)webView:(id _Nonnull)webView shouldStartLoadWithRequest:(NSURLRequest * _Nullable)request navigationType:(NSInteger)navigationType;
 - (BOOL)webView:(id _Nonnull)webView shouldCreateNewTabWithRequest:(NSURLRequest * _Nullable)request navigationType:(NSInteger)navigationType;
+/// A load was asked for. Not the same as it starting: when the web content
+/// process has stopped answering, the request sits in its queue and
+/// webViewDidStartLoad never comes, which is exactly the case worth watching
+/// for.
+- (void)webView:(id _Nonnull)webView didRequestLoadOfURL:(NSURL * _Nullable)URL;
 - (void)webViewDidStartLoad:(id _Nonnull)webView;
 - (void)webViewDidFinishLoad:(id _Nonnull)webView;
 - (void)webView:(id _Nonnull)webView didFailLoadWithError:(NSError * _Nonnull)error;

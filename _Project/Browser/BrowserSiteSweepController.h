@@ -14,6 +14,10 @@ NS_ASSUME_NONNULL_BEGIN
 /// the web view and every site after it is recorded as a timeout it had
 /// nothing to do with.
 - (void)siteSweepControllerWantsStop:(BrowserSiteSweepController *)controller;
+/// Throw the web view away and build another. Asked for when a site was
+/// never even started, which means the process behind it is not answering
+/// and no amount of stopping will get it back.
+- (void)siteSweepControllerWantsFreshWebView:(BrowserSiteSweepController *)controller;
 @end
 
 /// Walks a bundled list of sites, one at a time, and writes down what each

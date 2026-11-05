@@ -96,6 +96,7 @@ static UIColor *kTextColor(void) {
 /// every letter of a heavy page is enough to take its web process down.
 @property (nonatomic, nullable) NSTimer *typingFlushTimer;
 @property (nonatomic, nullable) NSTimer *stuckLoadTimer;
+@property (nonatomic, copy, nullable) NSString *stuckLoadURLString;
 @property (nonatomic, copy, nullable) NSString *pendingTypingText;
 /// The address the field being typed into belongs to. A page that has moved
 /// on since is a different page, and text left over from the old one must not
@@ -981,10 +982,11 @@ static UIColor *kTextColor(void) {
 // nineteen that followed, none of which were ever even started. Nothing in
 // this browser could cancel a load until now, so there was no way out of it
 // but to wait, and in that log the wait was twenty-two minutes.
-static const NSTimeInterval kStuckLoadTimeout = 40.0;
+static const NSTimeInterval kStuckLoadTimeout = 30.0;
 
-- (void)startStuckLoadWatchdog {
+- (void)armStuckLoadWatchForURL:(NSURL *)URL {
     [self cancelStuckLoadWatchdog];
+    self.stuckLoadURLString = URL.absoluteString ?: @"";
     self.stuckLoadTimer = [NSTimer scheduledTimerWithTimeInterval:kStuckLoadTimeout
                                                            target:self
                                                          selector:@selector(handleStuckLoad)
@@ -997,13 +999,24 @@ static const NSTimeInterval kStuckLoadTimeout = 40.0;
     self.stuckLoadTimer = nil;
 }
 
+// stopLoading was not enough, and the last log says why. After a page hung,
+// every address asked for afterwards was recorded as never having started,
+// and then arrived together six minutes later in the order they were asked
+// for. Something was holding them in a queue and letting them go at once —
+// which is a web content process that has stopped answering rather than a
+// load that needs cancelling. Messages to it, stopLoading among them, wait
+// in that same queue.
+//
+// The way out is to stop talking to that process and build another: the web
+// view is replaced, the old one goes, and its process goes with it.
 - (void)handleStuckLoad {
     self.stuckLoadTimer = nil;
     [[BrowserDiagnosticsLog sharedLog]
         logEvent:@"stuck"
-          detail:[NSString stringWithFormat:@"gave up after %.0fs  %@",
-                  kStuckLoadTimeout, self.webview.request.URL.absoluteString ?: @""]];
+          detail:[NSString stringWithFormat:@"no answer in %.0fs, replacing the web view  %@",
+                  kStuckLoadTimeout, self.stuckLoadURLString ?: @""]];
     [self.webview stopLoading];
+    [self.tabCoordinator recreateActiveWebViewPreservingCurrentURL];
 }
 
 #pragma mark - Site sweep
@@ -1015,6 +1028,13 @@ static const NSTimeInterval kStuckLoadTimeout = 40.0;
 
 - (void)siteSweepControllerWantsStop:(__unused BrowserSiteSweepController *)controller {
     [self.webview stopLoading];
+}
+
+- (void)siteSweepControllerWantsFreshWebView:(__unused BrowserSiteSweepController *)controller {
+    [self cancelStuckLoadWatchdog];
+    [[BrowserDiagnosticsLog sharedLog]
+        logEvent:@"sweep" detail:@"replacing the web view after a page stopped answering"];
+    [self.tabCoordinator recreateActiveWebViewPreservingCurrentURL];
 }
 
 - (void)siteSweepControllerDidFinish:(__unused BrowserSiteSweepController *)controller {
@@ -1555,12 +1575,17 @@ static const NSTimeInterval kStuckLoadTimeout = 40.0;
                   self.webview.request.URL.absoluteString ?: @""]];
 }
 
+- (void)webView:(id)webView didRequestLoadOfURL:(NSURL *)URL {
+    if (webView == self.webview) {
+        [self armStuckLoadWatchForURL:URL];
+    }
+}
+
 - (void)webViewDidStartLoad:(id)webView {
     // Anything typed belonged to the page being left.
     self.pendingTypingText = nil;
     if (webView == self.webview) {
         [self.siteSweepController noteLoadStarted];
-        [self startStuckLoadWatchdog];
     }
     [[BrowserDiagnosticsLog sharedLog]
         logEvent:@"load"
