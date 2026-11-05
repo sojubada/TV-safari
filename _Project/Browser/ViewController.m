@@ -23,6 +23,7 @@
 #import "BrowserTabCoordinator.h"
 #import "BrowserTabOverviewController.h"
 #import "BrowserViewModel.h"
+#import "BrowserWebView.h"
 #import "ViewController.h"
 
 static NSString * const kBrowserGlobalSelectPressEndedNotification = @"BrowserGlobalSelectPressEndedNotification";
@@ -150,6 +151,7 @@ static UIColor *kTextColor(void) {
     self.readerModeController = [BrowserReaderModeController new];
     self.domInteractionService = [BrowserDOMInteractionService new];
     [[BrowserDiagnosticsLog sharedLog] logSessionStart];
+    [[BrowserDiagnosticsLog sharedLog] logEvent:@"media-safety" detail:BrowserMediaSafetySummary()];
     self.hardwareKeyboardController = [BrowserHardwareKeyboardController new];
     self.hardwareKeyboardController.delegate = self;
     [self.hardwareKeyboardController prepareForKeyboardDetection];
@@ -813,6 +815,17 @@ static UIColor *kTextColor(void) {
 
 - (void)browserLoadHomePage {
     [self loadHomePage];
+}
+
+- (BOOL)browserMediaPlaybackEnabled {
+    return [[NSUserDefaults standardUserDefaults] boolForKey:@"MediaPlaybackEnabled"];
+}
+
+- (void)browserSetMediaPlaybackEnabled:(BOOL)enabled {
+    [[NSUserDefaults standardUserDefaults] setBool:enabled forKey:@"MediaPlaybackEnabled"];
+    [[BrowserDiagnosticsLog sharedLog] logEvent:@"media-safety"
+                                         detail:enabled ? @"media turned on by the person" : @"media turned off"];
+    [self.tabCoordinator recreateActiveWebViewPreservingCurrentURL];
 }
 
 - (void)browserClearMobileFallbackHosts {

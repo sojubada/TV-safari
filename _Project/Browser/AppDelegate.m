@@ -45,7 +45,7 @@ static void BrowserLogUncaughtException(NSException *exception) {
         frames = [frames substringToIndex:1200];
     }
     [[BrowserDiagnosticsLog sharedLog]
-        logEvent:@"UNCAUGHT"
+        logEventSynchronously:@"UNCAUGHT"
           detail:[NSString stringWithFormat:@"%@: %@  ::  %@",
                   exception.name ?: @"?", exception.reason ?: @"?", frames ?: @""]];
 }

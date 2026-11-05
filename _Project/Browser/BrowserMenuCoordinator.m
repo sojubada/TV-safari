@@ -1538,6 +1538,7 @@ withAnimationCoordinator:(UIFocusAnimationCoordinator *)coordinator {
         [BrowserAdvancedMenuSection sectionWithTitle:@"Page" items:@[
             [self lightenHeavySitesToggleMenuItem],
             [self mobileFallbackHostsMenuItem],
+            [self mediaPlaybackToggleMenuItem],
             [self userAgentModeMenuItem],
             [self topNavigationVisibilityMenuItem],
         ]],
@@ -1590,6 +1591,19 @@ withAnimationCoordinator:(UIFocusAnimationCoordinator *)coordinator {
 // The hosts the browser has learned to ask for the phone version, with a way
 // to forget them — a site that has been fixed since should get its desktop
 // page back.
+// Video and sound go through AVFoundation, and on this system that is what
+// was taking pages down. Off by default; on for the page that needs it.
+- (BrowserAdvancedMenuItem *)mediaPlaybackToggleMenuItem {
+    BOOL enabled = [self.host browserMediaPlaybackEnabled];
+    NSString *title = enabled
+        ? @"동영상·소리: 켜짐  (일부 사이트가 죽을 수 있음)"
+        : @"동영상·소리: 꺼짐  (안정성 우선)";
+    __weak typeof(self) weakSelf = self;
+    return [self settingMenuItemWithTitle:title handler:^{
+        [weakSelf.host browserSetMediaPlaybackEnabled:!enabled];
+    }];
+}
+
 - (BrowserAdvancedMenuItem *)mobileFallbackHostsMenuItem {
     NSUInteger count = self.preferencesStore.mobileFallbackHosts.count;
     NSString *title = [NSString stringWithFormat:@"충돌해서 모바일로 여는 사이트  (%lu개, 눌러서 초기화)",

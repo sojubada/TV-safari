@@ -215,6 +215,17 @@ static void BrowserHandleFatalSignal(int signalNumber) {
                     [self memoryFootprintSummary]]];
 }
 
+- (void)logEventSynchronously:(NSString *)event detail:(NSString *)detail {
+    NSString *path = self.logFilePath;
+    if (path.length == 0 || event.length == 0) {
+        return;
+    }
+    NSString *stamp = [self.timestampFormatter stringFromDate:[NSDate date]];
+    NSString *line = [NSString stringWithFormat:@"%@  %@  %@\n",
+                      stamp, event, detail.length > 0 ? detail : @""];
+    [[self class] appendLine:line toPath:path];
+}
+
 - (void)logEvent:(NSString *)event detail:(NSString *)detail {
     NSString *path = self.logFilePath;
     if (path.length == 0 || event.length == 0) {

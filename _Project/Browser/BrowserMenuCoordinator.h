@@ -19,6 +19,8 @@
 - (BOOL)browserSiteSweepRunning;
 - (NSString *)browserSiteSweepStatus;
 - (void)browserClearMobileFallbackHosts;
+- (BOOL)browserMediaPlaybackEnabled;
+- (void)browserSetMediaPlaybackEnabled:(BOOL)enabled;
 - (void)browserShowTabOverview;
 - (void)browserCreateNewTabLoadingHomePage:(BOOL)loadHomePage;
 - (void)browserHideTopNav;

@@ -21,6 +21,11 @@ NS_ASSUME_NONNULL_BEGIN
 
 @end
 
+/// One line for the log: whether the _privacyStance fix went in, and whether
+/// the switches that keep pages away from AVFoundation exist on this system.
+FOUNDATION_EXPORT NSString * _Nonnull BrowserMediaSafetySummary(void);
+FOUNDATION_EXPORT BOOL BrowserPrivacyStanceStubInstalled(void);
+
 @interface BrowserWebView : UIView
 
 @property (nullable, nonatomic, weak) id<BrowserWebViewDelegate> delegate;

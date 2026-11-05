@@ -24,6 +24,12 @@ NS_ASSUME_NONNULL_BEGIN
 /// Starts a new session's section, naming the app version.
 - (void)logSessionStart;
 
+/// Written before returning, on the calling thread. For the moments when the
+/// process is about to end and a queued write would be lost with it — which
+/// is exactly what happened to the two aborts in the last log: the signal
+/// line made it, the exception that caused it did not.
+- (void)logEventSynchronously:(NSString *)event detail:(nullable NSString *)detail;
+
 /// Arms the two things an ordinary log cannot catch: a crash below
 /// Objective-C, which kills the process before any normal code runs, and a
 /// main thread that stops answering, which ends with the system taking the

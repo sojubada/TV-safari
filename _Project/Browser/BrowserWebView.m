@@ -10,6 +10,47 @@ static NSString * const kBrowserWebViewConfigurationClassName = @"WKWebViewConfi
 static NSString * const kBrowserWebsiteDataStoreClassName = @"WKWebsiteDataStore";
 
 
+
+// tvOS 16's media framework asks WebKit's network-metrics object for
+// _privacyStance, and the WebKit on this system does not have it: the result
+// is NSInvalidArgumentException, "unrecognized selector", and the process
+// aborts. This is jvanakker/tvOSBrowser issue #54, fixed upstream in PR #58
+// by adding the method at runtime and returning 0
+// (nw_connection_privacy_stance_unknown). Playwright issue #10892 shows the
+// same call, from AVFoundation, killing WebKit's content process.
+//
+// Upstream installs it from +load. That cannot work here: this app reaches
+// WebKit with dlopen, so at +load the class does not exist yet and the fix
+// would quietly do nothing. It is installed after WebKit is loaded instead,
+// and checked every time rather than latched, in case the class only appears
+// later. The type is an enum, so the encoding is int, not object.
+static int BrowserPrivacyStanceStub(id self, SEL _cmd) {
+    (void)self;
+    (void)_cmd;
+    return 0;
+}
+
+static BOOL gBrowserPrivacyStanceInstalled = NO;
+
+static void BrowserInstallPrivacyStanceStub(void) {
+    if (gBrowserPrivacyStanceInstalled) {
+        return;
+    }
+    Class metricsClass = objc_getClass("WebCoreNSURLSessionTaskTransactionMetrics");
+    if (metricsClass == Nil) {
+        return;
+    }
+    SEL selector = NSSelectorFromString(@"_privacyStance");
+    if (class_getInstanceMethod(metricsClass, selector) == NULL) {
+        class_addMethod(metricsClass, selector, (IMP)BrowserPrivacyStanceStub, "i@:");
+    }
+    gBrowserPrivacyStanceInstalled = YES;
+}
+
+BOOL BrowserPrivacyStanceStubInstalled(void) {
+    return gBrowserPrivacyStanceInstalled;
+}
+
 static void BrowserEnsureWebKitRuntimeLoaded(void) {
     static dispatch_once_t onceToken;
     dispatch_once(&onceToken, ^{
@@ -29,6 +70,7 @@ static void BrowserEnsureWebKitRuntimeLoaded(void) {
             }
         }
     });
+    BrowserInstallPrivacyStanceStub();
 }
 
 // Pumping the run loop is how a synchronous result is squeezed out of
@@ -310,6 +352,46 @@ static void BrowserConfigurePrivateMediaPreferences(id configuration) {
     BrowserSetBooleanSelectorIfAvailable(preferences, @"_setVideoQualityIncludesDisplayCompositingEnabled:", NO);
     BrowserSetBooleanSelectorIfAvailable(preferences, @"_setFullScreenEnabled:", NO);
     BrowserSetBooleanSelectorIfAvailable(preferences, @"_setNeedsSiteSpecificQuirks:", NO);
+
+    // The 28 sites that took the web content process down every single time
+    // were the ones with video on the front page — university and company
+    // banners, news players, CNN, the New York Times, GitHub's own homepage,
+    // Spotify, Genie. The crash is inside AVFoundation (see the _privacyStance
+    // note above), and the content process cannot be patched from here. What
+    // can be done is not to hand pages to AVFoundation at all: with it off,
+    // <video> and <audio> are still there for a page's scripts, they just
+    // have nothing to play with. Video never played properly in this browser
+    // anyway; reading did, until a banner killed it.
+    BOOL mediaPlaybackWanted = [[NSUserDefaults standardUserDefaults] boolForKey:@"MediaPlaybackEnabled"];
+    BrowserSetBooleanSelectorIfAvailable(preferences, @"_setAVFoundationEnabled:", mediaPlaybackWanted);
+}
+
+// Off unless asked for: nothing loads media data by itself, and nothing plays
+// without a press. Both are public or long-standing on iOS-family WebKit.
+static void BrowserConfigureMediaLoading(id configuration) {
+    if (configuration == nil) {
+        return;
+    }
+    BrowserSetBooleanSelectorIfAvailable(configuration, @"_setMediaDataLoadsAutomatically:", NO);
+    SEL userActionSelector = NSSelectorFromString(@"setMediaTypesRequiringUserActionForPlayback:");
+    if ([configuration respondsToSelector:userActionSelector]) {
+        ((void (*)(id, SEL, NSUInteger))objc_msgSend)(configuration, userActionSelector, NSUIntegerMax);
+    }
+}
+
+NSString *BrowserMediaSafetySummary(void) {
+    BrowserEnsureWebKitRuntimeLoaded();
+    Class preferencesClass = NSClassFromString(@"WKPreferences");
+    Class configurationClass = NSClassFromString(kBrowserWebViewConfigurationClassName);
+    BOOL avSwitch = preferencesClass != Nil &&
+        [preferencesClass instancesRespondToSelector:NSSelectorFromString(@"_setAVFoundationEnabled:")];
+    BOOL dataSwitch = configurationClass != Nil &&
+        [configurationClass instancesRespondToSelector:NSSelectorFromString(@"_setMediaDataLoadsAutomatically:")];
+    BOOL wanted = [[NSUserDefaults standardUserDefaults] boolForKey:@"MediaPlaybackEnabled"];
+    return [NSString stringWithFormat:@"privacyStance=%@ avfSwitch=%@ dataSwitch=%@ media=%@",
+            BrowserPrivacyStanceStubInstalled() ? @"stubbed" : @"absent",
+            avSwitch ? @"yes" : @"NO", dataSwitch ? @"yes" : @"NO",
+            wanted ? @"on" : @"off"];
 }
 
 
@@ -393,6 +475,7 @@ static void BrowserConfigurePrivateMediaPreferences(id configuration) {
         ((void (*)(id, SEL, BOOL))objc_msgSend)(configuration, allowsInlineMediaPlaybackSelector, NO);
     }
     BrowserConfigurePrivateMediaPreferences(configuration);
+    BrowserConfigureMediaLoading(configuration);
     [BrowserWebView installRuleListToConfiguration:configuration];
 
     id webViewObject = ((id (*)(id, SEL))objc_msgSend)((id)webViewClass, @selector(alloc));
