@@ -147,12 +147,27 @@ static void BrowserHandleFatalSignal(int signalNumber) {
 
     [self captureStandardErrorFromPreviousLaunch];
 
-    signal(SIGSEGV, BrowserHandleFatalSignal);
-    signal(SIGBUS, BrowserHandleFatalSignal);
-    signal(SIGABRT, BrowserHandleFatalSignal);
-    signal(SIGILL, BrowserHandleFatalSignal);
-    signal(SIGFPE, BrowserHandleFatalSignal);
-    signal(SIGTRAP, BrowserHandleFatalSignal);
+    // The handler runs on a stack of its own. A crash from running out of
+    // stack (endless recursion) leaves no room on the thread's own stack for
+    // the handler, and then it dies silently — which is how the favorites
+    // crash in 1.2.0 left nothing in the log.
+    static char alternateStack[64 * 1024];
+    stack_t stackInfo;
+    memset(&stackInfo, 0, sizeof(stackInfo));
+    stackInfo.ss_sp = alternateStack;
+    stackInfo.ss_size = sizeof(alternateStack);
+    stackInfo.ss_flags = 0;
+    sigaltstack(&stackInfo, NULL);
+
+    struct sigaction action;
+    memset(&action, 0, sizeof(action));
+    action.sa_handler = BrowserHandleFatalSignal;
+    action.sa_flags = SA_ONSTACK;
+    sigemptyset(&action.sa_mask);
+    int fatalSignals[] = {SIGSEGV, SIGBUS, SIGABRT, SIGILL, SIGFPE, SIGTRAP};
+    for (size_t i = 0; i < sizeof(fatalSignals) / sizeof(fatalSignals[0]); i++) {
+        sigaction(fatalSignals[i], &action, NULL);
+    }
 
     [self startMainThreadStallWatch];
 }

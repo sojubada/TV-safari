@@ -106,7 +106,11 @@ static CGFloat const kTopBarFeedGap = 32.0; // room for the address pill growing
 @property (nonatomic) UIImageView *homeImageView;
 @property (nonatomic) UIImageView *tabsImageView;
 @property (nonatomic) UIImageView *favoritesImageView;
-@property (nonatomic) BOOL currentPageIsFavorite;
+// Not named currentPageIsFavorite: its setter would be -setCurrentPageIsFavorite:,
+// the public method below, and assigning it there called that method again,
+// forever. A stack overflow killed the app on every launch once the page on
+// screen was a favorite.
+@property (nonatomic) BOOL favoriteStarFilled;
 @property (nonatomic) UIImageView *fullscreenImageView;
 @property (nonatomic) UIImageView *menuImageView;
 @property (nonatomic) UILabel *URLLabel;
@@ -854,10 +858,10 @@ void BrowserApplyGlassAmount(UIVisualEffectView *effectView, UIColor *solidColor
 }
 
 - (void)setCurrentPageIsFavorite:(BOOL)isFavorite {
-    if (self.currentPageIsFavorite == isFavorite && self.favoritesImageView.image != nil) {
+    if (self.favoriteStarFilled == isFavorite && self.favoritesImageView.image != nil) {
         return;
     }
-    self.currentPageIsFavorite = isFavorite;
+    self.favoriteStarFilled = isFavorite;
     self.favoritesImageView.image = [self symbolImageNamed:(isFavorite ? @"star.fill" : @"star") pointSize:kTopBarIconPointSize];
 }
 
