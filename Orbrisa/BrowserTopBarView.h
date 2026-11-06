@@ -20,7 +20,8 @@ typedef NS_ENUM(NSInteger, BrowserTopBarAction) {
     BrowserTopBarActionFullscreen,
     BrowserTopBarActionMenu,
     BrowserTopBarActionReader,
-    BrowserTopBarActionFeed
+    BrowserTopBarActionFeed,
+    BrowserTopBarActionFavorites
 };
 
 @class BrowserTopBarView;
@@ -32,7 +33,7 @@ typedef NS_ENUM(NSInteger, BrowserTopBarAction) {
 @end
 
 /// Top navigation bar in three glass islands:
-/// left (back, forward, reload) · center (page title, address, progress) · right (home, tabs, fullscreen, menu).
+/// left (back, forward, reload) · center (page title, address, progress) · right (home, favorites, tabs, fullscreen, menu).
 @interface BrowserTopBarView : UIVisualEffectView
 
 @property (nonatomic, weak, nullable) id<BrowserTopBarViewDelegate> delegate;
@@ -41,6 +42,7 @@ typedef NS_ENUM(NSInteger, BrowserTopBarAction) {
 @property (nonatomic, readonly) UIImageView *forwardImageView;
 @property (nonatomic, readonly) UIImageView *homeImageView;
 @property (nonatomic, readonly) UIImageView *tabsImageView;
+@property (nonatomic, readonly) UIImageView *favoritesImageView;
 @property (nonatomic, readonly) UIImageView *fullscreenImageView;
 @property (nonatomic, readonly) UIImageView *menuImageView;
 /// The large first line of the center pill (page title, or the host when there is no title).
@@ -63,6 +65,8 @@ typedef NS_ENUM(NSInteger, BrowserTopBarAction) {
 - (void)setTabCount:(NSUInteger)tabCount;
 /// Shows the "Reader" button in the address pill and the RSS button next to it (only when the page has an article / a feed).
 - (void)setReaderAvailable:(BOOL)readerAvailable feedAvailable:(BOOL)feedAvailable;
+/// Filled star when the page on screen is a favorite.
+- (void)setCurrentPageIsFavorite:(BOOL)isFavorite;
 /// Dims the back/forward buttons when there is nowhere to go.
 - (void)setCanGoBack:(BOOL)canGoBack canGoForward:(BOOL)canGoForward;
 /// YES for a bright page (grey glass, white symbols), NO for a dark page (light glass, dark symbols).

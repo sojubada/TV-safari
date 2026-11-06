@@ -27,6 +27,10 @@
 - (void)browserCaptureSnapshotForCurrentTab;
 - (void)browserRecreateActiveWebViewPreservingCurrentURL;
 - (void)browserBringCursorToFront;
+/// Shows the diagnostic log as a page.
+- (void)browserShowDiagnosticLog;
+/// The favorites changed (the top bar's star follows the current page).
+- (void)browserFavoritesDidChange;
 
 @end
 
@@ -35,5 +39,10 @@
 - (instancetype)initWithHost:(id<BrowserMenuCoordinatorHost>)host
             preferencesStore:(BrowserPreferencesStore *)preferencesStore;
 - (void)showAdvancedMenu;
+/// The star in the top bar: add or remove this page, and the list.
+- (void)presentFavoritesPanel;
+/// YES when this address is saved as a favorite (scheme and host case, a
+/// trailing slash and the #fragment are ignored).
+- (BOOL)isFavoriteURLString:(nullable NSString *)URLString;
 
 @end

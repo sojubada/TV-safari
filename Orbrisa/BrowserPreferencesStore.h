@@ -26,6 +26,14 @@ NS_ASSUME_NONNULL_BEGIN
 /// (sites that scroll inside a container rather than the page).
 @property (nonatomic) BOOL jsScrollFallbackEnabled;
 
+/// A site whose page process died twice in a row is asked for its phone page
+/// from then on, which is usually far lighter. On by default.
+@property (nonatomic) BOOL lightenHeavySitesEnabled;
+@property (nonatomic, readonly) NSArray<NSString *> *mobileFallbackHosts;
+- (BOOL)isMobileFallbackHost:(nullable NSString *)host;
+- (void)addMobileFallbackHost:(nullable NSString *)host;
+- (void)clearMobileFallbackHosts;
+
 - (void)ensureUserAgentConsistency;
 
 @end

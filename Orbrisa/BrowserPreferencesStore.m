@@ -12,6 +12,8 @@ static NSString * const kJSScrollFallbackEnabledDefaultsKey = @"JSScrollFallback
 static NSString * const kDpadScrollEnabledDefaultsKey = @"DpadScrollEnabled";
 static NSString * const kEdgeAutoScrollEnabledDefaultsKey = @"EdgeAutoScrollEnabled";
 static NSString * const kTapToClickEnabledDefaultsKey = @"TapToClickEnabled";
+static NSString * const kMobileFallbackHostsDefaultsKey = @"MobileFallbackHosts";
+static NSString * const kLightenHeavySitesEnabledDefaultsKey = @"LightenHeavySitesEnabled";
 
 static NSUInteger const kDefaultTextFontSize = 100;
 static NSUInteger const kMinimumTextFontSize = 50;
@@ -20,11 +22,14 @@ static NSUInteger const kMaximumTextFontSize = 200;
 @implementation BrowserPreferencesStore
 
 + (NSString *)desktopUserAgent {
-    return @"Mozilla/5.0 (Macintosh; Intel Mac OS X 14_0) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.0 Safari/605.1.15";
+    // tvOS 16.6 carries the engine that shipped with Safari 16.6. Claiming 17
+    // got pages served code paths this engine does not have, and scripts that
+    // fail half way leave a page with nothing below its first screen.
+    return @"Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/16.6 Safari/605.1.15";
 }
 
 + (NSString *)mobileUserAgent {
-    return @"Mozilla/5.0 (iPhone; CPU iPhone OS 17_0 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.0 Mobile/15E148 Safari/604.1";
+    return @"Mozilla/5.0 (iPhone; CPU iPhone OS 16_6 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/16.6 Mobile/15E148 Safari/604.1";
 }
 
 - (NSUserDefaults *)defaults {
@@ -156,6 +161,50 @@ static NSUInteger const kMaximumTextFontSize = 200;
 
 - (void)setTapToClickEnabled:(BOOL)tapToClickEnabled {
     [[self defaults] setBool:tapToClickEnabled forKey:kTapToClickEnabledDefaultsKey];
+}
+
+- (NSArray<NSString *> *)mobileFallbackHosts {
+    return [[self defaults] arrayForKey:kMobileFallbackHostsDefaultsKey] ?: @[];
+}
+
+- (BOOL)isMobileFallbackHost:(NSString *)host {
+    if (host.length == 0) {
+        return NO;
+    }
+    NSString *lowercase = host.lowercaseString;
+    for (NSString *stored in [self mobileFallbackHosts]) {
+        if ([lowercase isEqualToString:stored] ||
+            [lowercase hasSuffix:[@"." stringByAppendingString:stored]]) {
+            return YES;
+        }
+    }
+    return NO;
+}
+
+- (void)addMobileFallbackHost:(NSString *)host {
+    if (host.length == 0 || [self isMobileFallbackHost:host]) {
+        return;
+    }
+    NSMutableArray<NSString *> *hosts = [[self mobileFallbackHosts] mutableCopy];
+    [hosts addObject:host.lowercaseString];
+    // Bounded, so a long run of unlucky pages cannot grow it without end.
+    while (hosts.count > 200) {
+        [hosts removeObjectAtIndex:0];
+    }
+    [[self defaults] setObject:hosts forKey:kMobileFallbackHostsDefaultsKey];
+}
+
+- (void)clearMobileFallbackHosts {
+    [[self defaults] removeObjectForKey:kMobileFallbackHostsDefaultsKey];
+}
+
+- (BOOL)lightenHeavySitesEnabled {
+    NSNumber *value = [[self defaults] objectForKey:kLightenHeavySitesEnabledDefaultsKey];
+    return value ? value.boolValue : YES;
+}
+
+- (void)setLightenHeavySitesEnabled:(BOOL)lightenHeavySitesEnabled {
+    [[self defaults] setBool:lightenHeavySitesEnabled forKey:kLightenHeavySitesEnabledDefaultsKey];
 }
 
 @end

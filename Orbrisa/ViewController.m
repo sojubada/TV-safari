@@ -6,6 +6,7 @@
 //  Improved by Jip van Akker on 14/10/2015 through 10/01/2019
 //
 
+#import <errno.h>
 #import "BrowserMenuCoordinator.h"
 #import "BrowserLocalization.h"
 #import "BrowserLog.h"
@@ -24,6 +25,8 @@
 #import "BrowserFeedStore.h"
 #import "BrowserFeedsViewController.h"
 #import "BrowserHardwareKeyboardController.h"
+#import "BrowserDiagnosticsLog.h"
+#import "BrowserContentBlockerController.h"
 #import "ViewController.h"
 
 static NSString * const kBrowserGlobalSelectPressEndedNotification = @"BrowserGlobalSelectPressEndedNotification";
@@ -580,6 +583,18 @@ static UIImage *BrowserGuideSymbol(NSArray<NSString *> *names, CGFloat pointSize
 @property (nonatomic) UILabel *typingTextLabel;
 @property (nonatomic) UILabel *inputModeLabel;
 
+// Carried over from TV-safari: stuck loads, dying page processes, disk.
+@property (nonatomic, nullable) NSTimer *stuckLoadTimer;
+@property (nonatomic, copy, nullable) NSString *stuckLoadURLString;
+/// The page being watched has started showing (navigation committed).
+@property (nonatomic) BOOL stuckLoadCommitted;
+/// The last address the web view was replaced for, so it happens once, not in a loop.
+@property (nonatomic, copy, nullable) NSString *lastReplacedForURLString;
+@property (nonatomic, copy, nullable) NSString *lastWebContentCrashURLString;
+@property (nonatomic) NSUInteger consecutiveWebContentCrashes;
+@property (nonatomic) BOOL cacheTrimInFlight;
+@property (nonatomic) NSUInteger loadsSinceDiskCheck;
+
 @end
 
 @implementation ViewController
@@ -606,6 +621,12 @@ static UIImage *BrowserGuideSymbol(NSArray<NSString *> *names, CGFloat pointSize
     [super viewDidLoad];
     self.definesPresentationContext = YES;
     self.scrollViewAllowBounces = YES;
+
+    [[BrowserDiagnosticsLog sharedLog] logSessionStart];
+    [[BrowserDiagnosticsLog sharedLog] logEvent:@"media-safety" detail:BrowserMediaSafetySummary()];
+    // Compiled in the background and kept by WebKit, so only the first launch pays.
+    [[BrowserContentBlockerController sharedController] prepareRuleListIfNeeded];
+    [self trimCachesIfDiskIsLow];
 
     self.preferencesStore = [BrowserPreferencesStore new];
     [self.preferencesStore ensureUserAgentConsistency];
@@ -776,12 +797,14 @@ static UIImage *BrowserGuideSymbol(NSArray<NSString *> *names, CGFloat pointSize
 
 - (void)handleApplicationWillResignActive:(NSNotification *)notification {
     (void)notification;
+    [[BrowserDiagnosticsLog sharedLog] logEvent:@"app" detail:@"resign-active"];
     [self.tabCoordinator persistSession];
     [self.tabCoordinator updateTopShelf];
 }
 
 - (void)handleApplicationDidEnterBackground:(NSNotification *)notification {
     (void)notification;
+    [[BrowserDiagnosticsLog sharedLog] logEvent:@"app" detail:@"background"];
     [self.tabCoordinator persistSession];
     [self.tabCoordinator updateTopShelf];
 }
@@ -849,6 +872,7 @@ static UIImage *BrowserGuideSymbol(NSArray<NSString *> *names, CGFloat pointSize
     }
     // Going up to the bar always brings it back, even when it slid away while scrolling.
     [self setTopBarScrolledAway:NO animated:YES];
+    [self updateFavoriteStar];
 
     self.topBarFocusActive = YES;
     [self.topMenuView setFocusModeActive:YES];
@@ -889,6 +913,9 @@ static UIImage *BrowserGuideSymbol(NSArray<NSString *> *names, CGFloat pointSize
             break;
         case BrowserTopBarActionHome:
             [self loadHomePage];
+            break;
+        case BrowserTopBarActionFavorites:
+            [self.menuCoordinator presentFavoritesPanel];
             break;
         case BrowserTopBarActionTabs:
             [self browserShowTabOverview];
@@ -1738,6 +1765,21 @@ static CGFloat const kShowTopBarButtonHitSlop = 24.0;
     [self.tabCoordinator recreateActiveWebViewPreservingCurrentURL];
 }
 
+- (void)browserFavoritesDidChange {
+    [self updateFavoriteStar];
+}
+
+- (void)updateFavoriteStar {
+    [self.topMenuView setCurrentPageIsFavorite:[self.menuCoordinator isFavoriteURLString:self.webview.request.URL.absoluteString]];
+}
+
+// The log sits in the app's own folder, which nothing else on the box can
+// open, so the browser shows it to itself.
+- (void)browserShowDiagnosticLog {
+    [self cancelStuckLoadWatchdog];
+    [self.webview loadHTMLString:[[BrowserDiagnosticsLog sharedLog] logPageHTML]];
+}
+
 - (void)browserBringCursorToFront {
     [self.view bringSubviewToFront:self.remoteInputController.cursorView];
 }
@@ -2041,7 +2083,7 @@ static CGFloat const kShowTopBarButtonHitSlop = 24.0;
     // in whatever field now sits at the same spot.
     NSString *currentURLString = webView.request.URL.absoluteString ?: @"";
     if (self.typingPageURLString != nil && ![currentURLString isEqualToString:self.typingPageURLString]) {
-        BrowserLog(@"[Typing] dropped: page changed under the field");
+        [[BrowserDiagnosticsLog sharedLog] logEvent:@"typing-drop" detail:@"page changed under the field"];
         return;
     }
     NSString *escaped = [self.domInteractionService javaScriptEscapedString:text];
@@ -2329,13 +2371,259 @@ static CGFloat const kShowTopBarButtonHitSlop = 24.0;
     return [self.tabCoordinator createNewTabWithRequest:request];
 }
 
+#pragma mark Storage (B1)
+
+// Below this much free space the caches are trimmed. Apple TV storage is small
+// and shared with every other app, and WebKit fills whatever it is given: in
+// TV-safari loads started failing with "No space left on device".
+static const long long kBrowserLowDiskMegabytes = 1500;
+
+- (void)trimCachesBecause:(NSString *)reason {
+    if (self.cacheTrimInFlight) {
+        return;
+    }
+    self.cacheTrimInFlight = YES;
+    long long before = [BrowserDiagnosticsLog freeDiskMegabytes];
+    __weak typeof(self) weakSelf = self;
+    [BrowserWebView trimCachesWithCompletion:^{
+        weakSelf.cacheTrimInFlight = NO;
+        [[BrowserDiagnosticsLog sharedLog]
+            logEvent:@"cache-trim"
+              detail:[NSString stringWithFormat:@"%@  disk %lldMB -> %lldMB free",
+                      reason, before, [BrowserDiagnosticsLog freeDiskMegabytes]]];
+    }];
+}
+
+- (void)trimCachesIfDiskIsLow {
+    [BrowserDiagnosticsLog trimStandardErrorIfLarge];
+    long long free = [BrowserDiagnosticsLog freeDiskMegabytes];
+    if (free >= 0 && free < kBrowserLowDiskMegabytes) {
+        [self trimCachesBecause:[NSString stringWithFormat:@"low disk (%lldMB)", free]];
+    }
+}
+
+#pragma mark Stuck loads (A5)
+
+// A page that never finishes keeps the web view, and every address asked for
+// afterwards waits behind it. When the page process stops answering, messages
+// to it (stopLoading included) wait in the same queue, so the web view is
+// replaced instead: the old one goes, and its process with it.
+static const NSTimeInterval kStuckLoadTimeout = 30.0;
+
+- (void)armStuckLoadWatchForURL:(NSURL *)URL {
+    [self cancelStuckLoadWatchdog];
+    self.stuckLoadURLString = URL.absoluteString ?: @"";
+    self.stuckLoadCommitted = NO;
+    self.stuckLoadTimer = [NSTimer scheduledTimerWithTimeInterval:kStuckLoadTimeout
+                                                           target:self
+                                                         selector:@selector(handleStuckLoad)
+                                                         userInfo:nil
+                                                          repeats:NO];
+}
+
+- (void)cancelStuckLoadWatchdog {
+    [self.stuckLoadTimer invalidate];
+    self.stuckLoadTimer = nil;
+}
+
+- (void)handleStuckLoad {
+    self.stuckLoadTimer = nil;
+    // A page playing in Orbrisa's own player, or a menu on screen, is not a hang.
+    if (self.presentedViewController != nil) {
+        return;
+    }
+    NSString *urlString = self.stuckLoadURLString ?: @"";
+    // The page is on screen and still pulling in the last of its parts (ads,
+    // trackers): stop that, keep what is shown.
+    if (self.stuckLoadCommitted) {
+        [[BrowserDiagnosticsLog sharedLog]
+            logEvent:@"slow"
+              detail:[NSString stringWithFormat:@"not finished in %.0fs, stopped loading  %@",
+                      kStuckLoadTimeout, urlString]];
+        [self.webview stopLoading];
+        return;
+    }
+    // Never started at all: the page process has stopped answering. Replaced
+    // once per address, so a page that cannot load does not loop.
+    if ([urlString isEqualToString:self.lastReplacedForURLString]) {
+        [[BrowserDiagnosticsLog sharedLog]
+            logEvent:@"stuck"
+              detail:[NSString stringWithFormat:@"no answer again in %.0fs, left as is  %@",
+                      kStuckLoadTimeout, urlString]];
+        [self.webview stopLoading];
+        return;
+    }
+    self.lastReplacedForURLString = urlString;
+    [[BrowserDiagnosticsLog sharedLog]
+        logEvent:@"stuck"
+          detail:[NSString stringWithFormat:@"no answer in %.0fs, replacing the web view  %@",
+                  kStuckLoadTimeout, urlString]];
+    [self endHardwareTypingSession];
+    [self.webview stopLoading];
+    [self.tabCoordinator recreateActiveWebViewPreservingCurrentURL];
+    [self.view bringSubviewToFront:self.remoteInputController.cursorView];
+}
+
+#pragma mark Page process deaths (A2)
+
+// Learned hosts get the phone page. The agent applies to the next load rather
+// than the one being decided, so the first request is cancelled and issued
+// again once; the agent check stops it repeating.
+//
+// It works both ways: a tab that was switched to the phone agent for one site
+// goes back to the normal agent for the next, so only the learned sites get
+// phone pages.
+- (BOOL)lightenRequestIfNeeded:(NSURLRequest *)request webView:(id)webView {
+    if (![webView isKindOfClass:[BrowserWebView class]] ||
+        ![self.tabCoordinator isPrimaryDocumentRequest:request]) {
+        return NO;
+    }
+    NSString *host = request.URL.host;
+    if (host.length == 0) {
+        return NO;
+    }
+    NSString *normalAgent = self.preferencesStore.userAgent;
+    if (normalAgent.length == 0) {
+        return NO;
+    }
+    BOOL wantsPhonePage = self.preferencesStore.lightenHeavySitesEnabled &&
+        [self.preferencesStore isMobileFallbackHost:host];
+    NSString *wantedAgent = wantsPhonePage ? BrowserPreferencesStore.mobileUserAgent : normalAgent;
+    BrowserWebView *browserWebView = (BrowserWebView *)webView;
+    NSString *currentAgent = browserWebView.browserUserAgent;
+    // A web view made with no agent of its own uses the normal one.
+    if (currentAgent.length == 0) {
+        currentAgent = normalAgent;
+    }
+    if ([currentAgent isEqualToString:wantedAgent]) {
+        return NO;
+    }
+    [browserWebView setUserAgent:wantedAgent];
+    NSURLRequest *retry = [request copy];
+    dispatch_async(dispatch_get_main_queue(), ^{
+        [browserWebView loadRequest:retry];
+    });
+    return YES;
+}
+
+// Without this the page keeps showing whatever it had drawn — the first
+// screen — and nothing below it ever appears. One reload covers a passing
+// death; twice in a row on the same page, the site is asked for its phone
+// page from then on; a third time, the choice is offered.
+- (void)browserWebViewWebContentProcessDidTerminate:(id)webView {
+    BrowserWebView *browserWebView = (BrowserWebView *)webView;
+    NSString *urlString = browserWebView.request.URL.absoluteString ?: @"";
+    [[BrowserDiagnosticsLog sharedLog]
+        logEvent:@"CRASH"
+          detail:[NSString stringWithFormat:@"deaths=%lu  consecutive=%lu  %@  %@",
+                  (unsigned long)browserWebView.webContentTerminationCount,
+                  (unsigned long)(self.consecutiveWebContentCrashes + 1),
+                  [[BrowserDiagnosticsLog sharedLog] memoryFootprintSummary],
+                  urlString]];
+
+    if ([urlString isEqualToString:self.lastWebContentCrashURLString]) {
+        self.consecutiveWebContentCrashes += 1;
+    } else {
+        self.lastWebContentCrashURLString = urlString;
+        self.consecutiveWebContentCrashes = 1;
+    }
+
+    if (webView != self.webview) {
+        return;
+    }
+    [self cancelStuckLoadWatchdog];
+    [self endHardwareTypingSession];
+
+    if (self.consecutiveWebContentCrashes <= 1) {
+        [browserWebView reload];
+        return;
+    }
+
+    NSString *crashedHost = browserWebView.request.URL.host;
+    if (crashedHost.length > 0 &&
+        self.preferencesStore.lightenHeavySitesEnabled &&
+        !self.preferencesStore.mobileModeEnabled &&
+        ![self.preferencesStore isMobileFallbackHost:crashedHost]) {
+        [self.preferencesStore addMobileFallbackHost:crashedHost];
+        [[BrowserDiagnosticsLog sharedLog]
+            logEvent:@"mobile-fallback"
+              detail:[NSString stringWithFormat:@"%@ crashed twice; its phone page from now on", crashedHost]];
+        self.consecutiveWebContentCrashes = 0;
+        [self.tabCoordinator recreateActiveWebViewPreservingCurrentURL];
+        [self.view bringSubviewToFront:self.remoteInputController.cursorView];
+        return;
+    }
+
+    if (self.presentedViewController != nil) {
+        return;
+    }
+    NSString *host = crashedHost ?: urlString;
+    UIAlertController *alert = [UIAlertController
+        alertControllerWithTitle:@"페이지가 계속 멈춥니다"
+                         message:[NSString stringWithFormat:@"%@ 페이지의 처리 프로세스가 연속으로 종료되었습니다 (누적 %lu회).",
+                                  host, (unsigned long)browserWebView.webContentTerminationCount]
+                  preferredStyle:UIAlertControllerStyleAlert];
+    __weak typeof(self) weakSelf = self;
+    // Reload first: it is the one the remote has focused, and it changes nothing for good.
+    [alert addAction:[UIAlertAction actionWithTitle:@"다시 불러오기"
+                                              style:UIAlertActionStyleDefault
+                                            handler:^(__unused UIAlertAction *action) {
+        weakSelf.consecutiveWebContentCrashes = 0;
+        [weakSelf.webview reload];
+    }]];
+    if (crashedHost.length > 0 && ![self.preferencesStore isMobileFallbackHost:crashedHost]) {
+        [alert addAction:[UIAlertAction actionWithTitle:@"이 사이트는 모바일 페이지로 열기"
+                                                  style:UIAlertActionStyleDefault
+                                                handler:^(__unused UIAlertAction *action) {
+            [weakSelf.preferencesStore addMobileFallbackHost:crashedHost];
+            weakSelf.consecutiveWebContentCrashes = 0;
+            [weakSelf.tabCoordinator recreateActiveWebViewPreservingCurrentURL];
+        }]];
+    }
+    [alert addAction:[UIAlertAction actionWithTitle:@"그대로 두기" style:UIAlertActionStyleCancel handler:nil]];
+    [self presentViewController:alert animated:YES completion:nil];
+}
+
+#pragma mark Memory (B2)
+
+- (void)didReceiveMemoryWarning {
+    [super didReceiveMemoryWarning];
+    // The log simply stops when the system takes the app for memory, so the
+    // warnings leading up to it are the only sign of what happened.
+    NSUInteger released = [self.tabCoordinator releaseBackgroundTabWebViews];
+    [[NSURLCache sharedURLCache] removeAllCachedResponses];
+    [[BrowserDiagnosticsLog sharedLog]
+        logEvent:@"MEMORY-WARNING"
+          detail:[NSString stringWithFormat:@"tabs=%lu  released=%lu  cache purged  %@  %@",
+                  (unsigned long)self.viewModel.tabs.count,
+                  (unsigned long)released,
+                  [[BrowserDiagnosticsLog sharedLog] memoryFootprintSummary],
+                  self.webview.request.URL.absoluteString ?: @""]];
+}
+
+#pragma mark Loads
+
+- (void)webView:(id)webView didRequestLoadOfURL:(NSURL *)URL {
+    if (webView == self.webview) {
+        [self armStuckLoadWatchForURL:URL];
+    }
+}
+
 - (BOOL)webView:(id)webView shouldStartLoadWithRequest:(NSURLRequest *)request navigationType:(NSInteger)navigationType {
     (void)navigationType;
+    if ([self lightenRequestIfNeeded:request webView:webView]) {
+        return NO;
+    }
     [self.tabCoordinator prepareTabForRequest:request webView:webView];
     return YES;
 }
 
 - (void)webViewDidStartLoad:(id)webView {
+    [[BrowserDiagnosticsLog sharedLog]
+        logEvent:@"load"
+          detail:[NSString stringWithFormat:@"%@  %@",
+                  [[BrowserDiagnosticsLog sharedLog] memoryFootprintSummary],
+                  [(BrowserWebView *)webView request].URL.absoluteString ?: @""]];
     if (webView == self.webview) {
         self.pageArticle = nil;
         self.pageHasFeed = NO;
@@ -2347,10 +2635,30 @@ static CGFloat const kShowTopBarButtonHitSlop = 24.0;
 }
 
 - (void)webViewDidCommitNavigation:(id)webView {
+    if (webView == self.webview) {
+        self.stuckLoadCommitted = YES;
+        [self updateFavoriteStar];
+    }
     [self.tabCoordinator webViewDidCommitNavigation:webView];
 }
 
 - (void)webViewDidFinishLoad:(id)webView {
+    if (webView == self.webview) {
+        [self cancelStuckLoadWatchdog];
+        self.consecutiveWebContentCrashes = 0;
+        self.lastReplacedForURLString = nil;
+        [[BrowserDiagnosticsLog sharedLog]
+            logEvent:@"done"
+              detail:[NSString stringWithFormat:@"%@  %@",
+                      [[BrowserDiagnosticsLog sharedLog] memoryFootprintSummary],
+                      [(BrowserWebView *)webView request].URL.absoluteString ?: @""]];
+        [self updateFavoriteStar];
+        self.loadsSinceDiskCheck += 1;
+        if (self.loadsSinceDiskCheck >= 25) {
+            self.loadsSinceDiskCheck = 0;
+            [self trimCachesIfDiskIsLow];
+        }
+    }
     [self.tabCoordinator webViewDidFinishLoad:webView];
     if (webView == self.webview) {
         [self schedulePageFeatureChecksForWebView:webView delays:@[@0.15, @1.5]];
@@ -2372,6 +2680,17 @@ static CGFloat const kShowTopBarButtonHitSlop = 24.0;
 }
 
 - (void)webView:(id)webView didFailLoadWithError:(NSError *)error {
+    [[BrowserDiagnosticsLog sharedLog]
+        logEvent:@"load-fail"
+          detail:[NSString stringWithFormat:@"%ld %@  %@",
+                  (long)error.code, error.localizedDescription ?: @"",
+                  [(BrowserWebView *)webView request].URL.absoluteString ?: @""]];
+    if (webView == self.webview) {
+        [self cancelStuckLoadWatchdog];
+    }
+    if (error.code == ENOSPC) {
+        [self trimCachesBecause:@"a load failed: no space left on device"];
+    }
     BrowserTabViewModel *tab = [self.tabCoordinator tabForWebView:webView];
     if (tab == nil) {
         return;

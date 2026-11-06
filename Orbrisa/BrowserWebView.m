@@ -1,4 +1,5 @@
 #import "BrowserWebView.h"
+#import "BrowserContentBlockerController.h"
 #import "BrowserLog.h"
 
 #import <dlfcn.h>
@@ -44,12 +45,35 @@ static void BrowserEnsureWebKitRuntimeLoaded(void) {
 // once events nest more than four levels deep, so a script call made while another one is waiting is skipped.
 static NSInteger sBrowserJavaScriptEvaluationDepth = 0;
 
-static void BrowserPumpRunLoopUntil(BOOL *done) {
-    while (!*done) {
+// A synchronous answer is squeezed out of WebKit's asynchronous API by running
+// the run loop until it arrives. If the page process is busy, stuck or gone,
+// it never arrives, and waiting without a limit freezes the whole app: the
+// remote stops working, scrolling stops, and only a force quit gets out. The
+// wait is bounded, as it was in TV-safari (2 s for scripts, 5 s for cookies);
+// an answer that arrives later is simply dropped.
+static NSTimeInterval const kBrowserScriptPumpTimeout = 2.0;
+static NSTimeInterval const kBrowserCookiePumpTimeout = 5.0;
+
+static BOOL BrowserPumpRunLoopUntilWithTimeout(BOOL *done, NSTimeInterval timeout) {
+    NSDate *deadline = [NSDate dateWithTimeIntervalSinceNow:timeout];
+    while (!*done && [deadline timeIntervalSinceNow] > 0.0) {
         @autoreleasepool {
             [[NSRunLoop currentRunLoop] runMode:NSDefaultRunLoopMode beforeDate:[NSDate dateWithTimeIntervalSinceNow:0.01]];
         }
     }
+    return *done;
+}
+
+NSString * const BrowserMediaPlaybackEnabledDefaultsKey = @"MediaPlaybackEnabled";
+NSString * const BrowserContentBlockingEnabledDefaultsKey = @"ContentBlockingEnabled";
+
+static BOOL BrowserMediaPlaybackWanted(void) {
+    return [[NSUserDefaults standardUserDefaults] boolForKey:BrowserMediaPlaybackEnabledDefaultsKey];
+}
+
+static BOOL BrowserContentBlockingWanted(void) {
+    NSNumber *value = [[NSUserDefaults standardUserDefaults] objectForKey:BrowserContentBlockingEnabledDefaultsKey];
+    return value == nil ? YES : value.boolValue;
 }
 
 static NSString *BrowserStringFromJavaScriptResult(id result) {
@@ -302,10 +326,76 @@ static void BrowserConfigurePrivateMediaPreferences(id configuration) {
         return;
     }
 
-    BrowserSetBooleanSelectorIfAvailable(preferences, @"_setMediaSourceEnabled:", YES);
-    BrowserSetBooleanSelectorIfAvailable(preferences, @"_setManagedMediaSourceEnabled:", YES);
-    BrowserSetBooleanSelectorIfAvailable(preferences, @"_setMediaCapabilityGrantsEnabled:", YES);
-    BrowserSetBooleanSelectorIfAvailable(preferences, @"_setVideoQualityIncludesDisplayCompositingEnabled:", YES);
+    // Media switch on: Orbrisa's original setup, unchanged.
+    if (BrowserMediaPlaybackWanted()) {
+        BrowserSetBooleanSelectorIfAvailable(preferences, @"_setMediaSourceEnabled:", YES);
+        BrowserSetBooleanSelectorIfAvailable(preferences, @"_setManagedMediaSourceEnabled:", YES);
+        BrowserSetBooleanSelectorIfAvailable(preferences, @"_setMediaCapabilityGrantsEnabled:", YES);
+        BrowserSetBooleanSelectorIfAvailable(preferences, @"_setVideoQualityIncludesDisplayCompositingEnabled:", YES);
+        return;
+    }
+
+    // Media switch off (default), as TV-safari ended up on tvOS 16.6. The
+    // engine there exposes no MediaSource at all, so forcing it on changed
+    // nothing a page could use. The sites that took the web content process
+    // down every time were the ones with video on the front page, and the
+    // crash is inside AVFoundation (_privacyStance, upstream issue #54), so
+    // pages are not handed to AVFoundation: <video> stays on the page for its
+    // scripts, it just has nothing to play with. Orbrisa's own player plays
+    // video in the app, outside the page.
+    BrowserSetBooleanSelectorIfAvailable(preferences, @"_setMediaSourceEnabled:", NO);
+    BrowserSetBooleanSelectorIfAvailable(preferences, @"_setManagedMediaSourceEnabled:", NO);
+    BrowserSetBooleanSelectorIfAvailable(preferences, @"_setMediaCapabilityGrantsEnabled:", NO);
+    BrowserSetBooleanSelectorIfAvailable(preferences, @"_setVideoQualityIncludesDisplayCompositingEnabled:", NO);
+    BrowserSetBooleanSelectorIfAvailable(preferences, @"_setAVFoundationEnabled:", NO);
+}
+
+// With the media switch off nothing loads or plays media on its own.
+static void BrowserConfigureMediaLoading(id configuration) {
+    if (configuration == nil || BrowserMediaPlaybackWanted()) {
+        return;
+    }
+    BrowserSetBooleanSelectorIfAvailable(configuration, @"_setMediaDataLoadsAutomatically:", NO);
+    SEL userActionSelector = NSSelectorFromString(@"setMediaTypesRequiringUserActionForPlayback:");
+    if ([configuration respondsToSelector:userActionSelector]) {
+        ((void (*)(id, SEL, NSUInteger))objc_msgSend)(configuration, userActionSelector, NSUIntegerMax);
+    }
+}
+
+// B3: the ad and tracker blocker, compiled once in the background. A web view
+// made before it is ready goes without; the next one has it.
+static void BrowserInstallContentRuleList(id configuration) {
+    if (configuration == nil || !BrowserContentBlockingWanted()) {
+        return;
+    }
+    id ruleList = [[BrowserContentBlockerController sharedController] compiledRuleList];
+    if (ruleList == nil) {
+        return;
+    }
+    SEL userContentControllerGetter = NSSelectorFromString(@"userContentController");
+    if (![configuration respondsToSelector:userContentControllerGetter]) {
+        return;
+    }
+    id userContentController = ((id (*)(id, SEL))objc_msgSend)(configuration, userContentControllerGetter);
+    SEL addContentRuleListSelector = NSSelectorFromString(@"addContentRuleList:");
+    if (userContentController != nil && [userContentController respondsToSelector:addContentRuleListSelector]) {
+        ((void (*)(id, SEL, id))objc_msgSend)(userContentController, addContentRuleListSelector, ruleList);
+    }
+}
+
+NSString *BrowserMediaSafetySummary(void) {
+    BrowserEnsureWebKitRuntimeLoaded();
+    Class metricsClass = objc_getClass("WebCoreNSURLSessionTaskTransactionMetrics");
+    BOOL stubbed = metricsClass != Nil &&
+        class_getInstanceMethod(metricsClass, NSSelectorFromString(@"_privacyStance")) != NULL;
+    Class preferencesClass = NSClassFromString(@"WKPreferences");
+    BOOL avSwitch = preferencesClass != Nil &&
+        [preferencesClass instancesRespondToSelector:NSSelectorFromString(@"_setAVFoundationEnabled:")];
+    return [NSString stringWithFormat:@"privacyStance=%@ avfSwitch=%@ media=%@ adblock=%@",
+            stubbed ? @"stubbed" : (metricsClass == Nil ? @"class-absent" : @"MISSING"),
+            avSwitch ? @"yes" : @"NO",
+            BrowserMediaPlaybackWanted() ? @"on" : @"off",
+            BrowserContentBlockingWanted() ? @"on" : @"off"];
 }
 
 static NSString *BrowserYouTubeRequestCaptureScript(void) {
@@ -819,6 +909,7 @@ static void BrowserInstallYouTubeCaptureUserScript(id configuration) {
 @property (nullable, nonatomic, copy) NSString *lastTitle;
 @property (nonatomic, copy) NSString *userAgent;
 @property (nonatomic) BOOL loading;
+@property (nonatomic, readwrite) NSUInteger webContentTerminationCount;
 @property (nonatomic, strong) NSMutableArray<NSDictionary<NSString *, NSString *> *> *mediaStreams;
 @property (nonatomic, strong) BrowserMediaMessageHandler *mediaMessageHandler;
 @property (nonatomic, weak) id mediaUserContentController;
@@ -868,9 +959,14 @@ static void BrowserInstallYouTubeCaptureUserScript(id configuration) {
     id configuration = ((id (*)(id, SEL))objc_msgSend)((id)configurationClass, @selector(new));
     SEL allowsInlineMediaPlaybackSelector = NSSelectorFromString(@"setAllowsInlineMediaPlayback:");
     if (configuration != nil && [configuration respondsToSelector:allowsInlineMediaPlaybackSelector]) {
-        ((void (*)(id, SEL, BOOL))objc_msgSend)(configuration, allowsInlineMediaPlaybackSelector, allowsInlineMediaPlayback);
+        // Inline video is tvOS's own default off; with the media switch off it
+        // stays that way.
+        BOOL inline_ = allowsInlineMediaPlayback && BrowserMediaPlaybackWanted();
+        ((void (*)(id, SEL, BOOL))objc_msgSend)(configuration, allowsInlineMediaPlaybackSelector, inline_);
     }
     BrowserConfigurePrivateMediaPreferences(configuration);
+    BrowserConfigureMediaLoading(configuration);
+    BrowserInstallContentRuleList(configuration);
     BrowserInstallYouTubeCaptureUserScript(configuration);
     [self installMediaMessageHandlerInConfiguration:configuration];
 
@@ -1298,10 +1394,35 @@ static NSInteger BrowserMediaQualityInURL(NSString *URLString) {
     if (request == nil || self.runtimeWebView == nil) {
         return;
     }
+    // A new address always wins. Asked for one while another is still in
+    // flight, WebKit finishes the first in its own time, and until it does the
+    // browser looks dead.
+    [self stopLoading];
     self.lastRequest = request;
+    if ([self.delegate respondsToSelector:@selector(webView:didRequestLoadOfURL:)]) {
+        [self.delegate webView:self didRequestLoadOfURL:request.URL];
+    }
     SEL selector = NSSelectorFromString(@"loadRequest:");
     if ([self.runtimeWebView respondsToSelector:selector]) {
         ((id (*)(id, SEL, id))objc_msgSend)(self.runtimeWebView, selector, request);
+    }
+}
+
+- (void)stopLoading {
+    SEL selector = NSSelectorFromString(@"stopLoading");
+    if (self.runtimeWebView != nil && [self.runtimeWebView respondsToSelector:selector]) {
+        ((void (*)(id, SEL))objc_msgSend)(self.runtimeWebView, selector);
+    }
+    self.loading = NO;
+}
+
+- (void)loadHTMLString:(NSString *)html {
+    if (html.length == 0 || self.runtimeWebView == nil) {
+        return;
+    }
+    SEL selector = NSSelectorFromString(@"loadHTMLString:baseURL:");
+    if ([self.runtimeWebView respondsToSelector:selector]) {
+        ((id (*)(id, SEL, id, id))objc_msgSend)(self.runtimeWebView, selector, html, nil);
     }
 }
 
@@ -1349,7 +1470,7 @@ static NSInteger BrowserMediaQualityInURL(NSString *URLString) {
         evaluationError = error;
         finished = YES;
     });
-    BrowserPumpRunLoopUntil(&finished);
+    BrowserPumpRunLoopUntilWithTimeout(&finished, kBrowserScriptPumpTimeout);
     sBrowserJavaScriptEvaluationDepth -= 1;
 
     if (evaluationError != nil) {
@@ -1609,7 +1730,12 @@ static NSInteger BrowserMediaQualityInURL(NSString *URLString) {
 }
 
 - (void)webViewWebContentProcessDidTerminate:(id)webView {
+    (void)webView;
     self.loading = NO;
+    self.webContentTerminationCount += 1;
+    if ([self.delegate respondsToSelector:@selector(browserWebViewWebContentProcessDidTerminate:)]) {
+        [self.delegate browserWebViewWebContentProcessDidTerminate:self];
+    }
 }
 
 - (NSURLRequest *)requestFromNavigationAction:(id)navigationAction {
@@ -1724,7 +1850,7 @@ windowFeatures:(id)windowFeatures {
         cookies = fetchedCookies;
         finished = YES;
     });
-    BrowserPumpRunLoopUntil(&finished);
+    BrowserPumpRunLoopUntilWithTimeout(&finished, kBrowserCookiePumpTimeout);
     return cookies ?: @[];
 }
 
@@ -1803,6 +1929,29 @@ windowFeatures:(id)windowFeatures {
     }
 
     [self removeWebsiteDataTypes:websiteDataTypes completion:completion];
+}
+
++ (void)trimCachesWithCompletion:(void (^)(void))completion {
+    NSArray<NSString *> *cacheMarkers = @[@"DiskCache", @"MemoryCache",
+                                          @"OfflineWebApplicationCache",
+                                          @"FetchCache", @"ServiceWorkerRegistrations"];
+    NSMutableSet<NSString *> *types = [NSMutableSet set];
+    for (NSString *dataType in [self allWebsiteDataTypes]) {
+        for (NSString *marker in cacheMarkers) {
+            if ([dataType containsString:marker]) {
+                [types addObject:dataType];
+                break;
+            }
+        }
+    }
+    [[NSURLCache sharedURLCache] removeAllCachedResponses];
+    if (types.count == 0) {
+        if (completion != nil) {
+            completion();
+        }
+        return;
+    }
+    [self removeWebsiteDataTypes:types completion:completion];
 }
 
 + (void)clearCookiesWithCompletion:(void (^)(void))completion {

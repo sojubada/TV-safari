@@ -1,4 +1,5 @@
 #import "BrowserMenuCoordinator.h"
+#import "BrowserDiagnosticsLog.h"
 #import "BrowserLocalization.h"
 #import "BrowserLog.h"
 #import "BrowserPreferencesStore.h"
@@ -1139,6 +1140,7 @@ static CGFloat const kGlassSliderTrackWidth = 680.0;
             NSMutableArray *updatedFavorites = [favorites mutableCopy];
             [updatedFavorites removeObjectAtIndex:index];
             [weakSelf saveFavoritesArray:updatedFavorites];
+            [weakSelf.host browserFavoritesDidChange];
         }]];
     }];
     
@@ -1178,6 +1180,7 @@ static CGFloat const kGlassSliderTrackWidth = 680.0;
         }
         [favorites addObject:favoriteEntry];
         [weakSelf saveFavoritesArray:favorites];
+        [weakSelf.host browserFavoritesDidChange];
     }]];
     [alertController addAction:[self browserCancelAction]];
     [self.host browserPresentViewController:alertController];
@@ -1216,6 +1219,113 @@ static CGFloat const kGlassSliderTrackWidth = 680.0;
                                                     handler:^(__unused UIAlertAction *action) {
         [weakSelf presentAddFavoritePrompt];
     }]];
+    [alertController addAction:[self browserCancelAction]];
+    [self.host browserPresentViewController:alertController];
+}
+
+#pragma mark Favorites panel (top bar star)
+
+- (NSString *)normalizedFavoriteKeyForURLString:(NSString *)URLString {
+    NSURLComponents *components = [NSURLComponents componentsWithString:URLString ?: @""];
+    if (components == nil) {
+        return URLString.lowercaseString ?: @"";
+    }
+    components.fragment = nil;
+    components.scheme = components.scheme.lowercaseString;
+    components.host = components.host.lowercaseString;
+    NSString *result = components.string ?: URLString;
+    if ([result hasSuffix:@"/"] && result.length > 1) {
+        result = [result substringToIndex:result.length - 1];
+    }
+    return result;
+}
+
+- (NSInteger)favoriteIndexForURLString:(NSString *)URLString {
+    if (![self stringHasVisibleContent:URLString]) {
+        return NSNotFound;
+    }
+    NSString *key = [self normalizedFavoriteKeyForURLString:URLString];
+    NSArray *favorites = [[NSUserDefaults standardUserDefaults] arrayForKey:@"FAVORITES"];
+    for (NSUInteger index = 0; index < favorites.count; index++) {
+        NSArray *entry = favorites[index];
+        if (![entry isKindOfClass:[NSArray class]] || entry.count == 0) {
+            continue;
+        }
+        if ([[self normalizedFavoriteKeyForURLString:entry[0]] isEqualToString:key]) {
+            return (NSInteger)index;
+        }
+    }
+    return NSNotFound;
+}
+
+- (BOOL)isFavoriteURLString:(NSString *)URLString {
+    return [self favoriteIndexForURLString:URLString] != NSNotFound;
+}
+
+// Like TV-safari's star: the first row adds or removes this page at once (no
+// naming step to type through with a remote), the rest is the list.
+- (void)presentFavoritesPanel {
+    BrowserWebView *webView = [self.host browserWebView];
+    NSString *currentURL = webView.request.URL.absoluteString ?: @"";
+    BOOL pageIsWeb = [currentURL hasPrefix:@"http://"] || [currentURL hasPrefix:@"https://"];
+    NSInteger currentIndex = pageIsWeb ? [self favoriteIndexForURLString:currentURL] : NSNotFound;
+    NSArray *favorites = [[NSUserDefaults standardUserDefaults] arrayForKey:@"FAVORITES"] ?: @[];
+
+    UIAlertController *alertController = [self browserAlertControllerWithTitle:BrowserLocalized(@"Favorites")
+                                                                       message:favorites.count == 0 ? BrowserLocalized(@"No favorites yet.") : @""];
+    __weak typeof(self) weakSelf = self;
+
+    if (pageIsWeb && currentIndex == NSNotFound) {
+        [alertController addAction:[self browserActionWithTitle:[@"☆  " stringByAppendingString:BrowserLocalized(@"Add This Page")]
+                                                          style:UIAlertActionStyleDefault
+                                                        handler:^(__unused UIAlertAction *action) {
+            NSString *title = webView.title;
+            if (![weakSelf stringHasVisibleContent:title]) {
+                title = currentURL;
+            }
+            NSMutableArray *updated = [([[NSUserDefaults standardUserDefaults] arrayForKey:@"FAVORITES"] ?: @[]) mutableCopy];
+            [updated addObject:@[currentURL, title ?: @""]];
+            [weakSelf saveFavoritesArray:updated];
+            [weakSelf.host browserFavoritesDidChange];
+        }]];
+    } else if (pageIsWeb) {
+        [alertController addAction:[self browserActionWithTitle:[@"★  " stringByAppendingString:BrowserLocalized(@"Remove This Page")]
+                                                          style:UIAlertActionStyleDestructive
+                                                        handler:^(__unused UIAlertAction *action) {
+            NSMutableArray *updated = [([[NSUserDefaults standardUserDefaults] arrayForKey:@"FAVORITES"] ?: @[]) mutableCopy];
+            NSInteger index = [weakSelf favoriteIndexForURLString:currentURL];
+            if (index != NSNotFound && index < (NSInteger)updated.count) {
+                [updated removeObjectAtIndex:(NSUInteger)index];
+                [weakSelf saveFavoritesArray:updated];
+            }
+            [weakSelf.host browserFavoritesDidChange];
+        }]];
+    }
+
+    [favorites enumerateObjectsUsingBlock:^(NSArray *entry, __unused NSUInteger index, __unused BOOL *stop) {
+        if (![entry isKindOfClass:[NSArray class]]) {
+            return;
+        }
+        NSString *URLString = entry.count > 0 ? entry[0] : @"";
+        NSString *title = entry.count > 1 ? entry[1] : @"";
+        NSString *displayTitle = [weakSelf displayTitleForStoredTitle:title URLString:URLString includeURL:NO];
+        if (![weakSelf stringHasVisibleContent:displayTitle] || ![weakSelf stringHasVisibleContent:URLString]) {
+            return;
+        }
+        [alertController addAction:[weakSelf browserActionWithTitle:displayTitle
+                                                              style:UIAlertActionStyleDefault
+                                                            handler:^(__unused UIAlertAction *action) {
+            [weakSelf loadStoredURLString:URLString];
+        }]];
+    }];
+
+    if (favorites.count > 0) {
+        [alertController addAction:[self browserActionWithTitle:BrowserLocalized(@"Delete a Favorite")
+                                                          style:UIAlertActionStyleDestructive
+                                                        handler:^(__unused UIAlertAction *action) {
+            [weakSelf presentDeleteFavoriteMenu];
+        }]];
+    }
     [alertController addAction:[self browserCancelAction]];
     [self.host browserPresentViewController:alertController];
 }
@@ -1703,6 +1813,72 @@ static NSUInteger const kBrowserFontSizeMax = 200;
                                  changed:^(BOOL on) { weakSelf.host.browserFullscreenVideoPlaybackEnabled = on; }];
 }
 
+// Carried over from TV-safari: stability and diagnostics.
+- (BrowserAdvancedMenuItem *)webPageMediaToggleMenuItem {
+    __weak typeof(self) weakSelf = self;
+    return [self toggleMenuItemWithTitle:BrowserLocalized(@"Play Media Inside Pages")
+                                   value:^BOOL{ return [[NSUserDefaults standardUserDefaults] boolForKey:BrowserMediaPlaybackEnabledDefaultsKey]; }
+                                 changed:^(BOOL on) {
+        [[NSUserDefaults standardUserDefaults] setBool:on forKey:BrowserMediaPlaybackEnabledDefaultsKey];
+        [[BrowserDiagnosticsLog sharedLog] logEvent:@"media-switch" detail:on ? @"on" : @"off"];
+        // The engine reads this when a web view is made.
+        [weakSelf.host browserRecreateActiveWebViewPreservingCurrentURL];
+    }];
+}
+
+- (BrowserAdvancedMenuItem *)contentBlockingToggleMenuItem {
+    __weak typeof(self) weakSelf = self;
+    return [self toggleMenuItemWithTitle:BrowserLocalized(@"Block Ads and Trackers")
+                                   value:^BOOL{
+        NSNumber *value = [[NSUserDefaults standardUserDefaults] objectForKey:BrowserContentBlockingEnabledDefaultsKey];
+        return value == nil ? YES : value.boolValue;
+    }
+                                 changed:^(BOOL on) {
+        [[NSUserDefaults standardUserDefaults] setBool:on forKey:BrowserContentBlockingEnabledDefaultsKey];
+        [weakSelf.host browserRecreateActiveWebViewPreservingCurrentURL];
+    }];
+}
+
+- (BrowserAdvancedMenuItem *)lightenHeavySitesToggleMenuItem {
+    __weak typeof(self) weakSelf = self;
+    return [self toggleMenuItemWithTitle:BrowserLocalized(@"Phone Page for Sites That Keep Crashing")
+                                   value:^BOOL{ return weakSelf.preferencesStore.lightenHeavySitesEnabled; }
+                                 changed:^(BOOL on) { weakSelf.preferencesStore.lightenHeavySitesEnabled = on; }];
+}
+
+- (BrowserAdvancedMenuItem *)mobileFallbackHostsMenuItem {
+    __weak typeof(self) weakSelf = self;
+    return [self advancedMenuItemWithTitle:BrowserLocalized(@"Sites Opened as Phone Pages")
+                                     style:UIAlertActionStyleDefault
+                                   handler:^{
+        NSArray<NSString *> *hosts = weakSelf.preferencesStore.mobileFallbackHosts;
+        NSString *message = hosts.count == 0
+            ? BrowserLocalized(@"None. A site is added here when its page process stops twice in a row.")
+            : [hosts componentsJoinedByString:@"\n"];
+        UIAlertController *alert = [weakSelf browserAlertControllerWithTitle:BrowserLocalized(@"Sites Opened as Phone Pages")
+                                                                     message:message];
+        if (hosts.count > 0) {
+            [alert addAction:[weakSelf browserActionWithTitle:BrowserLocalized(@"Clear the List")
+                                                        style:UIAlertActionStyleDestructive
+                                                      handler:^(__unused UIAlertAction *action) {
+                [weakSelf.preferencesStore clearMobileFallbackHosts];
+                [[BrowserDiagnosticsLog sharedLog] logEvent:@"mobile-fallback" detail:@"list cleared"];
+            }]];
+        }
+        [alert addAction:[weakSelf browserCancelAction]];
+        [weakSelf.host browserPresentViewController:alert];
+    }];
+}
+
+- (BrowserAdvancedMenuItem *)diagnosticLogMenuItem {
+    __weak typeof(self) weakSelf = self;
+    return [self advancedMenuItemWithTitle:BrowserLocalized(@"Diagnostic Log")
+                                     style:UIAlertActionStyleDefault
+                                   handler:^{
+        [weakSelf.host browserShowDiagnosticLog];
+    }];
+}
+
 // Remote control behaviour carried over from TV-safari.
 - (BrowserAdvancedMenuItem *)dpadScrollToggleMenuItem {
     __weak typeof(self) weakSelf = self;
@@ -1791,14 +1967,19 @@ static NSUInteger const kBrowserFontSizeMax = 200;
         [BrowserAdvancedMenuSection sectionWithTitle:BrowserLocalized(@"Video Playback")
                                                items:@[
             [self fullscreenVideoPlaybackToggleMenuItem],
+            [self webPageMediaToggleMenuItem],
         ]],
         [BrowserAdvancedMenuSection sectionWithTitle:BrowserLocalized(@"Compatibility")
                                                items:@[
             [self userAgentModeMenuItem],
             [self autoAcceptCookiesMenuItem],
+            [self contentBlockingToggleMenuItem],
+            [self lightenHeavySitesToggleMenuItem],
+            [self mobileFallbackHostsMenuItem],
         ]],
         [BrowserAdvancedMenuSection sectionWithTitle:BrowserLocalized(@"Maintenance")
                                                items:@[
+            [self diagnosticLogMenuItem],
             clearCacheItem,
             clearCookiesItem,
         ]],

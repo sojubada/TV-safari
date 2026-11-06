@@ -41,8 +41,11 @@
 		B0B1C2D3E4F5061728394015 /* BrowserFeedStore.m in Sources */ = {isa = PBXBuildFile; fileRef = B0B1C2D3E4F5061728394014 /* BrowserFeedStore.m */; };
 		D1A0000000000000000001A3 /* BrowserHardwareKeyboardController.m in Sources */ = {isa = PBXBuildFile; fileRef = D1A0000000000000000001A2 /* BrowserHardwareKeyboardController.m */; };
 		D1A0000000000000000000A3 /* BrowserHangulComposer.m in Sources */ = {isa = PBXBuildFile; fileRef = D1A0000000000000000000A2 /* BrowserHangulComposer.m */; };
+		D1A0000000000000000003A3 /* BrowserContentBlockerController.m in Sources */ = {isa = PBXBuildFile; fileRef = D1A0000000000000000003A2 /* BrowserContentBlockerController.m */; };
+		D1A0000000000000000002A3 /* BrowserDiagnosticsLog.m in Sources */ = {isa = PBXBuildFile; fileRef = D1A0000000000000000002A2 /* BrowserDiagnosticsLog.m */; };
 		B0B1C2D3E4F5061728394018 /* BrowserFeedsViewController.m in Sources */ = {isa = PBXBuildFile; fileRef = B0B1C2D3E4F5061728394017 /* BrowserFeedsViewController.m */; };
 		B0B1C2D3E4F506172839401A /* ReaderExtract.js in Resources */ = {isa = PBXBuildFile; fileRef = B0B1C2D3E4F5061728394019 /* ReaderExtract.js */; };
+		D1A0000000000000000004A3 /* adblock-rules.json in Resources */ = {isa = PBXBuildFile; fileRef = D1A0000000000000000004A1 /* adblock-rules.json */; };
 		B0B1C2D3E4F506172839401C /* FeedDetect.js in Resources */ = {isa = PBXBuildFile; fileRef = B0B1C2D3E4F506172839401B /* FeedDetect.js */; };
 		C0FFEE00A1B2C3D4E5F60003 /* VLCKit in Frameworks */ = {isa = PBXBuildFile; productRef = C0FFEE00A1B2C3D4E5F60002 /* VLCKit */; };
 /* End PBXBuildFile section */
@@ -138,9 +141,14 @@
 		D1A0000000000000000001A2 /* BrowserHardwareKeyboardController.m */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.objc; path = BrowserHardwareKeyboardController.m; sourceTree = "<group>"; };
 		D1A0000000000000000000A1 /* BrowserHangulComposer.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = BrowserHangulComposer.h; sourceTree = "<group>"; };
 		D1A0000000000000000000A2 /* BrowserHangulComposer.m */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.objc; path = BrowserHangulComposer.m; sourceTree = "<group>"; };
+		D1A0000000000000000003A1 /* BrowserContentBlockerController.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = BrowserContentBlockerController.h; sourceTree = "<group>"; };
+		D1A0000000000000000003A2 /* BrowserContentBlockerController.m */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.objc; path = BrowserContentBlockerController.m; sourceTree = "<group>"; };
+		D1A0000000000000000002A1 /* BrowserDiagnosticsLog.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = BrowserDiagnosticsLog.h; sourceTree = "<group>"; };
+		D1A0000000000000000002A2 /* BrowserDiagnosticsLog.m */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.objc; path = BrowserDiagnosticsLog.m; sourceTree = "<group>"; };
 		B0B1C2D3E4F5061728394016 /* BrowserFeedsViewController.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = BrowserFeedsViewController.h; sourceTree = "<group>"; };
 		B0B1C2D3E4F5061728394017 /* BrowserFeedsViewController.m */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.objc; path = BrowserFeedsViewController.m; sourceTree = "<group>"; };
 		B0B1C2D3E4F5061728394019 /* ReaderExtract.js */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.javascript; path = ReaderExtract.js; sourceTree = "<group>"; };
+		D1A0000000000000000004A1 /* adblock-rules.json */ = {isa = PBXFileReference; lastKnownFileType = text.json; path = "adblock-rules.json"; sourceTree = "<group>"; };
 		B0B1C2D3E4F506172839401B /* FeedDetect.js */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.javascript; path = FeedDetect.js; sourceTree = "<group>"; };
 		B0F6B4611BAEBF9900E2F26B /* README.md */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = net.daringfireball.markdown; path = README.md; sourceTree = "<group>"; };
 /* End PBXFileReference section */
@@ -272,9 +280,14 @@
 				D1A0000000000000000001A2 /* BrowserHardwareKeyboardController.m */,
 				D1A0000000000000000000A1 /* BrowserHangulComposer.h */,
 				D1A0000000000000000000A2 /* BrowserHangulComposer.m */,
+				D1A0000000000000000003A1 /* BrowserContentBlockerController.h */,
+				D1A0000000000000000003A2 /* BrowserContentBlockerController.m */,
+				D1A0000000000000000002A1 /* BrowserDiagnosticsLog.h */,
+				D1A0000000000000000002A2 /* BrowserDiagnosticsLog.m */,
 				B0B1C2D3E4F5061728394016 /* BrowserFeedsViewController.h */,
 				B0B1C2D3E4F5061728394017 /* BrowserFeedsViewController.m */,
 				B0B1C2D3E4F5061728394019 /* ReaderExtract.js */,
+				D1A0000000000000000004A1 /* adblock-rules.json */,
 				B0B1C2D3E4F506172839401B /* FeedDetect.js */,
 				A0B1C2D3E4F5061728394A5F /* Localizable.strings */,
 				A1B49A622D6A3800001D58A1 /* BrowserWebView.m */,
@@ -460,6 +473,7 @@
 			buildActionMask = 2147483647;
 			files = (
 				B0B1C2D3E4F506172839401A /* ReaderExtract.js in Resources */,
+				D1A0000000000000000004A3 /* adblock-rules.json in Resources */,
 				B0B1C2D3E4F506172839401C /* FeedDetect.js in Resources */,
 				B002B8721BAE420500C744AF /* Assets.xcassets in Resources */,
 				B002B8701BAE420500C744AF /* Main.storyboard in Resources */,
@@ -502,6 +516,8 @@
 				B0B1C2D3E4F5061728394015 /* BrowserFeedStore.m in Sources */,
 				D1A0000000000000000001A3 /* BrowserHardwareKeyboardController.m in Sources */,
 				D1A0000000000000000000A3 /* BrowserHangulComposer.m in Sources */,
+				D1A0000000000000000003A3 /* BrowserContentBlockerController.m in Sources */,
+				D1A0000000000000000002A3 /* BrowserDiagnosticsLog.m in Sources */,
 				B0B1C2D3E4F5061728394018 /* BrowserFeedsViewController.m in Sources */,
 				A1B49A482D67F2B3001D58A1 /* BrowserTabViewModel.m in Sources */,
 				A1B49A552D68143D001D58A1 /* BrowserMenuCoordinator.m in Sources */,
@@ -565,7 +581,7 @@
 				APPLICATION_EXTENSION_API_ONLY = YES;
 				CODE_SIGN_ENTITLEMENTS = OrbrisaTopShelf/OrbrisaTopShelf.entitlements;
 				CODE_SIGN_STYLE = Automatic;
-				CURRENT_PROJECT_VERSION = 4;
+				CURRENT_PROJECT_VERSION = 5;
 				GENERATE_INFOPLIST_FILE = NO;
 				INFOPLIST_FILE = OrbrisaTopShelf/Info.plist;
 				LD_RUNPATH_SEARCH_PATHS = (
@@ -573,7 +589,7 @@
 					"@executable_path/Frameworks",
 					"@executable_path/../../Frameworks",
 				);
-				MARKETING_VERSION = 1.1.2;
+				MARKETING_VERSION = 1.2.0;
 				PRODUCT_BUNDLE_IDENTIFIER = "$(ORBRISA_BUNDLE_ID).TopShelf";
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				SKIP_INSTALL = YES;
@@ -588,7 +604,7 @@
 				APPLICATION_EXTENSION_API_ONLY = YES;
 				CODE_SIGN_ENTITLEMENTS = OrbrisaTopShelf/OrbrisaTopShelf.entitlements;
 				CODE_SIGN_STYLE = Automatic;
-				CURRENT_PROJECT_VERSION = 4;
+				CURRENT_PROJECT_VERSION = 5;
 				GENERATE_INFOPLIST_FILE = NO;
 				INFOPLIST_FILE = OrbrisaTopShelf/Info.plist;
 				LD_RUNPATH_SEARCH_PATHS = (
@@ -596,7 +612,7 @@
 					"@executable_path/Frameworks",
 					"@executable_path/../../Frameworks",
 				);
-				MARKETING_VERSION = 1.1.2;
+				MARKETING_VERSION = 1.2.0;
 				PRODUCT_BUNDLE_IDENTIFIER = "$(ORBRISA_BUNDLE_ID).TopShelf";
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				SKIP_INSTALL = YES;
@@ -723,7 +739,7 @@
 				ASSETCATALOG_COMPILER_LAUNCHIMAGE_NAME = LaunchImage;
 				CODE_SIGN_ENTITLEMENTS = Orbrisa/Orbrisa.entitlements;
 				CODE_SIGN_IDENTITY = "iPhone Developer";
-				CURRENT_PROJECT_VERSION = 4;
+				CURRENT_PROJECT_VERSION = 5;
 				EMBED_ASSET_PACKS_IN_PRODUCT_BUNDLE = YES;
 				ENABLE_ON_DEMAND_RESOURCES = NO;
 				FRAMEWORK_SEARCH_PATHS = "";
@@ -732,7 +748,7 @@
 					"$(inherited)",
 					"@executable_path/Frameworks",
 				);
-				MARKETING_VERSION = 1.1.2;
+				MARKETING_VERSION = 1.2.0;
 				OTHER_LDFLAGS = (
 					"$(inherited)",
 					"-lc++",
@@ -756,7 +772,7 @@
 				ASSETCATALOG_COMPILER_LAUNCHIMAGE_NAME = LaunchImage;
 				CODE_SIGN_ENTITLEMENTS = Orbrisa/Orbrisa.entitlements;
 				CODE_SIGN_IDENTITY = "iPhone Developer";
-				CURRENT_PROJECT_VERSION = 4;
+				CURRENT_PROJECT_VERSION = 5;
 				EMBED_ASSET_PACKS_IN_PRODUCT_BUNDLE = YES;
 				ENABLE_ON_DEMAND_RESOURCES = NO;
 				FRAMEWORK_SEARCH_PATHS = "";
@@ -765,7 +781,7 @@
 					"$(inherited)",
 					"@executable_path/Frameworks",
 				);
-				MARKETING_VERSION = 1.1.2;
+				MARKETING_VERSION = 1.2.0;
 				OTHER_LDFLAGS = (
 					"$(inherited)",
 					"-lc++",

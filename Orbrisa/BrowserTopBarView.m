@@ -105,6 +105,8 @@ static CGFloat const kTopBarFeedGap = 32.0; // room for the address pill growing
 @property (nonatomic) UIImageView *forwardImageView;
 @property (nonatomic) UIImageView *homeImageView;
 @property (nonatomic) UIImageView *tabsImageView;
+@property (nonatomic) UIImageView *favoritesImageView;
+@property (nonatomic) BOOL currentPageIsFavorite;
 @property (nonatomic) UIImageView *fullscreenImageView;
 @property (nonatomic) UIImageView *menuImageView;
 @property (nonatomic) UILabel *URLLabel;
@@ -120,6 +122,7 @@ static CGFloat const kTopBarFeedGap = 32.0; // room for the address pill growing
 @property (nonatomic) BrowserTopBarFocusButton *refreshFocusButton;
 @property (nonatomic) BrowserTopBarFocusButton *forwardFocusButton;
 @property (nonatomic) BrowserTopBarFocusButton *homeFocusButton;
+@property (nonatomic) BrowserTopBarFocusButton *favoritesFocusButton;
 @property (nonatomic) BrowserTopBarFocusButton *tabsFocusButton;
 @property (nonatomic) BrowserTopBarFocusButton *URLFocusButton;
 @property (nonatomic) BrowserTopBarFocusButton *fullscreenFocusButton;
@@ -239,12 +242,13 @@ void BrowserApplyGlassAmount(UIVisualEffectView *effectView, UIColor *solidColor
         [_leftEffectView.contentView addSubview:button];
     }
 
-    // Right island: home, tabs, fullscreen, menu
+    // Right island: home, favorites, tabs, fullscreen, menu
     _homeFocusButton = [self newFocusButtonForAction:BrowserTopBarActionHome symbolName:@"house" accessibilityLabel:BrowserLocalized(@"Home")];
+    _favoritesFocusButton = [self newFocusButtonForAction:BrowserTopBarActionFavorites symbolName:@"star" accessibilityLabel:BrowserLocalized(@"Favorites")];
     _tabsFocusButton = [self newFocusButtonForAction:BrowserTopBarActionTabs symbolName:@"square.on.square" accessibilityLabel:BrowserLocalized(@"Tabs")];
     _fullscreenFocusButton = [self newFocusButtonForAction:BrowserTopBarActionFullscreen symbolName:@"arrow.up.left.and.arrow.down.right" accessibilityLabel:BrowserLocalized(@"Top Navigation Visibility")];
     _menuFocusButton = [self newFocusButtonForAction:BrowserTopBarActionMenu symbolName:@"ellipsis" accessibilityLabel:BrowserLocalized(@"Menu")];
-    for (BrowserTopBarFocusButton *button in @[_homeFocusButton, _tabsFocusButton, _fullscreenFocusButton, _menuFocusButton]) {
+    for (BrowserTopBarFocusButton *button in @[_homeFocusButton, _favoritesFocusButton, _tabsFocusButton, _fullscreenFocusButton, _menuFocusButton]) {
         [_rightEffectView.contentView addSubview:button];
     }
 
@@ -275,6 +279,7 @@ void BrowserApplyGlassAmount(UIVisualEffectView *effectView, UIColor *solidColor
     _refreshImageView = _refreshFocusButton.iconView;
     _homeImageView = _homeFocusButton.iconView;
     _tabsImageView = _tabsFocusButton.iconView;
+    _favoritesImageView = _favoritesFocusButton.iconView;
     _fullscreenImageView = _fullscreenFocusButton.iconView;
     _menuImageView = _menuFocusButton.iconView;
 
@@ -364,6 +369,7 @@ void BrowserApplyGlassAmount(UIVisualEffectView *effectView, UIColor *solidColor
         _readerFocusButton,
         _feedFocusButton,
         _homeFocusButton,
+        _favoritesFocusButton,
         _tabsFocusButton,
         _fullscreenFocusButton,
         _menuFocusButton
@@ -553,7 +559,7 @@ void BrowserApplyGlassAmount(UIVisualEffectView *effectView, UIColor *solidColor
     self.contentView.frame = self.bounds;
 
     NSArray<BrowserTopBarFocusButton *> *leftButtons = @[self.backFocusButton, self.forwardFocusButton, self.refreshFocusButton];
-    NSArray<BrowserTopBarFocusButton *> *rightButtons = @[self.homeFocusButton, self.tabsFocusButton, self.fullscreenFocusButton, self.menuFocusButton];
+    NSArray<BrowserTopBarFocusButton *> *rightButtons = @[self.homeFocusButton, self.favoritesFocusButton, self.tabsFocusButton, self.fullscreenFocusButton, self.menuFocusButton];
 
     CGFloat availableWidth = MIN(CGRectGetWidth(self.bounds) - (kTopBarHorizontalInset * 2.0), kTopBarMaxWidth);
     availableWidth = MAX(availableWidth, kTopBarMinWidth);
@@ -845,6 +851,14 @@ void BrowserApplyGlassAmount(UIVisualEffectView *effectView, UIColor *solidColor
     } completion:^(__unused BOOL finished) {
         self.readerFocusButton.hidden = !self.readerAvailable;
     }];
+}
+
+- (void)setCurrentPageIsFavorite:(BOOL)isFavorite {
+    if (self.currentPageIsFavorite == isFavorite && self.favoritesImageView.image != nil) {
+        return;
+    }
+    self.currentPageIsFavorite = isFavorite;
+    self.favoritesImageView.image = [self symbolImageNamed:(isFavorite ? @"star.fill" : @"star") pointSize:kTopBarIconPointSize];
 }
 
 - (void)setCanGoBack:(BOOL)canGoBack canGoForward:(BOOL)canGoForward {

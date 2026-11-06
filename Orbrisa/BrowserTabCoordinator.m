@@ -678,6 +678,26 @@ static NSString * const kBrowserLastPageEdgeColorKey = @"BrowserLastPageEdgeColo
     [self persistSession];
 }
 
+- (NSUInteger)releaseBackgroundTabWebViews {
+    [self persistSession];
+    NSString *keepIdentifier = self.activeTab.identifier;
+    NSMutableArray<NSString *> *released = [NSMutableArray array];
+    for (NSString *identifier in self.webViewsByTabIdentifier.allKeys) {
+        if (keepIdentifier != nil && [identifier isEqualToString:keepIdentifier]) {
+            continue;
+        }
+        BrowserWebView *webView = self.webViewsByTabIdentifier[identifier];
+        if (webView == self.activeWebView) {
+            continue;
+        }
+        [webView stopLoading];
+        [webView removeFromSuperview];
+        [released addObject:identifier];
+    }
+    [self.webViewsByTabIdentifier removeObjectsForKeys:released];
+    return released.count;
+}
+
 - (void)recreateActiveWebViewPreservingCurrentURL {
     BrowserTabViewModel *tab = self.activeTab;
     if (tab == nil) {

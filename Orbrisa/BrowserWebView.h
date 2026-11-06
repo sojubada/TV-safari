@@ -11,8 +11,22 @@ NS_ASSUME_NONNULL_BEGIN
 - (void)webViewDidCommitNavigation:(id _Nonnull)webView;
 - (void)webViewDidFinishLoad:(id _Nonnull)webView;
 - (void)webView:(id _Nonnull)webView didFailLoadWithError:(NSError * _Nonnull)error;
+/// A load was asked for. Sent before WebKit is, so a watchdog can start even
+/// when the page process never answers (it then never sends DidStartLoad).
+- (void)webView:(id _Nonnull)webView didRequestLoadOfURL:(NSURL * _Nullable)URL;
+/// The web content process ended. Without a reload the page keeps showing
+/// what it had drawn and nothing below it ever appears.
+- (void)browserWebViewWebContentProcessDidTerminate:(id _Nonnull)webView;
 
 @end
+
+/// One line for the log: whether the tvOS 16 media fix is in and how media is set up.
+FOUNDATION_EXPORT NSString *BrowserMediaSafetySummary(void);
+/// NSUserDefaults key. NO (default): pages are kept off AVFoundation, the
+/// tvOS 16 crash path. YES: Orbrisa's original media setup.
+FOUNDATION_EXPORT NSString * const BrowserMediaPlaybackEnabledDefaultsKey;
+/// NSUserDefaults key for the ad and tracker blocker (on unless set to NO).
+FOUNDATION_EXPORT NSString * const BrowserContentBlockingEnabledDefaultsKey;
 
 FOUNDATION_EXPORT NSString * const BrowserForceDarkPagesDidChangeNotification;
 
@@ -32,6 +46,12 @@ FOUNDATION_EXPORT NSString * const BrowserForceDarkPagesDidChangeNotification;
       allowsInlineMediaPlayback:(BOOL)allowsInlineMediaPlayback NS_DESIGNATED_INITIALIZER;
 
 - (void)loadRequest:(NSURLRequest * _Nullable)request;
+/// Cancels whatever is loading.
+- (void)stopLoading;
+/// Shows a page made in the app (the diagnostic log).
+- (void)loadHTMLString:(NSString *)html;
+/// How many times this web view's page process has ended.
+@property (nonatomic, readonly) NSUInteger webContentTerminationCount;
 - (void)reload;
 - (void)goBack;
 - (void)goForward;
@@ -75,6 +95,9 @@ FOUNDATION_EXPORT NSString * const BrowserForceDarkPagesDidChangeNotification;
 + (NSArray<NSHTTPCookie *> * _Nonnull)allCookies;
 + (void)restoreCookiesFromData:(NSData * _Nullable)cookieData;
 + (void)clearCachedDataWithCompletion:(void (^ _Nullable)(void))completion;
+/// Removes only what can be fetched again (disk/memory/fetch caches, service
+/// worker caches). Cookies, logins and site storage stay.
++ (void)trimCachesWithCompletion:(void (^ _Nullable)(void))completion;
 + (void)clearCookiesWithCompletion:(void (^ _Nullable)(void))completion;
 + (void)resetWebsiteDataWithCompletion:(void (^ _Nullable)(void))completion;
 

@@ -9,6 +9,7 @@
 #import "AppDelegate.h"
 #import "BrowserPreferencesStore.h"
 #import "BrowserWebView.h"
+#import "BrowserDiagnosticsLog.h"
 
 @interface AppDelegate ()
 
@@ -96,7 +97,30 @@
 }
 
 
+// A crash kills the app before anything else can write, so the reason is
+// recorded here, first thing, while the exception is still in hand.
+static void BrowserLogUncaughtException(NSException *exception) {
+    NSString *frames = [exception.callStackSymbols componentsJoinedByString:@" | "];
+    if (frames.length > 1200) {
+        frames = [frames substringToIndex:1200];
+    }
+    [[BrowserDiagnosticsLog sharedLog]
+        logEventSynchronously:@"UNCAUGHT"
+                       detail:[NSString stringWithFormat:@"%@: %@  ::  %@",
+                               exception.name ?: @"?", exception.reason ?: @"?", frames ?: @""]];
+}
+
 - (BOOL)application:(UIApplication *)application didFinishLaunchingWithOptions:(NSDictionary *)launchOptions {
+    NSSetUncaughtExceptionHandler(&BrowserLogUncaughtException);
+    // B1: a ceiling on the URL cache. A few tens of megabytes is plenty for
+    // revisiting pages and leaves the small, shared disk alone.
+    NSURLCache *cache = [[NSURLCache alloc] initWithMemoryCapacity:(8 * 1024 * 1024)
+                                                      diskCapacity:(48 * 1024 * 1024)
+                                                          diskPath:nil];
+    [NSURLCache setSharedURLCache:cache];
+    // C1: crashes below Objective-C and a main thread that stops answering
+    // leave no trace otherwise.
+    [[BrowserDiagnosticsLog sharedLog] installCrashAndStallWatch];
 	// Override point for customization after application launch.
     if ([[NSUserDefaults standardUserDefaults] boolForKey:@"MobileMode"]) {
         [[NSUserDefaults standardUserDefaults] setObject:BrowserPreferencesStore.mobileUserAgent forKey:@"UserAgent"];

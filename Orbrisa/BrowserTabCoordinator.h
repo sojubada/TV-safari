@@ -50,6 +50,9 @@ NS_ASSUME_NONNULL_BEGIN
 - (void)switchToTabAtIndex:(NSInteger)tabIndex;
 - (void)closeTabAtIndex:(NSInteger)tabIndex;
 - (void)recreateActiveWebViewPreservingCurrentURL;
+/// Drops the web views of tabs not on screen (memory warning). Their address
+/// and scroll position are kept; switching back loads them again.
+- (NSUInteger)releaseBackgroundTabWebViews;
 - (void)captureSnapshotForCurrentTab;
 - (void)prepareTabOverviewThumbnails;
 - (void)persistSession;

@@ -225,3 +225,15 @@
 "Scroll at the Screen Edge" = "Am Bildschirmrand scrollen";
 "Tap to Click" = "Tippen zum Klicken";
 "Scroll Boxes Inside Pages" = "Bereiche in Seiten scrollen";
+
+/* Stability, diagnostics and favorites carried over from TV-safari */
+"Play Media Inside Pages" = "Medien in Seiten abspielen";
+"Block Ads and Trackers" = "Werbung und Tracker blockieren";
+"Phone Page for Sites That Keep Crashing" = "Handy-Seite für Seiten, die immer wieder abstürzen";
+"Sites Opened as Phone Pages" = "Als Handy-Seite geöffnete Seiten";
+"None. A site is added here when its page process stops twice in a row." = "Keine. Eine Seite kommt hierher, wenn ihr Seitenprozess zweimal hintereinander stoppt.";
+"Clear the List" = "Liste leeren";
+"Diagnostic Log" = "Diagnoseprotokoll";
+"No favorites yet." = "Noch keine Favoriten.";
+"Add This Page" = "Diese Seite hinzufügen";
+"Remove This Page" = "Diese Seite entfernen";
