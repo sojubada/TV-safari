@@ -19,6 +19,12 @@ NS_ASSUME_NONNULL_BEGIN
 - (NSString *)evaluateHoverStateJavaScriptAtPoint:(CGPoint)point
                                            webView:(BrowserWebView *)webView;
 - (NSString *)javaScriptEscapedString:(NSString *)string;
+/// Scrolls the scrollable box under the point (or the window), for pages
+/// that scroll inside a container. YES when something moved.
+- (BOOL)scrollActiveContainerByX:(CGFloat)dx
+                               y:(CGFloat)dy
+                         atPoint:(CGPoint)domPoint
+                         webView:(BrowserWebView *)webView;
 - (NSDictionary *)videoInfoAtDOMPoint:(CGPoint)point
                                webView:(BrowserWebView *)webView;
 - (NSDictionary *)linkInfoAtDOMPoint:(CGPoint)point

@@ -212,3 +212,16 @@
 "All" = "Alle";
 "Unread" = "Ungelesen";
 "Add Feed" = "Feed hinzufügen";
+
+/* Remote control carried over from TV-safari */
+"Ring: scroll and history" = "Ring: scrollen und Verlauf";
+"Up / down scrolls a screen, holding keeps scrolling. Left / right: previous / next page. A light tap on the clickpad also clicks." = "Oben / unten scrollt eine Bildschirmseite, gedrückt halten scrollt weiter. Links / rechts: vorherige / nächste Seite. Leichtes Tippen auf das Clickpad klickt ebenfalls.";
+"Hold the center" = "Mitte gedrückt halten";
+"With the cursor near the bar or at the top of the page, jumps into the bar. Sliding the cursor up into the bar does the same. The bottom of the ring or a firm swipe down leaves it." = "Mit dem Cursor an der Leiste oder am Seitenanfang: springt in die Leiste. Den Cursor nach oben in die Leiste schieben geht auch. Unten am Ring oder kräftig nach unten wischen verlässt sie.";
+"Link navigation on · Arrows: switch · Click: open · Hold center: mouse" = "Link-Navigation an · Pfeile: wechseln · Klick: öffnen · Mitte gedrückt halten: Maus";
+"Mouse on · Hold center: link navigation" = "Maus an · Mitte gedrückt halten: Link-Navigation";
+"Remote Control" = "Fernbedienung";
+"Ring Up / Down Scrolls the Page" = "Ring oben / unten scrollt die Seite";
+"Scroll at the Screen Edge" = "Am Bildschirmrand scrollen";
+"Tap to Click" = "Tippen zum Klicken";
+"Scroll Boxes Inside Pages" = "Bereiche in Seiten scrollen";

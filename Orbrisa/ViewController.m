@@ -275,9 +275,12 @@ static UIImage *BrowserGuideSymbol(NSArray<NSString *> *names, CGFloat pointSize
         [self rowWithKind:BrowserRemoteIconKindCenter badge:@"2×"
                     title:BrowserLocalized(@"Press the center twice")
                      text:BrowserLocalized(@"Switches between cursor mode and scroll mode.")],
+        [self rowWithKind:BrowserRemoteIconKindRingAll badge:nil
+                    title:BrowserLocalized(@"Ring: scroll and history")
+                     text:BrowserLocalized(@"Up / down scrolls a screen, holding keeps scrolling. Left / right: previous / next page. A light tap on the clickpad also clicks.")],
         [self sectionLabel:BrowserLocalized(@"Link Navigation")],
-        [self rowWithKind:BrowserRemoteIconKindRingDown badge:BrowserLocalized(@"hold")
-                    title:BrowserLocalized(@"Hold the bottom of the ring")
+        [self rowWithKind:BrowserRemoteIconKindCenter badge:BrowserLocalized(@"hold")
+                    title:BrowserLocalized(@"Hold the center")
                      text:BrowserLocalized(@"Turns link navigation on or off. A white frame shows the selected link.")],
         [self rowWithKind:BrowserRemoteIconKindRingAll badge:nil
                     title:BrowserLocalized(@"Ring up / down / left / right")
@@ -291,7 +294,7 @@ static UIImage *BrowserGuideSymbol(NSArray<NSString *> *names, CGFloat pointSize
         [self sectionLabel:BrowserLocalized(@"Top Bar")],
         [self rowWithKind:BrowserRemoteIconKindRingUp badge:nil
                     title:BrowserLocalized(@"Press the top of the ring")
-                     text:BrowserLocalized(@"Jumps into the bar: Back, Forward, Reload, Address, Home, Tabs, Full Screen, Menu. The bottom of the ring leaves it again.")],
+                     text:BrowserLocalized(@"With the cursor near the bar or at the top of the page, jumps into the bar. Sliding the cursor up into the bar does the same. The bottom of the ring or a firm swipe down leaves it.")],
         [self rowWithKind:BrowserRemoteIconKindCenter badge:nil
                     title:BrowserLocalized(@"Click the address")
                      text:BrowserLocalized(@"The keyboard opens right away. An address opens the page, anything else is searched on Google.")],
@@ -861,6 +864,7 @@ static UIImage *BrowserGuideSymbol(NSArray<NSString *> *names, CGFloat pointSize
 
     self.topBarFocusActive = NO;
     [self.topMenuView setFocusModeActive:NO];
+    [self.remoteInputController noteTopBarFocusDeactivated];
     [self.remoteInputController refreshInteractionState];
     [self setNeedsFocusUpdate];
     [self updateFocusIfNeeded];
@@ -1515,10 +1519,10 @@ static NSString *BrowserLinkNavigationScript(void) {
     }
     if (active) {
         [self runLinkNavigationCommand:@"down"];
-        [self showLinkNavigationHint:BrowserLocalized(@"Link navigation on · Arrows: switch · Click: open · Hold bottom: mouse")];
+        [self showLinkNavigationHint:BrowserLocalized(@"Link navigation on · Arrows: switch · Click: open · Hold center: mouse")];
     } else {
         [self runLinkNavigationCommand:@"clear"];
-        [self showLinkNavigationHint:BrowserLocalized(@"Mouse on · Hold bottom: link navigation")];
+        [self showLinkNavigationHint:BrowserLocalized(@"Mouse on · Hold center: link navigation")];
     }
 }
 
@@ -2186,6 +2190,72 @@ static CGFloat const kShowTopBarButtonHitSlop = 24.0;
     [self browserHandlePrimaryAction];
 }
 
+// Carried over from TV-safari.
+- (CGFloat)browserRemoteInputControllerTopBarBottomEdge {
+    if (!self.viewModel.topNavigationBarVisible || self.topMenuView.hidden || self.topBarScrolledAway) {
+        return 0.0;
+    }
+    return CGRectGetMaxY(self.topMenuView.frame);
+}
+
+- (BOOL)browserRemoteInputControllerRevealTopBarIfHidden {
+    if (!self.topBarScrolledAway || !self.viewModel.topNavigationBarVisible || self.topMenuView.hidden) {
+        return NO;
+    }
+    [self setTopBarScrolledAway:NO animated:YES];
+    return YES;
+}
+
+- (BOOL)browserRemoteInputControllerPageAtTop {
+    UIScrollView *scrollView = self.webview.scrollView;
+    if (scrollView == nil) {
+        return YES;
+    }
+    return scrollView.contentOffset.y <= -scrollView.adjustedContentInset.top + 2.0;
+}
+
+- (BOOL)browserRemoteInputControllerScrollActiveContainerByDelta:(CGPoint)delta atCursorPoint:(CGPoint)cursorPoint {
+    if (self.webview == nil) {
+        return NO;
+    }
+    CGPoint domPoint = [self.domInteractionService DOMPointForCursorOrigin:cursorPoint
+                                                                    inView:self.view
+                                                                   webView:self.webview];
+    CGPoint clampedDOMPoint = CGPointMake(MAX(0.0, domPoint.x), MAX(0.0, domPoint.y));
+    return [self.domInteractionService scrollActiveContainerByX:delta.x
+                                                              y:delta.y
+                                                        atPoint:clampedDOMPoint
+                                                        webView:self.webview];
+}
+
+- (BOOL)browserRemoteInputControllerJSScrollFallbackEnabled {
+    return self.preferencesStore.jsScrollFallbackEnabled;
+}
+
+- (BOOL)browserRemoteInputControllerDpadScrollEnabled {
+    return self.preferencesStore.dpadScrollEnabled;
+}
+
+- (BOOL)browserRemoteInputControllerEdgeAutoScrollEnabled {
+    return self.preferencesStore.edgeAutoScrollEnabled;
+}
+
+- (BOOL)browserRemoteInputControllerTapToClickEnabled {
+    return self.preferencesStore.tapToClickEnabled;
+}
+
+- (void)browserRemoteInputControllerGoBack {
+    if (self.webview.canGoBack) {
+        [self.webview goBack];
+    }
+}
+
+- (void)browserRemoteInputControllerGoForward {
+    if (self.webview.canGoForward) {
+        [self.webview goForward];
+    }
+}
+
 - (BOOL)browserRemoteInputControllerHardwareTypingActive {
     return self.hardwareKeyboardController.isCapturing;
 }
@@ -2396,8 +2466,15 @@ static CGFloat const kShowTopBarButtonHitSlop = 24.0;
 - (void)touchesCancelled:(NSSet<UITouch *> *)touches withEvent:(UIEvent *)event {
     (void)touches;
     (void)event;
-    [self.remoteInputController handleTouchesEnded];
+    // A cancelled touch is not a tap, so it must not click.
+    [self.remoteInputController handleTouchesCancelled];
     [super touchesCancelled:touches withEvent:event];
+}
+
+- (void)pressesCancelled:(NSSet<UIPress *> *)presses withEvent:(UIPressesEvent *)event {
+    // A ring hold that is cancelled must stop scrolling.
+    [self.remoteInputController handlePressesCancelled:presses withEvent:event];
+    [super pressesCancelled:presses withEvent:event];
 }
 
 @end

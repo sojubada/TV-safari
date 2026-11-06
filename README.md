@@ -150,12 +150,16 @@ See [Build from source](#build-from-source). A free Apple ID is enough.
 
 | Button | Action |
 |---|---|
-| Swipe on the clickpad | Move the cursor – in scroll mode: scroll the page |
-| Press the center | Click at the cursor (text fields open the keyboard) |
+| Swipe on the clickpad | Move the cursor – in scroll mode: scroll the page. The cursor fades after 3 s idle |
+| Light tap on the clickpad | Click (Tap to Click, can be turned off) |
+| Press the center | Click at the cursor (text fields: type with a Bluetooth keyboard, or the Apple TV keyboard) |
 | Press the center twice | Switch between cursor mode and scroll mode |
-| Hold the bottom of the ring | Link navigation on/off |
+| Hold the center | Link navigation on/off |
+| Ring up / down | Scroll one screen · hold: keep scrolling |
+| Ring left / right | Previous / next page |
+| Cursor at the top / bottom edge | Page scrolls by itself |
+| Ring up (cursor by the bar or page at top) · slide the cursor into the bar | Into the toolbar: back, forward, reload, address, home, tabs, fullscreen, menu · ring down or a firm swipe down leaves it |
 | Ring up / down / left / right | Next link (in link navigation) |
-| Top of the ring | Into the toolbar: back, forward, reload, address, home, tabs, fullscreen, menu |
 | Back | Previous page · closes menus and keyboard |
 | Play/Pause | Quick menu: forward, enter address, reload |
 | Play/Pause twice | Settings: favorites, history, appearance, font size and more |

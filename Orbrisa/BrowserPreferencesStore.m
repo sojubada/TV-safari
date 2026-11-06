@@ -8,6 +8,10 @@ static NSString * const kEnableFullscreenVideoPlaybackDefaultsKey = @"EnableFull
 static NSString * const kScalePagesToFitDefaultsKey = @"ScalePagesToFit";
 static NSString * const kDontShowHintsOnLaunchDefaultsKey = @"DontShowHintsOnLaunch";
 static NSString * const kHomepageDefaultsKey = @"homepage";
+static NSString * const kJSScrollFallbackEnabledDefaultsKey = @"JSScrollFallbackEnabled";
+static NSString * const kDpadScrollEnabledDefaultsKey = @"DpadScrollEnabled";
+static NSString * const kEdgeAutoScrollEnabledDefaultsKey = @"EdgeAutoScrollEnabled";
+static NSString * const kTapToClickEnabledDefaultsKey = @"TapToClickEnabled";
 
 static NSUInteger const kDefaultTextFontSize = 100;
 static NSUInteger const kMinimumTextFontSize = 50;
@@ -116,6 +120,42 @@ static NSUInteger const kMaximumTextFontSize = 200;
 - (void)setHomePageURLString:(NSString *)homePageURLString {
     [[self defaults] setObject:homePageURLString ?: @"" forKey:kHomepageDefaultsKey];
     [[self defaults] synchronize];
+}
+
+- (BOOL)jsScrollFallbackEnabled {
+    NSNumber *value = [[self defaults] objectForKey:kJSScrollFallbackEnabledDefaultsKey];
+    return value ? value.boolValue : YES;
+}
+
+- (void)setJsScrollFallbackEnabled:(BOOL)jsScrollFallbackEnabled {
+    [[self defaults] setBool:jsScrollFallbackEnabled forKey:kJSScrollFallbackEnabledDefaultsKey];
+}
+
+- (BOOL)dpadScrollEnabled {
+    NSNumber *value = [[self defaults] objectForKey:kDpadScrollEnabledDefaultsKey];
+    return value ? value.boolValue : YES;
+}
+
+- (void)setDpadScrollEnabled:(BOOL)dpadScrollEnabled {
+    [[self defaults] setBool:dpadScrollEnabled forKey:kDpadScrollEnabledDefaultsKey];
+}
+
+- (BOOL)edgeAutoScrollEnabled {
+    NSNumber *value = [[self defaults] objectForKey:kEdgeAutoScrollEnabledDefaultsKey];
+    return value ? value.boolValue : YES;
+}
+
+- (void)setEdgeAutoScrollEnabled:(BOOL)edgeAutoScrollEnabled {
+    [[self defaults] setBool:edgeAutoScrollEnabled forKey:kEdgeAutoScrollEnabledDefaultsKey];
+}
+
+- (BOOL)tapToClickEnabled {
+    NSNumber *value = [[self defaults] objectForKey:kTapToClickEnabledDefaultsKey];
+    return value ? value.boolValue : YES;
+}
+
+- (void)setTapToClickEnabled:(BOOL)tapToClickEnabled {
+    [[self defaults] setBool:tapToClickEnabled forKey:kTapToClickEnabledDefaultsKey];
 }
 
 @end

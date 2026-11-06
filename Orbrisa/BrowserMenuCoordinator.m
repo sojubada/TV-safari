@@ -1703,6 +1703,35 @@ static NSUInteger const kBrowserFontSizeMax = 200;
                                  changed:^(BOOL on) { weakSelf.host.browserFullscreenVideoPlaybackEnabled = on; }];
 }
 
+// Remote control behaviour carried over from TV-safari.
+- (BrowserAdvancedMenuItem *)dpadScrollToggleMenuItem {
+    __weak typeof(self) weakSelf = self;
+    return [self toggleMenuItemWithTitle:BrowserLocalized(@"Ring Up / Down Scrolls the Page")
+                                   value:^BOOL{ return weakSelf.preferencesStore.dpadScrollEnabled; }
+                                 changed:^(BOOL on) { weakSelf.preferencesStore.dpadScrollEnabled = on; }];
+}
+
+- (BrowserAdvancedMenuItem *)edgeAutoScrollToggleMenuItem {
+    __weak typeof(self) weakSelf = self;
+    return [self toggleMenuItemWithTitle:BrowserLocalized(@"Scroll at the Screen Edge")
+                                   value:^BOOL{ return weakSelf.preferencesStore.edgeAutoScrollEnabled; }
+                                 changed:^(BOOL on) { weakSelf.preferencesStore.edgeAutoScrollEnabled = on; }];
+}
+
+- (BrowserAdvancedMenuItem *)tapToClickToggleMenuItem {
+    __weak typeof(self) weakSelf = self;
+    return [self toggleMenuItemWithTitle:BrowserLocalized(@"Tap to Click")
+                                   value:^BOOL{ return weakSelf.preferencesStore.tapToClickEnabled; }
+                                 changed:^(BOOL on) { weakSelf.preferencesStore.tapToClickEnabled = on; }];
+}
+
+- (BrowserAdvancedMenuItem *)jsScrollFallbackToggleMenuItem {
+    __weak typeof(self) weakSelf = self;
+    return [self toggleMenuItemWithTitle:BrowserLocalized(@"Scroll Boxes Inside Pages")
+                                   value:^BOOL{ return weakSelf.preferencesStore.jsScrollFallbackEnabled; }
+                                 changed:^(BOOL on) { weakSelf.preferencesStore.jsScrollFallbackEnabled = on; }];
+}
+
 - (NSArray<BrowserAdvancedMenuSection *> *)advancedMenuSections {
     BrowserAdvancedMenuItem *mediaDiagnosticsItem = [self advancedMenuItemWithTitle:@"Media Diagnostics"
                                                                                style:UIAlertActionStyleDefault
@@ -1751,6 +1780,13 @@ static NSUInteger const kBrowserFontSizeMax = 200;
             [self topNavigationVisibilityMenuItem],
             [self pageScalingMenuItem],
             [self fontSizeMenuItem],
+        ]],
+        [BrowserAdvancedMenuSection sectionWithTitle:BrowserLocalized(@"Remote Control")
+                                               items:@[
+            [self dpadScrollToggleMenuItem],
+            [self edgeAutoScrollToggleMenuItem],
+            [self tapToClickToggleMenuItem],
+            [self jsScrollFallbackToggleMenuItem],
         ]],
         [BrowserAdvancedMenuSection sectionWithTitle:BrowserLocalized(@"Video Playback")
                                                items:@[
