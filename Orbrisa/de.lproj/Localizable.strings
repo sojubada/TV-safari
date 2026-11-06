@@ -1,4 +1,4 @@
-/* Orbrisa – German. Keys are the English texts used in the code. */
+/* tvOS Browser – German. Keys are the English texts used in the code. */
 
 "%@ Input" = "%@-Eingabe";
 "%lu more videos found." = "%lu weitere gefundene Videos.";
@@ -7,7 +7,7 @@
 "Accept Cookie Banners Automatically" = "Cookie-Banner automatisch akzeptieren";
 "Add Current Page to Favorites" = "Aktuelle Seite zu Favoriten hinzufügen";
 "Adjust the glass effect smoothly or turn it off completely." = "Den Glas-Effekt stufenlos einstellen oder ganz ausschalten.";
-"Afterwards, Orbrisa shows you how to use the Siri Remote." = "Danach zeigt dir Orbrisa die Bedienung mit der Siri Remote.";
+"Afterwards, tvOS Browser shows you how to use the Siri Remote." = "Danach zeigt dir tvOS Browser die Bedienung mit der Siri Remote.";
 "All tabs with their logos right under the address bar – in each site's colour if you like." = "Alle Tabs mit Logo direkt unter der Adressleiste – auf Wunsch in der Farbe der Seite.";
 "Appearance" = "Darstellung";
 "Automatic" = "Automatisch";
@@ -92,8 +92,8 @@
 "Opens Settings with favorites, history, appearance, font size and more." = "Öffnet die Einstellungen mit Favoriten, Verlauf, Darstellung, Schriftgrösse und mehr.";
 "Opens the home page" = "Öffnet die Startseite";
 "Opens the selected link." = "Öffnet den gewählten Link.";
-"Orbrisa asks: Full Screen (Apple TV player, without ads), Choose Video or Stay on Page." = "Orbrisa fragt: Vollbild (Apple-TV-Player, ohne Werbung), Video auswählen oder auf der Seite bleiben.";
-"Orbrisa keeps up to five tabs open at once." = "Orbrisa hält höchstens fünf Tabs gleichzeitig offen.";
+"tvOS Browser asks: Full Screen (Apple TV player, without ads), Choose Video or Stay on Page." = "tvOS Browser fragt: Vollbild (Apple-TV-Player, ohne Werbung), Video auswählen oder auf der Seite bleiben.";
+"tvOS Browser keeps up to five tabs open at once." = "tvOS Browser hält höchstens fünf Tabs gleichzeitig offen.";
 "Play Current URL" = "Aktuelle Adresse abspielen";
 "Press Back to close" = "Zurück-Taste zum Schliessen";
 "Press Play/Pause twice" = "Play/Pause zweimal drücken";
@@ -151,7 +151,7 @@
 "VLC Player Missing" = "VLC-Player fehlt";
 "VLC · Center: Play/Pause · ◀︎ ▶︎ 10 s · Swipe: scrub · Back: close" = "VLC · Mitte: Play/Pause · ◀︎ ▶︎ 10 s · Wischen: spulen · Zurück: schliessen";
 "What's New" = "Was ist neu";
-"What's New in Orbrisa" = "Neu in Orbrisa";
+"What's New in tvOS Browser" = "Neu in tvOS Browser";
 "When the bar is hidden (full screen), clicking the red button at the top brings it back." = "Ist die Leiste ausgeblendet (Vollbild), holt ein Klick auf den roten Knopf oben sie zurück.";
 "Which Video?" = "Welches Video?";
 "You can still open Settings by double-tapping the Play/Pause button." = "Die Einstellungen öffnest du weiterhin mit zweimal Play/Pause.";
@@ -179,20 +179,20 @@
 "No feeds yet" = "Noch keine Feeds";
 "All read" = "Alles gelesen";
 "%lu new articles" = "%lu neue Artikel";
-"No feeds yet. Open a website and choose “Subscribe to Feed” in Settings – Orbrisa finds the feed for you." = "Noch keine Feeds. Öffne eine Webseite und wähle in den Einstellungen „Feed abonnieren“ – Orbrisa findet den Feed für dich.";
+"No feeds yet. Open a website and choose “Subscribe to Feed” in Settings – tvOS Browser finds the feed for you." = "Noch keine Feeds. Öffne eine Webseite und wähle in den Einstellungen „Feed abonnieren“ – tvOS Browser findet den Feed für dich.";
 "No articles found. The site may be offline – try again later." = "Keine Artikel gefunden. Die Seite ist vielleicht nicht erreichbar – versuch es später nochmals.";
 "Click: open article  ·  Play/Pause on a feed: unsubscribe  ·  Back: close" = "Klicken: Artikel öffnen  ·  Play/Pause auf einem Feed: abbestellen  ·  Zurück: schliessen";
 "Unsubscribe from “%@”?" = "„%@“ abbestellen?";
 "Unsubscribe" = "Abbestellen";
 "OK" = "OK";
 "Reader Not Available" = "Reader nicht verfügbar";
-"This page has no article that Orbrisa can show in the Reader." = "Diese Seite hat keinen Artikel, den Orbrisa im Reader zeigen kann.";
+"This page has no article that tvOS Browser can show in the Reader." = "Diese Seite hat keinen Artikel, den tvOS Browser im Reader zeigen kann.";
 "No Feed Found" = "Kein Feed gefunden";
 "This page doesn't offer an RSS feed." = "Diese Seite bietet keinen RSS-Feed an.";
 "Already Subscribed" = "Bereits abonniert";
 "Open Feeds" = "Feeds öffnen";
 "Feed Not Readable" = "Feed nicht lesbar";
-"Orbrisa found a feed on this page, but couldn't load it." = "Orbrisa hat auf dieser Seite einen Feed gefunden, konnte ihn aber nicht laden.";
+"tvOS Browser found a feed on this page, but couldn't load it." = "tvOS Browser hat auf dieser Seite einen Feed gefunden, konnte ihn aber nicht laden.";
 "Feed Found: %@" = "Feed gefunden: %@";
 "Subscribe" = "Abonnieren";
 "Not Now" = "Nicht jetzt";

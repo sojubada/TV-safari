@@ -1042,7 +1042,7 @@ static CGFloat const kGlassSliderTrackWidth = 680.0;
 }
 
 - (void)showAdvancedMenu {
-    BrowserAdvancedMenuViewController *menuViewController = [[BrowserAdvancedMenuViewController alloc] initWithTitle:@"Orbrisa"
+    BrowserAdvancedMenuViewController *menuViewController = [[BrowserAdvancedMenuViewController alloc] initWithTitle:@"tvOS Browser"
                                                                                                             sections:[self advancedMenuSections]
                                                                                                           footerText:[self advancedMenuFooterText]];
     __weak typeof(self) weakSelf = self;

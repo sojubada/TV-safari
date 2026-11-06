@@ -28,7 +28,7 @@ This repository has had two lives, and both are credited here.
 | 4 | [fdm96/Orbrisa](https://github.com/fdm96/Orbrisa) — commit `e6a6db1`, 5 Nov 2026 | Also derived from (2); a far more complete browser for tvOS 17+: tab strip, the native Apple TV player, VLCKit, Reader, RSS feeds, link navigation, Top Shelf, Liquid Glass |
 | 5 | **This build** | Orbrisa (4) as the base, backported to tvOS 16, with the work from (3) carried over into it |
 
-The app installs under the name **Orbrisa** with its own bundle ID (`com.sojubada.orbrisa`), so it sits next to any earlier TV-safari build rather than replacing it. Copyright notices in the source files from (1), (2) and (4) are kept.
+The app is named **tvOS Browser** and uses the original blue compass icon from tvOSBrowser (1), as TV-safari did. Its bundle ID (`com.sojubada.orbrisa`) is its own, so it sits next to any earlier TV-safari build rather than replacing it. Copyright notices in the source files from (1), (2) and (4) are kept.
 
 ## Features
 

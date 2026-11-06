@@ -589,7 +589,7 @@ static NSString * const kBrowserLastPageEdgeColorKey = @"BrowserLastPageEdgeColo
 
 - (void)showMaxTabsAlert {
     UIAlertController *alertController = [UIAlertController alertControllerWithTitle:BrowserLocalized(@"Maximum Tabs Reached")
-                                                                             message:BrowserLocalized(@"Orbrisa keeps up to five tabs open at once.")
+                                                                             message:BrowserLocalized(@"tvOS Browser keeps up to five tabs open at once.")
                                                                       preferredStyle:UIAlertControllerStyleAlert];
     [alertController addAction:[UIAlertAction actionWithTitle:BrowserLocalized(@"Dismiss")
                                                         style:UIAlertActionStyleCancel

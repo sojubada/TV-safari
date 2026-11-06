@@ -324,7 +324,7 @@ static UIImage *BrowserGuideSymbol(NSArray<NSString *> *names, CGFloat pointSize
         [self sectionLabel:@"Videos"],
         [self rowWithKind:BrowserRemoteIconKindCenter badge:nil
                     title:BrowserLocalized(@"Start a video")
-                     text:BrowserLocalized(@"Orbrisa asks: Full Screen (Apple TV player, without ads), Choose Video or Stay on Page.")],
+                     text:BrowserLocalized(@"tvOS Browser asks: Full Screen (Apple TV player, without ads), Choose Video or Stay on Page.")],
         [self rowWithKind:BrowserRemoteIconKindSwipe badge:nil
                     title:BrowserLocalized(@"Swipe in the player")
                      text:BrowserLocalized(@"Scrubs forward and back. Press the center to confirm, ring left/right jumps 10 seconds.")],
@@ -446,7 +446,7 @@ static UIImage *BrowserGuideSymbol(NSArray<NSString *> *names, CGFloat pointSize
     NSString *version = [NSBundle.mainBundle objectForInfoDictionaryKey:@"CFBundleShortVersionString"] ?: @"";
 
     UILabel *titleLabel = [UILabel new];
-    titleLabel.text = BrowserLocalized(@"What's New in Orbrisa");
+    titleLabel.text = BrowserLocalized(@"What's New in tvOS Browser");
     titleLabel.font = [UIFont systemFontOfSize:64.0 weight:UIFontWeightBold];
     titleLabel.textColor = UIColor.whiteColor;
     titleLabel.textAlignment = NSTextAlignmentCenter;
@@ -491,7 +491,7 @@ static UIImage *BrowserGuideSymbol(NSArray<NSString *> *names, CGFloat pointSize
     self.continueButton = button;
 
     UILabel *hintLabel = [UILabel new];
-    hintLabel.text = BrowserLocalized(@"Afterwards, Orbrisa shows you how to use the Siri Remote.");
+    hintLabel.text = BrowserLocalized(@"Afterwards, tvOS Browser shows you how to use the Siri Remote.");
     hintLabel.font = [UIFont systemFontOfSize:21.0 weight:UIFontWeightRegular];
     hintLabel.textColor = [UIColor colorWithWhite:1.0 alpha:0.45];
 
@@ -1313,7 +1313,7 @@ static UIImage *BrowserGuideSymbol(NSArray<NSString *> *names, CGFloat pointSize
     }
     if (article == nil) {
         [self showSimpleAlertWithTitle:BrowserLocalized(@"Reader Not Available")
-                               message:BrowserLocalized(@"This page has no article that Orbrisa can show in the Reader.")];
+                               message:BrowserLocalized(@"This page has no article that tvOS Browser can show in the Reader.")];
         return;
     }
     [self browserPresentViewController:[[BrowserReaderViewController alloc] initWithArticle:article]];
@@ -1375,7 +1375,7 @@ static UIImage *BrowserGuideSymbol(NSArray<NSString *> *names, CGFloat pointSize
         }
         if (items.count == 0) {
             [strongSelf showSimpleAlertWithTitle:BrowserLocalized(@"Feed Not Readable")
-                                         message:BrowserLocalized(@"Orbrisa found a feed on this page, but couldn't load it.")];
+                                         message:BrowserLocalized(@"tvOS Browser found a feed on this page, but couldn't load it.")];
             return;
         }
         NSString *name = title.length > 0 ? title : (announcedTitle.length > 0 ? announcedTitle : site);

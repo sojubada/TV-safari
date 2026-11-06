@@ -490,7 +490,7 @@ static NSCache<NSString *, UIImage *> *FeedsImageCache(void) {
     [self updateControls];
 
     if (store.subscriptions.count == 0) {
-        self.emptyLabel.text = BrowserLocalized(@"No feeds yet. Open a website and choose “Subscribe to Feed” in Settings – Orbrisa finds the feed for you.");
+        self.emptyLabel.text = BrowserLocalized(@"No feeds yet. Open a website and choose “Subscribe to Feed” in Settings – tvOS Browser finds the feed for you.");
     } else if (self.items.count == 0 && self.unreadOnly && !store.isRefreshing) {
         self.emptyLabel.text = BrowserLocalized(@"All read");
     } else if (self.items.count == 0 && !store.isRefreshing) {
