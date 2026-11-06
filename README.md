@@ -1,8 +1,10 @@
 <div align="center">
 
-<img src="docs/icon.png" width="240" alt="App icon">
+<img src="docs/icon.png" width="240" alt="tvOS Browser icon">
 
-# TV-safari — a web browser for Apple TV on tvOS 16
+# tvOS Browser
+
+**A web browser for Apple TV on tvOS 16** · repository: TV-safari
 
 A full WebKit browser for Apple TV, built to run on **tvOS 15.6 – 16.x** and installed with **TrollStore**.
 Tabs, a real cursor, Korean and English typing from a Bluetooth keyboard, ad blocking, and a set of fixes that keep pages loading on tvOS 16.
@@ -26,7 +28,7 @@ This repository has had two lives, and both are credited here.
 | 2 | [jvanakker/tvOSBrowser](https://github.com/jvanakker/tvOSBrowser) — Jip van Akker | The maintained fork this repository started from (October 2026), including upstream's `_privacyStance` fix for tvOS 16 ([issue #54](https://github.com/jvanakker/tvOSBrowser/issues/54), [PR #58](https://github.com/jvanakker/tvOSBrowser/pull/58)) |
 | 3 | **TV-safari v1 – v4.22** — this repository | About eighty commits of our own on top of (2): typing, remote control, stability on tvOS 16, ad blocking, diagnostics. Kept unchanged on the branch [`backup/tv-safari-v4.22.0`](https://github.com/sojubada/TV-safari/tree/backup/tv-safari-v4.22.0) |
 | 4 | [fdm96/Orbrisa](https://github.com/fdm96/Orbrisa) — commit `e6a6db1`, 5 Nov 2026 | Also derived from (2); a far more complete browser for tvOS 17+: tab strip, the native Apple TV player, VLCKit, Reader, RSS feeds, link navigation, Top Shelf, Liquid Glass |
-| 5 | **This build** | Orbrisa (4) as the base, backported to tvOS 16, with the work from (3) carried over into it |
+| 5 | **tvOS Browser** — this build | Orbrisa (4) as the base, backported to tvOS 16, with the work from (3) carried over into it, under the original name and icon |
 
 The app is named **tvOS Browser** and uses the original blue compass icon from tvOSBrowser (1), as TV-safari did. Its bundle ID (`com.sojubada.orbrisa`) is its own, so it sits next to any earlier TV-safari build rather than replacing it. Copyright notices in the source files from (1), (2) and (4) are kept.
 
@@ -59,7 +61,7 @@ The app is named **tvOS Browser** and uses the original blue compass icon from t
 
 ## Install
 
-1. Download the newest `Orbrisa-<version>-tvOS15.6-unsigned.ipa` from [Releases](https://github.com/sojubada/TV-safari/releases).
+1. Download the newest `tvOSBrowser-<version>-tvOS15.6-unsigned.ipa` from [Releases](https://github.com/sojubada/TV-safari/releases).
 2. Install it with **TrollStore** on an Apple TV running tvOS 15.6 – 16.x (tested on tvOS 16.6, Apple TV 4K).
 
 The IPA is unsigned and is not modified for any jailbreak. The app stays inside its own sandbox: it adds no entitlements and writes nothing outside its own container.
@@ -83,7 +85,7 @@ The IPA is unsigned and is not modified for any jailbreak. The app stays inside 
 
 In link navigation the ring moves between links and the center opens one. In the Apple TV player the remote works as it does in the TV app.
 
-In Orbrisa, holding the bottom of the ring turned link navigation on and off. That gesture now scrolls, as it did in TV-safari, so link navigation moved to holding the center.
+In Orbrisa, holding the bottom of the ring turns link navigation on and off. That gesture now scrolls, as it did in TV-safari, so link navigation moved to holding the center.
 
 ## Typing with a Bluetooth keyboard
 
@@ -101,7 +103,7 @@ Keys are read through the Game Controller framework (`GCKeyboard`) and through U
 
 ## Fixes for tvOS 16
 
-Orbrisa targets tvOS 17 and newer. Running it on tvOS 16 needed the backport below, and the fixes TV-safari had already found on this system were carried over. The commit messages record how each problem was found.
+Orbrisa targets tvOS 17 and newer. Running its code on tvOS 16 needed the backport below, and the fixes TV-safari had already found on this system were carried over. The commit messages record how each problem was found.
 
 | Problem on tvOS 16 | Fix |
 |---|---|

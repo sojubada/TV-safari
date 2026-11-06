@@ -98,7 +98,7 @@ jobs:
           [ "$TOO_NEW" -eq 0 ]
 
           VERSION=$(/usr/libexec/PlistBuddy -c 'Print :CFBundleShortVersionString' "$APP/Info.plist")
-          IPA="Orbrisa-${VERSION}-tvOS15.6-unsigned.ipa"
+          IPA="tvOSBrowser-${VERSION}-tvOS15.6-unsigned.ipa"
           rm -rf Payload && mkdir -p Payload
           cp -R "$APP" Payload/
           zip -qry "$IPA" Payload
@@ -111,7 +111,7 @@ jobs:
       - name: Upload the IPA as a workflow artifact
         uses: actions/upload-artifact@v4
         with:
-          name: Orbrisa-unsigned-ipa
+          name: tvOSBrowser-unsigned-ipa
           path: ${{ steps.package.outputs.ipa }}
           if-no-files-found: error
 
@@ -127,7 +127,7 @@ jobs:
           TAG="${{ github.event.inputs.release_tag }}"
           [ -n "$TAG" ] || TAG="build-${GITHUB_RUN_NUMBER}"
           cat > notes.md <<NOTES
-          Orbrisa (fdm96/Orbrisa) built for tvOS 15.6+ (tested target: Apple TV on tvOS 16.6, installed with TrollStore).
+          tvOS Browser for Apple TV on tvOS 15.6+ (tested on tvOS 16.6, installed with TrollStore). Based on fdm96/Orbrisa and jvanakker/tvOSBrowser.
 
           | | |
           |---|---|
@@ -139,5 +139,5 @@ jobs:
           if gh release view "$TAG" >/dev/null 2>&1; then
             gh release upload "$TAG" "$IPA" --clobber
           else
-            gh release create "$TAG" "$IPA" --title "Orbrisa $VERSION for tvOS 16 ($TAG)" --notes-file notes.md
+            gh release create "$TAG" "$IPA" --title "tvOS Browser $VERSION for tvOS 16 ($TAG)" --notes-file notes.md
           fi
