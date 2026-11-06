@@ -7,6 +7,7 @@
 
 #import <objc/runtime.h>
 
+#import <dlfcn.h>
 #import <execinfo.h>
 #import <fcntl.h>
 #import <sys/stat.h>
@@ -157,7 +158,13 @@ static void BrowserHandleFatalSignal(int signalNumber) {
     stackInfo.ss_sp = alternateStack;
     stackInfo.ss_size = sizeof(alternateStack);
     stackInfo.ss_flags = 0;
-    sigaltstack(&stackInfo, NULL);
+    // The tvOS SDK marks sigaltstack unavailable, but libsystem has it. Looked
+    // up at run time; if it is not there the handler runs as it did before.
+    int (*alternateStackCall)(const stack_t *, stack_t *) =
+        (int (*)(const stack_t *, stack_t *))dlsym(RTLD_DEFAULT, "sigaltstack");
+    if (alternateStackCall != NULL) {
+        alternateStackCall(&stackInfo, NULL);
+    }
 
     struct sigaction action;
     memset(&action, 0, sizeof(action));
