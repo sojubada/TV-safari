@@ -80,7 +80,7 @@ The IPA is unsigned and is not modified for any jailbreak. The app stays inside 
 | Cursor at the top / bottom edge | The page scrolls by itself |
 | Ring up with the cursor by the bar, or at the top of the page · slide the cursor into the bar | Into the top bar: back, forward, reload, address, home, ⭐ favorites, tabs, full screen, menu |
 | Ring down, or a firm swipe down | Out of the top bar |
-| Back | Previous page · closes menus and typing |
+| Back | Previous page · closes menus and typing · with no page left to go back to, closes the tab; the last tab goes to Google |
 | Play/Pause · twice | Quick menu · Settings |
 
 In link navigation the ring moves between links and the center opens one. In the Apple TV player the remote works as it does in the TV app.

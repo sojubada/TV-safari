@@ -1262,23 +1262,22 @@ static CGFloat const kGlassSliderTrackWidth = 680.0;
     return [self favoriteIndexForURLString:URLString] != NSNotFound;
 }
 
-// Like TV-safari's star: the first row adds or removes this page at once (no
-// naming step to type through with a remote), the rest is the list.
+// Like TV-safari's star: a panel with the add/remove row at the top and the
+// favorites listed right under it, one row per saved page — not a dialog,
+// and not a second screen behind a row.
 - (void)presentFavoritesPanel {
     BrowserWebView *webView = [self.host browserWebView];
     NSString *currentURL = webView.request.URL.absoluteString ?: @"";
     BOOL pageIsWeb = [currentURL hasPrefix:@"http://"] || [currentURL hasPrefix:@"https://"];
     NSInteger currentIndex = pageIsWeb ? [self favoriteIndexForURLString:currentURL] : NSNotFound;
     NSArray *favorites = [[NSUserDefaults standardUserDefaults] arrayForKey:@"FAVORITES"] ?: @[];
-
-    UIAlertController *alertController = [self browserAlertControllerWithTitle:BrowserLocalized(@"Favorites")
-                                                                       message:favorites.count == 0 ? BrowserLocalized(@"No favorites yet.") : @""];
     __weak typeof(self) weakSelf = self;
 
+    NSMutableArray<BrowserAdvancedMenuItem *> *actionItems = [NSMutableArray array];
     if (pageIsWeb && currentIndex == NSNotFound) {
-        [alertController addAction:[self browserActionWithTitle:[@"☆  " stringByAppendingString:BrowserLocalized(@"Add This Page")]
-                                                          style:UIAlertActionStyleDefault
-                                                        handler:^(__unused UIAlertAction *action) {
+        [actionItems addObject:[self advancedMenuItemWithTitle:[@"☆  " stringByAppendingString:BrowserLocalized(@"Add This Page")]
+                                                         style:UIAlertActionStyleDefault
+                                                       handler:^{
             NSString *title = webView.title;
             if (![weakSelf stringHasVisibleContent:title]) {
                 title = currentURL;
@@ -1289,9 +1288,9 @@ static CGFloat const kGlassSliderTrackWidth = 680.0;
             [weakSelf.host browserFavoritesDidChange];
         }]];
     } else if (pageIsWeb) {
-        [alertController addAction:[self browserActionWithTitle:[@"★  " stringByAppendingString:BrowserLocalized(@"Remove This Page")]
-                                                          style:UIAlertActionStyleDestructive
-                                                        handler:^(__unused UIAlertAction *action) {
+        [actionItems addObject:[self advancedMenuItemWithTitle:[@"★  " stringByAppendingString:BrowserLocalized(@"Remove This Page")]
+                                                         style:UIAlertActionStyleDestructive
+                                                       handler:^{
             NSMutableArray *updated = [([[NSUserDefaults standardUserDefaults] arrayForKey:@"FAVORITES"] ?: @[]) mutableCopy];
             NSInteger index = [weakSelf favoriteIndexForURLString:currentURL];
             if (index != NSNotFound && index < (NSInteger)updated.count) {
@@ -1301,33 +1300,59 @@ static CGFloat const kGlassSliderTrackWidth = 680.0;
             [weakSelf.host browserFavoritesDidChange];
         }]];
     }
-
-    [favorites enumerateObjectsUsingBlock:^(NSArray *entry, __unused NSUInteger index, __unused BOOL *stop) {
-        if (![entry isKindOfClass:[NSArray class]]) {
-            return;
-        }
-        NSString *URLString = entry.count > 0 ? entry[0] : @"";
-        NSString *title = entry.count > 1 ? entry[1] : @"";
-        NSString *displayTitle = [weakSelf displayTitleForStoredTitle:title URLString:URLString includeURL:NO];
-        if (![weakSelf stringHasVisibleContent:displayTitle] || ![weakSelf stringHasVisibleContent:URLString]) {
-            return;
-        }
-        [alertController addAction:[weakSelf browserActionWithTitle:displayTitle
-                                                              style:UIAlertActionStyleDefault
-                                                            handler:^(__unused UIAlertAction *action) {
-            [weakSelf loadStoredURLString:URLString];
-        }]];
-    }];
-
     if (favorites.count > 0) {
-        [alertController addAction:[self browserActionWithTitle:BrowserLocalized(@"Delete a Favorite")
-                                                          style:UIAlertActionStyleDestructive
-                                                        handler:^(__unused UIAlertAction *action) {
+        [actionItems addObject:[self advancedMenuItemWithTitle:BrowserLocalized(@"Delete a Favorite")
+                                                         style:UIAlertActionStyleDestructive
+                                                       handler:^{
             [weakSelf presentDeleteFavoriteMenu];
         }]];
     }
-    [alertController addAction:[self browserCancelAction]];
-    [self.host browserPresentViewController:alertController];
+
+    NSMutableArray<BrowserAdvancedMenuItem *> *listItems = [NSMutableArray array];
+    for (NSArray *entry in favorites) {
+        if (![entry isKindOfClass:[NSArray class]] || entry.count == 0) {
+            continue;
+        }
+        NSString *URLString = [entry[0] isKindOfClass:[NSString class]] ? entry[0] : @"";
+        NSString *title = (entry.count > 1 && [entry[1] isKindOfClass:[NSString class]]) ? entry[1] : @"";
+        if (![self stringHasVisibleContent:URLString]) {
+            continue;
+        }
+        NSString *displayTitle = [self displayTitleForStoredTitle:title URLString:URLString includeURL:NO];
+        if (![self stringHasVisibleContent:displayTitle]) {
+            displayTitle = URLString;
+        }
+        BOOL isCurrent = pageIsWeb &&
+            [[self normalizedFavoriteKeyForURLString:URLString] isEqualToString:[self normalizedFavoriteKeyForURLString:currentURL]];
+        BrowserAdvancedMenuItem *item = [self advancedMenuItemWithTitle:(isCurrent ? [@"▸ " stringByAppendingString:displayTitle] : displayTitle)
+                                                                  style:UIAlertActionStyleDefault
+                                                                handler:^{
+            [weakSelf loadStoredURLString:URLString];
+        }];
+        NSString *host = [NSURL URLWithString:URLString].host ?: @"";
+        if ([host hasPrefix:@"www."]) {
+            host = [host substringFromIndex:4];
+        }
+        item.detailValue = ^NSString *{ return host; };
+        [listItems addObject:item];
+    }
+
+    NSMutableArray<BrowserAdvancedMenuSection *> *sections = [NSMutableArray array];
+    if (actionItems.count > 0) {
+        [sections addObject:[BrowserAdvancedMenuSection sectionWithTitle:BrowserLocalized(@"Favorites") items:actionItems]];
+    }
+    [sections addObject:[BrowserAdvancedMenuSection sectionWithTitle:BrowserLocalized(@"List")
+                                                               items:listItems.count > 0 ? listItems : @[
+        [self advancedMenuItemWithTitle:BrowserLocalized(@"No favorites yet.")
+                                  style:UIAlertActionStyleDefault
+                                handler:^{}]
+    ]]];
+
+    BrowserAdvancedMenuViewController *panel =
+        [[BrowserAdvancedMenuViewController alloc] initWithTitle:BrowserLocalized(@"Favorites")
+                                                        sections:sections
+                                                      footerText:@""];
+    [self.host browserPresentViewController:panel];
 }
 
 - (void)presentHistoryMenu {

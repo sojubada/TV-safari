@@ -375,7 +375,12 @@ static NSString * const kBrowserLastPageEdgeColorKey = @"BrowserLastPageEdgeColo
 - (void)restoreInitialStateOrCreateFirstTab {
     self.topMenuView.hidden = !self.viewModel.topNavigationBarVisible;
     if (![self restoreBrowserSession]) {
+        // The very first tab starts on Google.
         [self createNewTabLoadingHomePage:NO];
+        NSURLRequest *googleRequest = [self.navigationService requestForURLString:@"https://www.google.com"];
+        if (googleRequest != nil) {
+            [self.activeWebView loadRequest:googleRequest];
+        }
         return;
     }
     [self initWebView];
@@ -649,6 +654,29 @@ static NSString * const kBrowserLastPageEdgeColorKey = @"BrowserLastPageEdgeColo
         [self loadStoredContentForTab:self.activeTab webView:self.activeWebView fallbackToHomePage:YES];
     }
     [self persistSession];
+}
+
+- (void)replaceActiveTabWithFreshTabLoadingRequest:(NSURLRequest *)request {
+    if (request == nil) {
+        return;
+    }
+    NSInteger oldIndex = self.viewModel.activeTabIndex;
+    BrowserTabViewModel *tab = [self.viewModel addTab];
+    if (tab == nil) {
+        // No room for another tab: load it in this one instead.
+        [self.activeWebView loadRequest:request];
+        return;
+    }
+    [self initWebView];
+    [self refreshActiveTabUI];
+    [self.rootView bringSubviewToFront:self.cursorView];
+    [self.activeWebView loadRequest:request];
+    if (oldIndex != NSNotFound && oldIndex >= 0 && oldIndex < (NSInteger)self.viewModel.tabs.count &&
+        self.viewModel.tabs[oldIndex] != tab) {
+        [self closeTabAtIndex:oldIndex];
+    } else {
+        [self persistSession];
+    }
 }
 
 - (void)closeTabAtIndex:(NSInteger)tabIndex {

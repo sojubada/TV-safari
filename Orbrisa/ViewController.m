@@ -2289,7 +2289,48 @@ static CGFloat const kShowTopBarButtonHitSlop = 24.0;
 - (void)browserRemoteInputControllerGoBack {
     if (self.webview.canGoBack) {
         [self.webview goBack];
+    } else {
+        [self handleBackWithNoHistory];
     }
+}
+
+// Back with nowhere further back in this tab: the tab closes. When it is the
+// last tab, a fresh one opens on Google in its place (with no history, so
+// Back cannot bounce to the old page). Back on that Google page is left to
+// the caller (Menu asks whether to exit; the ring does nothing).
+- (BOOL)isGoogleStartPage:(NSURL *)URL {
+    NSString *host = URL.host.lowercaseString ?: @"";
+    if (![host isEqualToString:@"google.com"] && ![host hasSuffix:@".google.com"] &&
+        ![host isEqualToString:@"google.co.kr"] && ![host hasSuffix:@".google.co.kr"]) {
+        return NO;
+    }
+    NSString *path = URL.path ?: @"";
+    return path.length == 0 || [path isEqualToString:@"/"] || [path isEqualToString:@"/webhp"];
+}
+
+- (BOOL)handleBackWithNoHistory {
+    NSUInteger tabCount = self.viewModel.tabs.count;
+    if (tabCount > 1) {
+        [[BrowserDiagnosticsLog sharedLog] logEvent:@"back" detail:@"no history: closing this tab"];
+        [self endHardwareTypingSession];
+        [self cancelStuckLoadWatchdog];
+        [self.tabCoordinator closeTabAtIndex:self.viewModel.activeTabIndex];
+        [self.view bringSubviewToFront:self.remoteInputController.cursorView];
+        return YES;
+    }
+    if ([self isGoogleStartPage:self.webview.request.URL]) {
+        return NO;
+    }
+    NSURLRequest *googleRequest = [self.navigationService requestForURLString:@"https://www.google.com"];
+    if (googleRequest == nil) {
+        return NO;
+    }
+    [[BrowserDiagnosticsLog sharedLog] logEvent:@"back" detail:@"no history in the last tab: fresh tab on Google"];
+    [self endHardwareTypingSession];
+    [self cancelStuckLoadWatchdog];
+    [self.tabCoordinator replaceActiveTabWithFreshTabLoadingRequest:googleRequest];
+    [self.view bringSubviewToFront:self.remoteInputController.cursorView];
+    return YES;
 }
 
 - (void)browserRemoteInputControllerGoForward {
@@ -2316,6 +2357,8 @@ static CGFloat const kShowTopBarButtonHitSlop = 24.0;
         [self.presentedViewController dismissViewControllerAnimated:YES completion:nil];
     } else if (self.webview.canGoBack) {
         [self.webview goBack];
+    } else if ([self handleBackWithNoHistory]) {
+        return;
     } else {
         UIAlertController *alert = [UIAlertController alertControllerWithTitle:BrowserLocalized(@"Exit App?")
                                                                        message:nil

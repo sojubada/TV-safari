@@ -49,6 +49,9 @@ NS_ASSUME_NONNULL_BEGIN
 - (BOOL)createNewTabWithRequest:(NSURLRequest *)request;
 - (void)switchToTabAtIndex:(NSInteger)tabIndex;
 - (void)closeTabAtIndex:(NSInteger)tabIndex;
+/// Puts a new tab with no history in place of the active one and loads the
+/// request in it, so Back from there cannot return to the old pages.
+- (void)replaceActiveTabWithFreshTabLoadingRequest:(NSURLRequest *)request;
 - (void)recreateActiveWebViewPreservingCurrentURL;
 /// Drops the web views of tabs not on screen (memory warning). Their address
 /// and scroll position are kept; switching back loads them again.
