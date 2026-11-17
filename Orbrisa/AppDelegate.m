@@ -110,6 +110,49 @@ static void BrowserLogUncaughtException(NSException *exception) {
                                exception.name ?: @"?", exception.reason ?: @"?", frames ?: @""]];
 }
 
+// Housekeeping: everything below lives in the app's own Caches and tmp folders,
+// which tvOS may delete at any time, so removing it is safe. It runs at launch,
+// before any web content process exists. Login data (Library/WebKit, cookies)
+// is never touched.
+static unsigned long long BrowserDirectorySize(NSString *path, NSFileManager *fm) {
+    unsigned long long total = 0;
+    NSDirectoryEnumerator *walker = [fm enumeratorAtPath:path];
+    for (NSString *item in walker) {
+        NSDictionary *attrs = [walker fileAttributes];
+        if ([attrs[NSFileType] isEqualToString:NSFileTypeRegular]) {
+            total += [attrs fileSize];
+        }
+    }
+    return total;
+}
+
+static void BrowserPruneCaches(void) {
+    NSFileManager *fm = [NSFileManager defaultManager];
+    NSString *caches = NSSearchPathForDirectoriesInDomains(NSCachesDirectory, NSUserDomainMask, YES).firstObject;
+    if (caches.length == 0) {
+        return;
+    }
+    // WebKit's network cache (Caches/WebKit/NetworkCache/Version N/...): over 40 MB it goes.
+    // Other cache folders: over 20 MB. Diagnostics (the logs) are kept.
+    NSArray<NSArray *> *rules = @[
+        @[[caches stringByAppendingPathComponent:@"WebKit/NetworkCache"], @(40)],
+        @[[caches stringByAppendingPathComponent:@"WebKit/CacheStorage"], @(20)],
+        @[[caches stringByAppendingPathComponent:@"com.sojubada.orbrisa"], @(20)],
+        @[NSTemporaryDirectory(), @(20)],
+    ];
+    for (NSArray *rule in rules) {
+        NSString *path = rule[0];
+        unsigned long long limit = [rule[1] unsignedLongLongValue] * 1024ULL * 1024ULL;
+        if (![fm fileExistsAtPath:path] || BrowserDirectorySize(path, fm) <= limit) {
+            continue;
+        }
+        for (NSString *child in [fm contentsOfDirectoryAtPath:path error:NULL]) {
+            [fm removeItemAtPath:[path stringByAppendingPathComponent:child] error:NULL];
+        }
+        [[BrowserDiagnosticsLog sharedLog] logEvent:@"cleanup" detail:[NSString stringWithFormat:@"emptied %@", path.lastPathComponent]];
+    }
+}
+
 - (BOOL)application:(UIApplication *)application didFinishLaunchingWithOptions:(NSDictionary *)launchOptions {
     NSSetUncaughtExceptionHandler(&BrowserLogUncaughtException);
     // B1: a ceiling on the URL cache. A few tens of megabytes is plenty for
@@ -121,6 +164,7 @@ static void BrowserLogUncaughtException(NSException *exception) {
     // C1: crashes below Objective-C and a main thread that stops answering
     // leave no trace otherwise.
     [[BrowserDiagnosticsLog sharedLog] installCrashAndStallWatch];
+    BrowserPruneCaches();
 	// Override point for customization after application launch.
     if ([[NSUserDefaults standardUserDefaults] boolForKey:@"MobileMode"]) {
         [[NSUserDefaults standardUserDefaults] setObject:BrowserPreferencesStore.mobileUserAgent forKey:@"UserAgent"];

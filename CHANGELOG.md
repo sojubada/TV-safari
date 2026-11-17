@@ -2,6 +2,11 @@
 
 All notable changes to Orbrisa. The format follows [Keep a Changelog](https://keepachangelog.com), versions follow [Semantic Versioning](https://semver.org).
 
+## [1.3.2] – 2026-11-18
+
+### Changed
+- **Housekeeping at launch**: WebKit's network cache (Caches/WebKit/NetworkCache) is emptied once it passes 40 MB, other cache folders and tmp once they pass 20 MB. Only cache files are removed; logins, cookies, favorites and the log are kept.
+
 ## [1.3.1] – 2026-11-17
 
 ### Fixed
