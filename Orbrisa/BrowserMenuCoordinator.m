@@ -1842,7 +1842,7 @@ static NSUInteger const kBrowserFontSizeMax = 200;
 - (BrowserAdvancedMenuItem *)webPageMediaToggleMenuItem {
     __weak typeof(self) weakSelf = self;
     return [self toggleMenuItemWithTitle:BrowserLocalized(@"Play Media Inside Pages")
-                                   value:^BOOL{ return [[NSUserDefaults standardUserDefaults] boolForKey:BrowserMediaPlaybackEnabledDefaultsKey]; }
+                                   value:^BOOL{ NSNumber *stored = [[NSUserDefaults standardUserDefaults] objectForKey:BrowserMediaPlaybackEnabledDefaultsKey]; return stored == nil ? YES : stored.boolValue; }
                                  changed:^(BOOL on) {
         [[NSUserDefaults standardUserDefaults] setBool:on forKey:BrowserMediaPlaybackEnabledDefaultsKey];
         [[BrowserDiagnosticsLog sharedLog] logEvent:@"media-switch" detail:on ? @"on" : @"off"];

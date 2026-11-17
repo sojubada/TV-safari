@@ -67,8 +67,11 @@ static BOOL BrowserPumpRunLoopUntilWithTimeout(BOOL *done, NSTimeInterval timeou
 NSString * const BrowserMediaPlaybackEnabledDefaultsKey = @"MediaPlaybackEnabled";
 NSString * const BrowserContentBlockingEnabledDefaultsKey = @"ContentBlockingEnabled";
 
-static BOOL BrowserMediaPlaybackWanted(void) {
-    return [[NSUserDefaults standardUserDefaults] boolForKey:BrowserMediaPlaybackEnabledDefaultsKey];
+// On unless the user switched it off (Settings > Video Playback). It was off by
+// default in 1.2.x/1.3.0, which is why YouTube and Naver videos never appeared.
+BOOL BrowserMediaPlaybackWanted(void) {
+    NSNumber *value = [[NSUserDefaults standardUserDefaults] objectForKey:BrowserMediaPlaybackEnabledDefaultsKey];
+    return value == nil ? YES : value.boolValue;
 }
 
 static BOOL BrowserContentBlockingWanted(void) {

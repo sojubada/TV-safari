@@ -2,6 +2,11 @@
 
 All notable changes to Orbrisa. The format follows [Keep a Changelog](https://keepachangelog.com), versions follow [Semantic Versioning](https://semver.org).
 
+## [1.3.1] – 2026-11-17
+
+### Fixed
+- **Videos on YouTube and Naver News did not appear**: *Play Media Inside Pages* was off unless switched on by hand. It is now on by default (a stored choice is kept); Settings > Video Playback still turns it off.
+
 ## [1.3.0] – 2026-11-17
 
 Safety release, guided by Google's Modern Web Guidance (privacy, security and performance parts; no UI changes except the exit button).
