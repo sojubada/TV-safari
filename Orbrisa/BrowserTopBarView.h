@@ -21,7 +21,8 @@ typedef NS_ENUM(NSInteger, BrowserTopBarAction) {
     BrowserTopBarActionMenu,
     BrowserTopBarActionReader,
     BrowserTopBarActionFeed,
-    BrowserTopBarActionFavorites
+    BrowserTopBarActionFavorites,
+    BrowserTopBarActionExit
 };
 
 @class BrowserTopBarView;

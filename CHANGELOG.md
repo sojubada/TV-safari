@@ -2,6 +2,20 @@
 
 All notable changes to Orbrisa. The format follows [Keep a Changelog](https://keepachangelog.com), versions follow [Semantic Versioning](https://semver.org).
 
+## [1.3.0] – 2026-11-17
+
+Safety release, guided by Google's Modern Web Guidance (privacy, security and performance parts; no UI changes except the exit button).
+
+### Added
+- **Exit button** at the left end of the top bar (asks for confirmation, then saves cookies and quits)
+
+### Changed
+- Addresses typed without a scheme use **HTTPS first**, with a single http retry if the secure connection fails
+- Cookie banners are **no longer accepted automatically** by default (opt-in in Settings)
+- Diagnostic log keeps scheme, host and path only: **no query strings or fragments**
+- Video playback requests send only the **origin** as Referer
+- Reader extraction is bounded (1500 paragraphs, 300 ms) so a huge page cannot stall the page thread
+
 ## [1.1.0-beta.1] – 2026-11-05
 
 **Beta 1** – try the new Reader and RSS feeds. Things may still change; please report anything odd.

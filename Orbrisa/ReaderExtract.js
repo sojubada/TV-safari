@@ -26,7 +26,11 @@
     // 1. Score containers by the paragraph text inside them.
     var scores = new Map();
     var paragraphs = document.querySelectorAll('p');
-    for (var i = 0; i < paragraphs.length; i++) {
+    // Long-task guard (this runs synchronously on the page's thread): at most
+    // 1500 paragraphs and a 300 ms budget, whichever comes first.
+    var deadline = Date.now() + 300;
+    for (var i = 0; i < paragraphs.length && i < 1500; i++) {
+      if ((i & 15) === 0 && Date.now() > deadline) { break; }
       var p = paragraphs[i];
       var len = text(p).length;
       if (len < 40 || skipped(p, document.body)) { continue; }

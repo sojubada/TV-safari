@@ -41,10 +41,29 @@ static NSUInteger const kMaximumHistoryCount = 100;
         return nil;
     }
     
+    self.httpsFirstAddress = nil;
     if (![trimmedAddress hasPrefix:@"http://"] && ![trimmedAddress hasPrefix:@"https://"]) {
-        trimmedAddress = [@"http://" stringByAppendingString:trimmedAddress];
+        // HTTPS first. An address typed without a scheme is retried once over
+        // http:// only if the secure connection cannot be made (see
+        // httpFallbackRequestForFailedURL:).
+        self.httpsFirstAddress = trimmedAddress;
+        trimmedAddress = [@"https://" stringByAppendingString:trimmedAddress];
     }
     return [self requestForURLString:trimmedAddress];
+}
+
+- (NSURLRequest *)httpFallbackRequestForFailedURL:(NSURL *)failedURL {
+    NSString *address = self.httpsFirstAddress;
+    if (address.length == 0 || failedURL == nil || ![failedURL.scheme isEqualToString:@"https"]) {
+        return nil;
+    }
+    NSString *expected = [@"https://" stringByAppendingString:address];
+    if (![failedURL.absoluteString isEqualToString:expected] &&
+        ![failedURL.absoluteString isEqualToString:[expected stringByAppendingString:@"/"]]) {
+        return nil;
+    }
+    self.httpsFirstAddress = nil; // one retry per typed address
+    return [self requestForURLString:[@"http://" stringByAppendingString:address]];
 }
 
 - (NSURLRequest *)googleSearchRequestForQuery:(NSString *)query {

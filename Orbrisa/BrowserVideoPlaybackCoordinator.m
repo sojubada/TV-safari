@@ -395,8 +395,9 @@ static BOOL const kBrowserYouTubeNativeExtractionEnabled = NO;
         headers[@"User-Agent"] = userAgent;
     }
 
-    headers[@"Referer"] = pageURL.absoluteString ?: @"https://www.youtube.com/";
     NSString *origin = [NSString stringWithFormat:@"%@://%@", pageURL.scheme ?: @"https", pageURL.host ?: @"www.youtube.com"];
+    // Referrer minimisation: the origin only, never the watch URL with its video id and query.
+    headers[@"Referer"] = [origin stringByAppendingString:@"/"];
     headers[@"Origin"] = origin;
 
     NSArray<NSHTTPCookie *> *cookies = [[NSHTTPCookieStorage sharedHTTPCookieStorage] cookiesForURL:pageURL];

@@ -305,6 +305,24 @@ static void BrowserHandleFatalSignal(int signalNumber) {
                     [self memoryFootprintSummary], [[self class] freeDiskMegabytes]]];
 }
 
+// Privacy: the log keeps scheme, host and path of a URL but never the query or
+// fragment, where search terms, session tokens and ids live.
++ (NSString *)sanitizedDetail:(NSString *)detail {
+    if (detail.length == 0 || ([detail rangeOfString:@"?"].location == NSNotFound &&
+                               [detail rangeOfString:@"#"].location == NSNotFound)) {
+        return detail;
+    }
+    static NSRegularExpression *expression = nil;
+    static dispatch_once_t onceToken;
+    dispatch_once(&onceToken, ^{
+        expression = [NSRegularExpression regularExpressionWithPattern:@"(https?://[^\\s?#\"']*)[?#][^\\s\"']*"
+                                                               options:0 error:NULL];
+    });
+    return [expression stringByReplacingMatchesInString:detail options:0
+                                                  range:NSMakeRange(0, detail.length)
+                                           withTemplate:@"$1"];
+}
+
 - (void)logEventSynchronously:(NSString *)event detail:(NSString *)detail {
     NSString *path = self.logFilePath;
     if (path.length == 0 || event.length == 0) {
@@ -312,7 +330,7 @@ static void BrowserHandleFatalSignal(int signalNumber) {
     }
     NSString *stamp = [self.timestampFormatter stringFromDate:[NSDate date]];
     NSString *line = [NSString stringWithFormat:@"%@  %@  %@\n",
-                      stamp, event, detail.length > 0 ? detail : @""];
+                      stamp, event, detail.length > 0 ? [[self class] sanitizedDetail:detail] : @""];
     [[self class] appendLine:line toPath:path];
 }
 
@@ -323,7 +341,7 @@ static void BrowserHandleFatalSignal(int signalNumber) {
     }
     NSString *stamp = [self.timestampFormatter stringFromDate:[NSDate date]];
     NSString *line = [NSString stringWithFormat:@"%@  %@  %@\n",
-                      stamp, event, detail.length > 0 ? detail : @""];
+                      stamp, event, detail.length > 0 ? [[self class] sanitizedDetail:detail] : @""];
 
     dispatch_async(self.writeQueue, ^{
         [[self class] appendLine:line toPath:path];

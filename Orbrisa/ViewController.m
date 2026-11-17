@@ -917,6 +917,9 @@ static UIImage *BrowserGuideSymbol(NSArray<NSString *> *names, CGFloat pointSize
         case BrowserTopBarActionFavorites:
             [self.menuCoordinator presentFavoritesPanel];
             break;
+        case BrowserTopBarActionExit:
+            [self confirmAndExitApp];
+            break;
         case BrowserTopBarActionTabs:
             [self browserShowTabOverview];
             break;
@@ -2373,6 +2376,22 @@ static CGFloat const kShowTopBarButtonHitSlop = 24.0;
     }
 }
 
+- (void)confirmAndExitApp {
+    UIAlertController *alert = [UIAlertController alertControllerWithTitle:BrowserLocalized(@"Exit App?")
+                                                                   message:nil
+                                                            preferredStyle:UIAlertControllerStyleAlert];
+    [alert addAction:[UIAlertAction actionWithTitle:BrowserLocalized(@"Dismiss") style:UIAlertActionStyleCancel handler:nil]];
+    [alert addAction:[UIAlertAction actionWithTitle:BrowserLocalized(@"Exit")
+                                              style:UIAlertActionStyleDestructive
+                                            handler:^(__unused UIAlertAction *action) {
+        // Same clean path as the Menu-button exit: cookies are saved in applicationWillTerminate.
+        [[BrowserDiagnosticsLog sharedLog] logEvent:@"app" detail:@"exit button"];
+        [[UIApplication sharedApplication].delegate applicationWillTerminate:[UIApplication sharedApplication]];
+        exit(EXIT_SUCCESS);
+    }]];
+    [self presentViewController:alert animated:YES completion:nil];
+}
+
 - (void)browserRemoteInputControllerHandlePlayPausePress {
     UIAlertController *alertController = (UIAlertController *)self.presentedViewController;
     if (alertController != nil) {
@@ -2755,6 +2774,12 @@ static const NSTimeInterval kStuckLoadTimeout = 30.0;
         return;
     }
     if ([self.navigationService shouldIgnoreLoadError:error]) {
+        return;
+    }
+    NSURLRequest *httpFallback = [self.navigationService httpFallbackRequestForFailedURL:failingURL ?: currentRequest.URL];
+    if (httpFallback != nil) {
+        [[BrowserDiagnosticsLog sharedLog] logEvent:@"https-first" detail:@"secure load failed, retrying over http once"];
+        [webView loadRequest:httpFallback];
         return;
     }
 

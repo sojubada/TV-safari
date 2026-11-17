@@ -122,6 +122,7 @@ static CGFloat const kTopBarFeedGap = 32.0; // room for the address pill growing
 @property (nonatomic) UIActivityIndicatorView *loadingSpinner;
 
 @property (nonatomic) NSArray<BrowserTopBarFocusButton *> *focusButtons;
+@property (nonatomic) BrowserTopBarFocusButton *exitFocusButton;
 @property (nonatomic) BrowserTopBarFocusButton *backFocusButton;
 @property (nonatomic) BrowserTopBarFocusButton *refreshFocusButton;
 @property (nonatomic) BrowserTopBarFocusButton *forwardFocusButton;
@@ -238,11 +239,12 @@ void BrowserApplyGlassAmount(UIVisualEffectView *effectView, UIColor *solidColor
     _rightContainerView = [self newIslandContainerView];
     _rightEffectView = [self newIslandEffectViewInContainer:_rightContainerView];
 
-    // Left island: back, forward, reload
+    // Left island: exit, back, forward, reload
+    _exitFocusButton = [self newFocusButtonForAction:BrowserTopBarActionExit symbolName:@"power" accessibilityLabel:BrowserLocalized(@"Exit")];
     _backFocusButton = [self newFocusButtonForAction:BrowserTopBarActionBack symbolName:@"chevron.backward" accessibilityLabel:BrowserLocalized(@"Back")];
     _forwardFocusButton = [self newFocusButtonForAction:BrowserTopBarActionForward symbolName:@"chevron.forward" accessibilityLabel:BrowserLocalized(@"Forward")];
     _refreshFocusButton = [self newFocusButtonForAction:BrowserTopBarActionRefresh symbolName:@"arrow.clockwise" accessibilityLabel:BrowserLocalized(@"Reload")];
-    for (BrowserTopBarFocusButton *button in @[_backFocusButton, _forwardFocusButton, _refreshFocusButton]) {
+    for (BrowserTopBarFocusButton *button in @[_exitFocusButton, _backFocusButton, _forwardFocusButton, _refreshFocusButton]) {
         [_leftEffectView.contentView addSubview:button];
     }
 
@@ -366,6 +368,7 @@ void BrowserApplyGlassAmount(UIVisualEffectView *effectView, UIColor *solidColor
     [self applyFeedLook];
 
     _focusButtons = @[
+        _exitFocusButton,
         _backFocusButton,
         _forwardFocusButton,
         _refreshFocusButton,
@@ -562,7 +565,7 @@ void BrowserApplyGlassAmount(UIVisualEffectView *effectView, UIColor *solidColor
 
     self.contentView.frame = self.bounds;
 
-    NSArray<BrowserTopBarFocusButton *> *leftButtons = @[self.backFocusButton, self.forwardFocusButton, self.refreshFocusButton];
+    NSArray<BrowserTopBarFocusButton *> *leftButtons = @[self.exitFocusButton, self.backFocusButton, self.forwardFocusButton, self.refreshFocusButton];
     NSArray<BrowserTopBarFocusButton *> *rightButtons = @[self.homeFocusButton, self.favoritesFocusButton, self.tabsFocusButton, self.fullscreenFocusButton, self.menuFocusButton];
 
     CGFloat availableWidth = MIN(CGRectGetWidth(self.bounds) - (kTopBarHorizontalInset * 2.0), kTopBarMaxWidth);

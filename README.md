@@ -44,7 +44,7 @@ The app is named **tvOS Browser** and uses the original blue compass icon from t
 | 🔗 **Link navigation** | Jump from link to link with the ring, like a native tvOS app |
 | 🎬 **Native player** | Videos play in the Apple TV player; VLCKit plays the formats the system player can't |
 | 📖 **Reader & feeds** | A clean reading view for articles, and RSS/Atom feeds |
-| 🍪 **Cookie banners** | Accepted automatically (optional) |
+| 🍪 **Cookie banners** | Not touched by default; auto-accept is an opt-in setting |
 | 🫥 **Auto-hiding bar** | The top bar slides away while scrolling down and comes back when scrolling up |
 
 **Added here (from TV-safari)**
@@ -113,6 +113,8 @@ Orbrisa targets tvOS 17 and newer. Running its code on tvOS 16 needed the backpo
 | A dead page process left the first screen showing and nothing below it | Reload once; twice on the same page, ask the site for its phone page from then on; a third time, offer the choice |
 | A synchronous answer from WebKit was waited for with no limit, so a busy page froze the app | Waits are bounded (2 s for scripts, 5 s for cookies) |
 | A page that never started held the web view, and every address after it queued behind it | A new address cancels the old load; after 30 s with no start, the web view is replaced, once per address |
+| Addresses typed without a scheme went out over plain http | HTTPS first, one http retry only if the secure load fails |
+| The diagnostic log kept full URLs (search terms, tokens) | Only scheme, host and path are logged; the size-capped log lives in Caches |
 | WebKit's caches grew until loads failed with "No space left on device" | URL cache capped at 8/48 MB; WebKit's caches (not cookies or logins) are trimmed below 1.5 GB free |
 | Memory warnings | Background tabs are released and reload when opened |
 

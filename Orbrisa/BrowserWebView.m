@@ -583,7 +583,8 @@ static NSString *BrowserForceDarkScriptFunction(void) {
 
 #pragma mark - Cookie banners
 
-static NSString * const kBrowserAutoAcceptCookiesDisabledKey = @"BrowserAutoAcceptCookiesDisabled";
+// Opt-in since 1.3.0: accepting tracking cookies on the user's behalf is off by default.
+static NSString * const kBrowserAutoAcceptCookiesEnabledKey = @"BrowserAutoAcceptCookiesEnabled";
 
 // Looks for a cookie/consent banner for a few seconds and presses its "accept all" button.
 // Known consent tools first (Google, OneTrust, Didomi, Cookiebot, Usercentrics, ...), then buttons
@@ -884,7 +885,7 @@ static void BrowserInstallYouTubeCaptureUserScript(id configuration) {
     }
 
     // Cookie banners: at document end (1), in every frame, because many banners live in an iframe.
-    if (![[NSUserDefaults standardUserDefaults] boolForKey:kBrowserAutoAcceptCookiesDisabledKey]) {
+    if ([[NSUserDefaults standardUserDefaults] boolForKey:kBrowserAutoAcceptCookiesEnabledKey]) {
         id cookieScript = ((id (*)(id, SEL))objc_msgSend)((id)userScriptClass, @selector(alloc));
         cookieScript = ((id (*)(id, SEL, id, NSInteger, BOOL))objc_msgSend)(cookieScript, userScriptInitializer, BrowserCookieAutoAcceptScript(), 1, NO);
         if (cookieScript != nil) {
@@ -1258,11 +1259,11 @@ static NSInteger BrowserMediaQualityInURL(NSString *URLString) {
 }
 
 + (BOOL)autoAcceptCookies {
-    return ![[NSUserDefaults standardUserDefaults] boolForKey:kBrowserAutoAcceptCookiesDisabledKey];
+    return [[NSUserDefaults standardUserDefaults] boolForKey:kBrowserAutoAcceptCookiesEnabledKey];
 }
 
 + (void)setAutoAcceptCookies:(BOOL)autoAcceptCookies {
-    [[NSUserDefaults standardUserDefaults] setBool:!autoAcceptCookies forKey:kBrowserAutoAcceptCookiesDisabledKey];
+    [[NSUserDefaults standardUserDefaults] setBool:autoAcceptCookies forKey:kBrowserAutoAcceptCookiesEnabledKey];
     // Same path as the dark-mode switch: re-installs the start-of-page scripts in every web view.
     [[NSNotificationCenter defaultCenter] postNotificationName:BrowserForceDarkPagesDidChangeNotification object:nil];
 }
