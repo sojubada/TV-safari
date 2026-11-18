@@ -2,6 +2,14 @@
 
 All notable changes to Orbrisa. The format follows [Keep a Changelog](https://keepachangelog.com), versions follow [Semantic Versioning](https://semver.org).
 
+## [1.3.4] – 2026-11-18
+
+### Fixed
+- **Videos did not play** (YouTube "Your browser can't play this video", Naver News "재생할 수 없는 영상입니다"): tvOS 16 WebKit cannot play page videos itself. *Fullscreen video playback*, which hands a selected video to the native player, was off by default; it is now on, and YouTube's native extraction is enabled. Select the video with the cursor to play it.
+
+### Changed
+- The exit button quits at once, without asking.
+
 ## [1.3.3] – 2026-11-18
 
 ### Fixed

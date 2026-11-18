@@ -8,7 +8,7 @@
 #import "BrowserYouTubeExtractor.h"
 
 static NSString * const kUserAgentDefaultsKey = @"UserAgent";
-static BOOL const kBrowserYouTubeNativeExtractionEnabled = NO;
+static BOOL const kBrowserYouTubeNativeExtractionEnabled = YES;
 
 @interface BrowserVideoPlaybackCoordinator ()
 

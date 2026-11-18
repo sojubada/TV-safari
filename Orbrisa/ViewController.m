@@ -2377,19 +2377,10 @@ static CGFloat const kShowTopBarButtonHitSlop = 24.0;
 }
 
 - (void)confirmAndExitApp {
-    UIAlertController *alert = [UIAlertController alertControllerWithTitle:BrowserLocalized(@"Exit App?")
-                                                                   message:nil
-                                                            preferredStyle:UIAlertControllerStyleAlert];
-    [alert addAction:[UIAlertAction actionWithTitle:BrowserLocalized(@"Dismiss") style:UIAlertActionStyleCancel handler:nil]];
-    [alert addAction:[UIAlertAction actionWithTitle:BrowserLocalized(@"Exit")
-                                              style:UIAlertActionStyleDestructive
-                                            handler:^(__unused UIAlertAction *action) {
-        // Same clean path as the Menu-button exit: cookies are saved in applicationWillTerminate.
-        [[BrowserDiagnosticsLog sharedLog] logEvent:@"app" detail:@"exit button"];
-        [[UIApplication sharedApplication].delegate applicationWillTerminate:[UIApplication sharedApplication]];
-        exit(EXIT_SUCCESS);
-    }]];
-    [self presentViewController:alert animated:YES completion:nil];
+    // No question: the exit button quits at once. Cookies are saved in applicationWillTerminate.
+    [[BrowserDiagnosticsLog sharedLog] logEvent:@"app" detail:@"exit button"];
+    [[UIApplication sharedApplication].delegate applicationWillTerminate:[UIApplication sharedApplication]];
+    exit(EXIT_SUCCESS);
 }
 
 - (void)browserRemoteInputControllerHandlePlayPausePress {
@@ -2548,8 +2539,9 @@ static const NSTimeInterval kStuckLoadTimeout = 30.0;
     if (normalAgent.length == 0) {
         return NO;
     }
-    BOOL wantsPhonePage = self.preferencesStore.lightenHeavySitesEnabled &&
-        [self.preferencesStore isMobileFallbackHost:host];
+    // The built-in hosts (YouTube) get the phone page whatever the lighten-sites switch says.
+    BOOL wantsPhonePage = [self.preferencesStore isMobileFallbackHost:host] &&
+        (self.preferencesStore.lightenHeavySitesEnabled || [self.preferencesStore isBuiltInPhonePageHost:host]);
     NSString *wantedAgent = wantsPhonePage ? BrowserPreferencesStore.mobileUserAgent : normalAgent;
     BrowserWebView *browserWebView = (BrowserWebView *)webView;
     NSString *currentAgent = browserWebView.browserUserAgent;

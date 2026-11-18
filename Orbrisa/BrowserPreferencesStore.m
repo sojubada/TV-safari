@@ -91,7 +91,10 @@ static NSUInteger const kMaximumTextFontSize = 200;
 }
 
 - (BOOL)fullscreenVideoPlaybackEnabled {
-    return [[self defaults] boolForKey:kEnableFullscreenVideoPlaybackDefaultsKey];
+    // On unless switched off: tvOS 16 WebKit cannot play page videos itself, so
+    // selecting a video hands it to the native player.
+    NSNumber *value = [[self defaults] objectForKey:kEnableFullscreenVideoPlaybackDefaultsKey];
+    return value ? value.boolValue : YES;
 }
 
 - (void)setFullscreenVideoPlaybackEnabled:(BOOL)fullscreenVideoPlaybackEnabled {
@@ -167,6 +170,20 @@ static NSUInteger const kMaximumTextFontSize = 200;
     return [[self defaults] arrayForKey:kMobileFallbackHostsDefaultsKey] ?: @[];
 }
 
+- (NSArray<NSString *> *)builtInPhonePageHosts {
+    return @[@"youtube.com"];
+}
+
+- (BOOL)isBuiltInPhonePageHost:(NSString *)host {
+    NSString *lowercase = host.lowercaseString;
+    for (NSString *stored in [self builtInPhonePageHosts]) {
+        if ([lowercase isEqualToString:stored] || [lowercase hasSuffix:[@"." stringByAppendingString:stored]]) {
+            return YES;
+        }
+    }
+    return NO;
+}
+
 - (BOOL)isMobileFallbackHost:(NSString *)host {
     if (host.length == 0) {
         return NO;
@@ -174,10 +191,7 @@ static NSUInteger const kMaximumTextFontSize = 200;
     NSString *lowercase = host.lowercaseString;
     // YouTube's desktop page renders without thumbnails or layout in tvOS 16 WebKit
     // (seen on device), so it always gets the phone page, which Safari 16 handles.
-    static NSArray<NSString *> *builtIn = nil;
-    static dispatch_once_t once;
-    dispatch_once(&once, ^{ builtIn = @[@"youtube.com"]; });
-    for (NSString *stored in [builtIn arrayByAddingObjectsFromArray:[self mobileFallbackHosts]]) {
+    for (NSString *stored in [[self builtInPhonePageHosts] arrayByAddingObjectsFromArray:[self mobileFallbackHosts]]) {
         if ([lowercase isEqualToString:stored] ||
             [lowercase hasSuffix:[@"." stringByAppendingString:stored]]) {
             return YES;

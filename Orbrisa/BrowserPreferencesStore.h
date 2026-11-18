@@ -33,6 +33,7 @@ NS_ASSUME_NONNULL_BEGIN
 - (BOOL)isMobileFallbackHost:(nullable NSString *)host;
 - (void)addMobileFallbackHost:(nullable NSString *)host;
 - (void)clearMobileFallbackHosts;
+- (BOOL)isBuiltInPhonePageHost:(NSString *)host;
 
 - (void)ensureUserAgentConsistency;
 
