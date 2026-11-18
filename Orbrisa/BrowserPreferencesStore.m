@@ -172,7 +172,12 @@ static NSUInteger const kMaximumTextFontSize = 200;
         return NO;
     }
     NSString *lowercase = host.lowercaseString;
-    for (NSString *stored in [self mobileFallbackHosts]) {
+    // YouTube's desktop page renders without thumbnails or layout in tvOS 16 WebKit
+    // (seen on device), so it always gets the phone page, which Safari 16 handles.
+    static NSArray<NSString *> *builtIn = nil;
+    static dispatch_once_t once;
+    dispatch_once(&once, ^{ builtIn = @[@"youtube.com"]; });
+    for (NSString *stored in [builtIn arrayByAddingObjectsFromArray:[self mobileFallbackHosts]]) {
         if ([lowercase isEqualToString:stored] ||
             [lowercase hasSuffix:[@"." stringByAppendingString:stored]]) {
             return YES;

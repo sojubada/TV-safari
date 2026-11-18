@@ -2,6 +2,11 @@
 
 All notable changes to Orbrisa. The format follows [Keep a Changelog](https://keepachangelog.com), versions follow [Semantic Versioning](https://semver.org).
 
+## [1.3.3] – 2026-11-18
+
+### Fixed
+- **YouTube showed text without thumbnails or layout**: youtube.com now always loads the phone page (built-in entry in the phone-page host list).
+
 ## [1.3.2] – 2026-11-18
 
 ### Changed
