@@ -59,6 +59,7 @@ FOUNDATION_EXPORT NSString * const BrowserForceDarkPagesDidChangeNotification;
 - (NSString * _Nonnull)runtimeMediaPreferenceReport;
 - (void)setUserAgent:(NSString * _Nullable)userAgent;
 - (void)pauseAllMediaPlayback;
+- (void)setPageMediaAllowed:(BOOL)allowed;
 /// Dark mode for websites: light pages are shown dark. Saved across launches.
 @property (class, nonatomic) BOOL forceDarkPages;
 /// With dark mode on: 0 = automatic (follows the Apple TV), 1 = light, 2 = dark – for the pages and the app.

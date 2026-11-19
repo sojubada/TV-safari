@@ -1,4 +1,5 @@
 #import "BrowserNativeVideoPlayerViewController.h"
+#import "BrowserDiagnosticsLog.h"
 #import "BrowserLocalization.h"
 #import "BrowserLog.h"
 #import "BrowserNativeVideoAssetLoader.h"
@@ -190,6 +191,7 @@ static NSString *BrowserNativePlayerPressPhaseString(UIPressPhase phase) {
         NSURL *streamURL = [self currentStreamURL];
         NSTimeInterval time = CMTimeGetSeconds(self.player.currentTime);
         [self log:@"handing over to VLC: %@ (%@)", streamURL.absoluteString ?: @"", error];
+        [[BrowserDiagnosticsLog sharedLog] logEvent:@"native-fail" detail:[self describeError:error]];
         [self.player pause];
         [self dismissViewControllerAnimated:NO completion:^{
             handler(streamURL, isfinite(time) ? MAX(time, self.startTimeSeconds) : self.startTimeSeconds);

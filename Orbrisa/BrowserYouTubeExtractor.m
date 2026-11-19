@@ -1,4 +1,5 @@
 #import "BrowserYouTubeExtractor.h"
+#import "BrowserDiagnosticsLog.h"
 #import "BrowserLog.h"
 
 #import "BrowserWebView.h"
@@ -56,6 +57,7 @@ static NSString * const kBrowserYouTubeTVEmbeddedClientVersion = @"2.0";
     NSString *message = [[NSString alloc] initWithFormat:format arguments:arguments];
     va_end(arguments);
     BrowserLog(@"%@ %@", kBrowserYouTubeExtractorLogPrefix, message);
+    [[BrowserDiagnosticsLog sharedLog] logEvent:@"yt-extract" detail:message];
 }
 
 - (instancetype)init {

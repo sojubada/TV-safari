@@ -2535,6 +2535,7 @@ static const NSTimeInterval kStuckLoadTimeout = 30.0;
     if (host.length == 0) {
         return NO;
     }
+    [(BrowserWebView *)webView setPageMediaAllowed:![self.preferencesStore isBuiltInPhonePageHost:host]];
     NSString *normalAgent = self.preferencesStore.userAgent;
     if (normalAgent.length == 0) {
         return NO;

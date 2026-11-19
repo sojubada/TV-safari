@@ -2,6 +2,14 @@
 
 All notable changes to Orbrisa. The format follows [Keep a Changelog](https://keepachangelog.com), versions follow [Semantic Versioning](https://semver.org).
 
+## [1.3.5] – 2026-11-19
+
+### Fixed
+- **YouTube page went blank and the web process died every few seconds** (log: deaths=1..12 on youtube.com / m.youtube.com, none on Naver). YouTube pages now run without in-page media (AVFoundation); its videos are played by the native extractor as before. Other sites keep Play Media Inside Pages.
+
+### Changed
+- The diagnostics log now records the YouTube extractor steps (`yt-extract`) and why the Apple TV player handed a stream to VLC (`native-fail`), query strings removed.
+
 ## [1.3.4] – 2026-11-18
 
 ### Fixed

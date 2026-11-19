@@ -314,7 +314,7 @@ static void BrowserSetBooleanSelectorIfAvailable(id object, NSString *selectorNa
     }
 }
 
-static void BrowserConfigurePrivateMediaPreferences(id configuration) {
+static void BrowserConfigurePrivateMediaPreferencesWanted(id configuration, BOOL mediaWanted) {
     if (configuration == nil) {
         return;
     }
@@ -330,7 +330,8 @@ static void BrowserConfigurePrivateMediaPreferences(id configuration) {
     }
 
     // Media switch on: Orbrisa's original setup, unchanged.
-    if (BrowserMediaPlaybackWanted()) {
+    if (mediaWanted) {
+        BrowserSetBooleanSelectorIfAvailable(preferences, @"_setAVFoundationEnabled:", YES);
         BrowserSetBooleanSelectorIfAvailable(preferences, @"_setMediaSourceEnabled:", YES);
         BrowserSetBooleanSelectorIfAvailable(preferences, @"_setManagedMediaSourceEnabled:", YES);
         BrowserSetBooleanSelectorIfAvailable(preferences, @"_setMediaCapabilityGrantsEnabled:", YES);
@@ -351,6 +352,10 @@ static void BrowserConfigurePrivateMediaPreferences(id configuration) {
     BrowserSetBooleanSelectorIfAvailable(preferences, @"_setMediaCapabilityGrantsEnabled:", NO);
     BrowserSetBooleanSelectorIfAvailable(preferences, @"_setVideoQualityIncludesDisplayCompositingEnabled:", NO);
     BrowserSetBooleanSelectorIfAvailable(preferences, @"_setAVFoundationEnabled:", NO);
+}
+
+static void BrowserConfigurePrivateMediaPreferences(id configuration) {
+    BrowserConfigurePrivateMediaPreferencesWanted(configuration, BrowserMediaPlaybackWanted());
 }
 
 // With the media switch off nothing loads or plays media on its own.
@@ -1481,6 +1486,20 @@ static NSInteger BrowserMediaQualityInURL(NSString *URLString) {
         return nil;
     }
     return BrowserStringFromJavaScriptResult(evaluationResult);
+}
+
+// YouTube's front page takes the web content process down within seconds when
+// the page may use AVFoundation (diag log 1.3.4: deaths=1..12 on youtube.com
+// and m.youtube.com, none with media off). Its videos play through the native
+// extractor anyway, so for those hosts the page itself gets the media-off setup.
+- (void)setPageMediaAllowed:(BOOL)allowed {
+    id webViewObject = self.runtimeWebView;
+    SEL configurationSelector = NSSelectorFromString(@"configuration");
+    if (webViewObject == nil || ![webViewObject respondsToSelector:configurationSelector]) {
+        return;
+    }
+    id configuration = ((id (*)(id, SEL))objc_msgSend)(webViewObject, configurationSelector);
+    BrowserConfigurePrivateMediaPreferencesWanted(configuration, allowed && BrowserMediaPlaybackWanted());
 }
 
 - (void)pauseAllMediaPlayback {
