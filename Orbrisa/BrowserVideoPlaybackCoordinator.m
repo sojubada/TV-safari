@@ -30,6 +30,21 @@ static BOOL const kBrowserYouTubeNativeExtractionEnabled = YES;
 
 #pragma mark - Streams the page loaded
 
+- (BOOL)playYouTubeVideoOfCurrentPage {
+    NSURL *pageURL = self.host.browserWebView.request.URL;
+    if (!kBrowserYouTubeNativeExtractionEnabled || ![[self youTubeExtractor] canExtractVideoFromPageURL:pageURL]) {
+        return NO;
+    }
+    // The user just answered "Full Screen"; the extraction is asynchronous, so the permission is kept for a while.
+    self.forceNativePlayback = YES;
+    self.pendingStartTime = 0;
+    dispatch_after(dispatch_time(DISPATCH_TIME_NOW, (int64_t)(40 * NSEC_PER_SEC)), dispatch_get_main_queue(), ^{
+        self.forceNativePlayback = NO;
+    });
+    [self playYouTubeVideoAtPageURL:pageURL fallbackVideoInfo:@{}];
+    return YES;
+}
+
 - (BOOL)hasCapturedStream {
     return [self.host.browserWebView bestCapturedMediaStream] != nil;
 }

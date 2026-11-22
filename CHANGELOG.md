@@ -2,6 +2,11 @@
 
 All notable changes to Orbrisa. The format follows [Keep a Changelog](https://keepachangelog.com), versions follow [Semantic Versioning](https://semver.org).
 
+## [1.3.7] – 2026-11-23
+
+### Fixed
+- **YouTube video stopped at 0:00 (page shows only the thumbnail and "Skip ad")**: *Full Screen* handed the page's own stream (HTTP 404 in the Apple TV player, the player shows `-1011`) to the player. On a YouTube watch page it now asks YouTube for the video itself through the extractor, which does not carry the advert. If the page's manifest is refused, the extractor tries the other player clients instead of giving up.
+
 ## [1.3.6] – 2026-11-22
 
 ### Fixed

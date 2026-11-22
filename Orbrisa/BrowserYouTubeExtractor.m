@@ -78,6 +78,10 @@ static NSString * const kBrowserYouTubeTVEmbeddedClientVersion = @"2.0";
     return [host containsString:@"youtube.com"] || [host isEqualToString:@"youtu.be"] || [host hasSuffix:@".youtube.com"];
 }
 
+- (BOOL)canExtractVideoFromPageURL:(NSURL *)pageURL {
+    return [self canExtractFromPageURL:pageURL] && [self videoIDFromPageURL:pageURL].length > 0;
+}
+
 - (NSError *)errorWithCode:(BrowserYouTubeExtractorErrorCode)code description:(NSString *)description {
     return [NSError errorWithDomain:BrowserYouTubeExtractorErrorDomain
                                code:code
@@ -919,7 +923,20 @@ static NSString * const kBrowserYouTubeTVEmbeddedClientVersion = @"2.0";
                                                                                                       title:pageTitle
                                                                                           sourceDescription:@"youtube page hls"
                                                                                              requestHeaders:[self playbackRequestHeadersForPageURL:pageURL]];
-        [self validatePlaybackResult:result pageURL:pageURL completion:completion];
+        [self validatePlaybackResult:result pageURL:pageURL completion:^(BrowserYouTubeExtractionResult *validatedResult, NSError *validationError) {
+            if (validatedResult != nil) {
+                completion(validatedResult, nil);
+                return;
+            }
+            // The page's own manifest was refused (the log of 1.3.6 shows HTTP 404 for it): ask YouTube as the other clients do.
+            [self log:@"page hls manifest failed (%@); trying the player clients", validationError.localizedDescription ?: @""];
+            [self attemptPlayerRequestForVideoID:videoID
+                               pageConfiguration:pageConfiguration
+                                         pageURL:pageURL
+                                       pageTitle:pageTitle
+                                     clientIndex:0
+                                      completion:completion];
+        }];
         return;
     }
 

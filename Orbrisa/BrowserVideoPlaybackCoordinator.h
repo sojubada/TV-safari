@@ -27,6 +27,8 @@ NS_ASSUME_NONNULL_BEGIN
 - (BOOL)handleSelectPressForVideoAtCursor;
 /// YES when the page loaded a video stream the Apple TV player can open (HLS or a video file).
 - (BOOL)hasCapturedStream;
+/// On a YouTube watch page: plays the page's video through the YouTube extractor. NO if the page is not one.
+- (BOOL)playYouTubeVideoOfCurrentPage;
 /// Opens the page's video stream in the Apple TV player, starting at the given second. NO if there is none.
 - (BOOL)playCapturedStreamAtTime:(NSTimeInterval)startTime;
 /// Every playable stream of the page, best first, for a choice list.

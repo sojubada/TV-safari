@@ -34,6 +34,8 @@ typedef NS_ENUM(NSInteger, BrowserYouTubeExtractorErrorCode) {
 @interface BrowserYouTubeExtractor : NSObject
 
 - (BOOL)canExtractFromPageURL:(nullable NSURL *)pageURL;
+/// YES for a YouTube watch / shorts / live page, i.e. one with a video id in its address.
+- (BOOL)canExtractVideoFromPageURL:(nullable NSURL *)pageURL;
 
 - (void)extractPlaybackInfoFromPageURL:(NSURL *)pageURL
                                webView:(BrowserWebView *)webView

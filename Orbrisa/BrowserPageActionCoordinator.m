@@ -515,6 +515,10 @@ static UIColor *BrowserPageActionTextColor(void) {
         if (webViewNow == nil) {
             return;
         }
+        // YouTube: the page's own stream (and its advert) is refused with HTTP 404 in the Apple TV player, so ask YouTube for the video itself.
+        if ([weakSelf.videoPlaybackCoordinator playYouTubeVideoOfCurrentPage]) {
+            return;
+        }
         // The page's player told us the real stream: play that in the Apple TV player – reliable, no advert, no page player in between.
         NSDictionary<NSString *, NSString *> *pageStream = [webViewNow pageConfigMediaStream];
         if (pageStream == nil) {
