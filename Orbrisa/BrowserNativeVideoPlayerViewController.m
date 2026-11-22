@@ -469,6 +469,7 @@ static NSString *BrowserNativePlayerPressPhaseString(UIPressPhase phase) {
 @property (nonatomic, strong) UIActivityIndicatorView *spinner;
 @property (nonatomic, strong) NSTimer *updateTimer;
 @property (nonatomic) CFTimeInterval controlsShownAt;
+@property (nonatomic) CFTimeInterval playbackStartedAt;
 @property (nonatomic) BOOL showedError;
 @property (nonatomic) CGFloat panRemainder;
 #if BROWSER_HAS_VLC
@@ -597,6 +598,8 @@ static NSString *BrowserNativePlayerPressPhaseString(UIPressPhase phase) {
     self.mediaPlayer.drawable = self.videoView;
     self.mediaPlayer.media = media;
     [self.mediaPlayer play];
+    self.playbackStartedAt = CACurrentMediaTime();
+    [[BrowserDiagnosticsLog sharedLog] logEvent:@"vlc" detail:[NSString stringWithFormat:@"start host=%@ referer=%@ ua=%@", self.videoURL.host ?: @"", referer.length > 0 ? @"yes" : @"no", userAgent.length > 0 ? @"yes" : @"no"]];
     BrowserLog(@"[VLCPlayer] play %@", self.videoURL.absoluteString);
     __weak typeof(self) weakSelf = self;
     self.updateTimer = [NSTimer scheduledTimerWithTimeInterval:0.5 repeats:YES block:^(__unused NSTimer *timer) {
@@ -619,6 +622,12 @@ static NSString *BrowserNativePlayerPressPhaseString(UIPressPhase phase) {
 #if BROWSER_HAS_VLC
     VLCMediaPlayerState state = self.mediaPlayer.state;
     if (state == VLCMediaPlayerStateError) {
+        [self showError:BrowserLocalized(@"VLC couldn't play this video. The site probably only allows it in its own player.")];
+        return;
+    }
+    // Never spin forever: no picture or sound 20 s after start is a failure, and the log says what state VLC was in.
+    if (!self.mediaPlayer.isPlaying && self.mediaPlayer.time.intValue <= 0 && self.playbackStartedAt > 0 && CACurrentMediaTime() - self.playbackStartedAt > 20.0) {
+        [[BrowserDiagnosticsLog sharedLog] logEvent:@"vlc" detail:[NSString stringWithFormat:@"no playback after 20s state=%ld host=%@", (long)state, self.videoURL.host ?: @""]];
         [self showError:BrowserLocalized(@"VLC couldn't play this video. The site probably only allows it in its own player.")];
         return;
     }

@@ -2,6 +2,11 @@
 
 All notable changes to Orbrisa. The format follows [Keep a Changelog](https://keepachangelog.com), versions follow [Semantic Versioning](https://semver.org).
 
+## [1.3.6] – 2026-11-22
+
+### Fixed
+- The VLC player no longer spins at 0:00 for ever: after 20 s without picture it shows the error and writes `vlc` lines (state, host) to the diagnostics log.
+
 ## [1.3.5] – 2026-11-19
 
 ### Fixed
