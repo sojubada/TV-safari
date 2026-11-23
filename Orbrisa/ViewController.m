@@ -624,6 +624,7 @@ static UIImage *BrowserGuideSymbol(NSArray<NSString *> *names, CGFloat pointSize
 
     [[BrowserDiagnosticsLog sharedLog] logSessionStart];
     [[BrowserDiagnosticsLog sharedLog] logEvent:@"media-safety" detail:BrowserMediaSafetySummary()];
+    [[BrowserDiagnosticsLog sharedLog] logEvent:@"storage" detail:BrowserStorageSummary()];
     // Compiled in the background and kept by WebKit, so only the first launch pays.
     [[BrowserContentBlockerController sharedController] prepareRuleListIfNeeded];
     [self trimCachesIfDiskIsLow];

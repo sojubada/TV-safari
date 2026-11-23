@@ -391,6 +391,71 @@ static void BrowserInstallContentRuleList(id configuration) {
     }
 }
 
+// Site storage (LocalStorage, IndexedDB, MediaKeys …) normally goes to Library/WebKit/WebsiteData, which this
+// app may not write to (log: "could not create directory … Code=513"). One store with folders inside the app's
+// own Application Support is used by every tab instead. Cookies stay where they are, so sign-ins are kept.
+static NSString *gBrowserWebsiteDataStoreKind = @"default";
+
+static id BrowserOwnWebsiteDataStore(void) {
+    static id store = nil;
+    static dispatch_once_t onceToken;
+    dispatch_once(&onceToken, ^{
+        BrowserEnsureWebKitRuntimeLoaded();
+        Class configurationClass = NSClassFromString(@"_WKWebsiteDataStoreConfiguration");
+        Class storeClass = NSClassFromString(kBrowserWebsiteDataStoreClassName);
+        SEL initWithConfiguration = NSSelectorFromString(@"_initWithConfiguration:");
+        if (configurationClass == Nil || storeClass == Nil || ![storeClass instancesRespondToSelector:initWithConfiguration]) {
+            gBrowserWebsiteDataStoreKind = @"default (no private configuration)";
+            return;
+        }
+        NSURL *base = [[NSFileManager.defaultManager URLsForDirectory:NSApplicationSupportDirectory inDomains:NSUserDomainMask].firstObject
+                       URLByAppendingPathComponent:@"BrowserWebsiteData" isDirectory:YES];
+        if (base == nil) {
+            return;
+        }
+        id configuration = [[configurationClass alloc] init];
+        NSDictionary<NSString *, NSString *> *folders = @{
+            @"_setWebStorageDirectory:": @"LocalStorage",
+            @"_setIndexedDBDatabaseDirectory:": @"IndexedDB",
+            @"_setWebSQLDatabaseDirectory:": @"WebSQL",
+            @"_setResourceLoadStatisticsDirectory:": @"ResourceLoadStatistics",
+            @"_setServiceWorkerRegistrationDirectory:": @"ServiceWorkers",
+            @"setDeviceIdHashSaltsStorageDirectory:": @"DeviceIdHashSalts",
+            @"setMediaKeysStorageDirectory:": @"MediaKeys",
+            @"setGeneralStorageDirectory:": @"Default",
+            @"setAlternativeServicesStorageDirectory:": @"AlternativeServices",
+        };
+        __block NSUInteger set = 0;
+        [folders enumerateKeysAndObjectsUsingBlock:^(NSString *selectorName, NSString *folder, __unused BOOL *stop) {
+            SEL selector = NSSelectorFromString(selectorName);
+            if (![configuration respondsToSelector:selector]) {
+                return;
+            }
+            NSURL *URL = [base URLByAppendingPathComponent:folder isDirectory:YES];
+            if (![NSFileManager.defaultManager createDirectoryAtURL:URL withIntermediateDirectories:YES attributes:nil error:nil]) {
+                return;
+            }
+            ((void (*)(id, SEL, id))objc_msgSend)(configuration, selector, URL);
+            set++;
+        }];
+        if (set == 0) {
+            gBrowserWebsiteDataStoreKind = @"default (no folder set)";
+            return;
+        }
+        store = ((id (*)(id, SEL, id))objc_msgSend)([storeClass alloc], initWithConfiguration, configuration);
+        gBrowserWebsiteDataStoreKind = store != nil ? [NSString stringWithFormat:@"own(%lu)", (unsigned long)set] : @"default (store refused)";
+    });
+    return store;
+}
+
+static void BrowserInstallOwnWebsiteDataStore(id configuration) {
+    id store = BrowserOwnWebsiteDataStore();
+    SEL setter = NSSelectorFromString(@"setWebsiteDataStore:");
+    if (store != nil && configuration != nil && [configuration respondsToSelector:setter]) {
+        ((void (*)(id, SEL, id))objc_msgSend)(configuration, setter, store);
+    }
+}
+
 NSString *BrowserMediaSafetySummary(void) {
     BrowserEnsureWebKitRuntimeLoaded();
     Class metricsClass = objc_getClass("WebCoreNSURLSessionTaskTransactionMetrics");
@@ -404,6 +469,11 @@ NSString *BrowserMediaSafetySummary(void) {
             avSwitch ? @"yes" : @"NO",
             BrowserMediaPlaybackWanted() ? @"on" : @"off",
             BrowserContentBlockingWanted() ? @"on" : @"off"];
+}
+
+NSString *BrowserStorageSummary(void) {
+    BrowserOwnWebsiteDataStore();
+    return [NSString stringWithFormat:@"siteData=%@", gBrowserWebsiteDataStoreKind];
 }
 
 static NSString *BrowserYouTubeRequestCaptureScript(void) {
@@ -975,6 +1045,7 @@ static void BrowserInstallYouTubeCaptureUserScript(id configuration) {
     }
     BrowserConfigurePrivateMediaPreferences(configuration);
     BrowserConfigureMediaLoading(configuration);
+    BrowserInstallOwnWebsiteDataStore(configuration);
     BrowserInstallContentRuleList(configuration);
     BrowserInstallYouTubeCaptureUserScript(configuration);
     [self installMediaMessageHandlerInConfiguration:configuration];
@@ -1843,6 +1914,10 @@ windowFeatures:(id)windowFeatures {
 
 + (id)defaultWebsiteDataStore {
     BrowserEnsureWebKitRuntimeLoaded();
+    id ownStore = BrowserOwnWebsiteDataStore();
+    if (ownStore != nil) {
+        return ownStore;
+    }
     Class dataStoreClass = NSClassFromString(kBrowserWebsiteDataStoreClassName);
     SEL selector = NSSelectorFromString(@"defaultDataStore");
     if (dataStoreClass == Nil || ![dataStoreClass respondsToSelector:selector]) {

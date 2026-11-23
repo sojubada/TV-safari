@@ -1,5 +1,6 @@
 #import "BrowserNativeVideoPlayerViewController.h"
 #import "BrowserDiagnosticsLog.h"
+#import <objc/message.h>
 #import "BrowserLocalization.h"
 #import "BrowserLog.h"
 #import "BrowserNativeVideoAssetLoader.h"
@@ -618,6 +619,24 @@ static NSString *BrowserNativePlayerPressPhaseString(UIPressPhase phase) {
     return [NSString stringWithFormat:@"%ld:%02ld", (long)(seconds / 60), (long)(seconds % 60)];
 }
 
+- (BOOL)vlcHasPicture {
+#if BROWSER_HAS_VLC
+    id player = self.mediaPlayer;
+    SEL sizeSelector = NSSelectorFromString(@"videoSize");
+    if ([player respondsToSelector:sizeSelector]) {
+        CGSize size = ((CGSize (*)(id, SEL))objc_msgSend)(player, sizeSelector);
+        return size.width > 0 && size.height > 0;
+    }
+    SEL outSelector = NSSelectorFromString(@"hasVideoOut");
+    if ([player respondsToSelector:outSelector]) {
+        return ((BOOL (*)(id, SEL))objc_msgSend)(player, outSelector);
+    }
+    return self.mediaPlayer.time.intValue > 0;
+#else
+    return NO;
+#endif
+}
+
 - (void)updateFromPlayer {
 #if BROWSER_HAS_VLC
     VLCMediaPlayerState state = self.mediaPlayer.state;
@@ -626,8 +645,10 @@ static NSString *BrowserNativePlayerPressPhaseString(UIPressPhase phase) {
         return;
     }
     // Never spin forever: no picture or sound 20 s after start is a failure, and the log says what state VLC was in.
-    if (!self.mediaPlayer.isPlaying && self.mediaPlayer.time.intValue <= 0 && self.playbackStartedAt > 0 && CACurrentMediaTime() - self.playbackStartedAt > 20.0) {
-        [[BrowserDiagnosticsLog sharedLog] logEvent:@"vlc" detail:[NSString stringWithFormat:@"no playback after 20s state=%ld host=%@", (long)state, self.videoURL.host ?: @""]];
+    // VLC can report "playing" while it decodes nothing (log 1.3.7: "missing avcC", AAC errors, no picture),
+    // so the test is whether a picture exists, not the player's state.
+    if (!self.showedError && self.playbackStartedAt > 0 && CACurrentMediaTime() - self.playbackStartedAt > 20.0 && ![self vlcHasPicture]) {
+        [[BrowserDiagnosticsLog sharedLog] logEvent:@"vlc" detail:[NSString stringWithFormat:@"no picture after 20s state=%ld playing=%@ time=%dms host=%@", (long)state, self.mediaPlayer.isPlaying ? @"yes" : @"no", self.mediaPlayer.time.intValue, self.videoURL.host ?: @""]];
         [self showError:BrowserLocalized(@"VLC couldn't play this video. The site probably only allows it in its own player.")];
         return;
     }

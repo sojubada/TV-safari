@@ -2,6 +2,7 @@
 #import "BrowserLocalization.h"
 #import "BrowserLog.h"
 
+#import "BrowserDiagnosticsLog.h"
 #import "BrowserDOMInteractionService.h"
 #import "BrowserNativeVideoPlayerViewController.h"
 #import "BrowserWebView.h"
@@ -30,11 +31,33 @@ static BOOL const kBrowserYouTubeNativeExtractionEnabled = YES;
 
 #pragma mark - Streams the page loaded
 
-- (BOOL)playYouTubeVideoOfCurrentPage {
-    NSURL *pageURL = self.host.browserWebView.request.URL;
-    if (!kBrowserYouTubeNativeExtractionEnabled || ![[self youTubeExtractor] canExtractVideoFromPageURL:pageURL]) {
+- (BOOL)isOnYouTubeVideoPage {
+    return kBrowserYouTubeNativeExtractionEnabled &&
+        [[self youTubeExtractor] canExtractVideoFromPageURL:self.host.browserWebView.request.URL];
+}
+
+- (void)logPlaybackPath:(NSString *)path URL:(NSURL *)URL {
+    [[BrowserDiagnosticsLog sharedLog] logEvent:@"play-path"
+                                         detail:[NSString stringWithFormat:@"%@ host=%@", path, URL.host ?: @"-"]];
+}
+
+/// A YouTube page hands out streams (and adverts) that the Apple TV player and VLC cannot play
+/// (log 1.3.6: HTTP 404, log 1.3.7: -1002 and VLC "missing avcC"). Every way into the player
+/// on a YouTube video page therefore goes through the extractor instead.
+- (BOOL)redirectToYouTubeExtractorIfNeededForURL:(NSURL *)URL path:(NSString *)path {
+    if (![self isOnYouTubeVideoPage]) {
         return NO;
     }
+    [self logPlaybackPath:[path stringByAppendingString:@" -> youtube-extract"] URL:URL];
+    return [self playYouTubeVideoOfCurrentPage];
+}
+
+- (BOOL)playYouTubeVideoOfCurrentPage {
+    NSURL *pageURL = self.host.browserWebView.request.URL;
+    if (![self isOnYouTubeVideoPage]) {
+        return NO;
+    }
+    [self logPlaybackPath:@"youtube-extract" URL:pageURL];
     // The user just answered "Full Screen"; the extraction is asynchronous, so the permission is kept for a while.
     self.forceNativePlayback = YES;
     self.pendingStartTime = 0;
@@ -80,6 +103,10 @@ static BOOL const kBrowserYouTubeNativeExtractionEnabled = YES;
 }
 
 - (BOOL)playCapturedStream:(NSDictionary<NSString *, NSString *> *)stream atTime:(NSTimeInterval)startTime {
+    if ([self redirectToYouTubeExtractorIfNeededForURL:[NSURL URLWithString:stream[@"url"] ?: @""] path:@"captured"]) {
+        return YES;
+    }
+    [self logPlaybackPath:@"captured" URL:[NSURL URLWithString:stream[@"url"] ?: @""]];
     BrowserWebView *webView = self.host.browserWebView;
     NSURL *streamURL = stream[@"url"].length > 0 ? [NSURL URLWithString:stream[@"url"]] : nil;
     if (streamURL == nil) {
@@ -256,6 +283,11 @@ static BOOL const kBrowserYouTubeNativeExtractionEnabled = YES;
 
     NSDictionary *directVideoInfo = [self.domInteractionService directVideoInfoAtDOMPoint:point
                                                                                    webView:self.host.browserWebView];
+    if ([self isOnYouTubeVideoPage] &&
+        (directVideoInfo.count > 0 || [self.domInteractionService isVideoActivationTargetAtDOMPoint:point webView:self.host.browserWebView])) {
+        [self logPlaybackPath:@"select" URL:self.host.browserWebView.request.URL];
+        return [self playYouTubeVideoOfCurrentPage];
+    }
     NSString *directVideoURLString = [self nativePlayableURLStringFromVideoInfo:directVideoInfo];
     if ([self isNativePlayableVideoURLString:directVideoURLString]) {
         NSURL *videoURL = [NSURL URLWithString:directVideoURLString];
@@ -336,6 +368,10 @@ static BOOL const kBrowserYouTubeNativeExtractionEnabled = YES;
 }
 
 - (void)presentNativeVideoPlayerForURL:(NSURL *)URL title:(NSString *)title {
+    if ([self redirectToYouTubeExtractorIfNeededForURL:URL path:@"page-video"]) {
+        return;
+    }
+    [self logPlaybackPath:@"page-video" URL:URL];
     [self presentNativeVideoPlayerForURL:URL title:title requestHeaders:nil cookies:nil];
 }
 
@@ -547,7 +583,8 @@ static BOOL const kBrowserYouTubeNativeExtractionEnabled = YES;
                                                           handler:^(__unused UIAlertAction *action) {
             NSURL *fallbackURL = [NSURL URLWithString:fallbackURLString];
             NSString *title = [videoInfo[@"title"] isKindOfClass:[NSString class]] ? videoInfo[@"title"] : weakSelf.host.browserCurrentPageTitle;
-            [weakSelf presentNativeVideoPlayerForURL:fallbackURL title:title];
+            // Chosen by hand after the extractor failed: play exactly this address, no second extraction.
+            [weakSelf presentNativeVideoPlayerForURL:fallbackURL title:title requestHeaders:nil cookies:nil];
         }]];
     }
     [alertController addAction:[UIAlertAction actionWithTitle:@"OK" style:UIAlertActionStyleCancel handler:nil]];

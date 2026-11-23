@@ -22,6 +22,7 @@ NS_ASSUME_NONNULL_BEGIN
 
 /// One line for the log: whether the tvOS 16 media fix is in and how media is set up.
 FOUNDATION_EXPORT NSString *BrowserMediaSafetySummary(void);
+FOUNDATION_EXPORT NSString *BrowserStorageSummary(void);
 /// NSUserDefaults key. NO (default): pages are kept off AVFoundation, the
 /// tvOS 16 crash path. YES: Orbrisa's original media setup.
 FOUNDATION_EXPORT NSString * const BrowserMediaPlaybackEnabledDefaultsKey;

@@ -1,6 +1,7 @@
 #import "BrowserContentBlockerController.h"
 
 #import "BrowserWebView.h"
+#import "BrowserDiagnosticsLog.h"
 #import <objc/message.h>
 #import <objc/runtime.h>
 
@@ -144,7 +145,20 @@ static NSString * const kBrowserRuleListIdentifier = @"BrowserAdBlockRules-v2";
         return;
     }
 
-    id store = ((id (*)(id, SEL))objc_msgSend)((id)storeClass, defaultStoreSelector);
+    // The default store lives in Library/WebKit/ContentRuleLists, which this app cannot write to
+    // (log: "Moving file failed" on every launch, so blocking never ran). Its own folder it can.
+    id store = nil;
+    SEL storeWithURLSelector = NSSelectorFromString(@"storeWithURL:");
+    NSURL *storeURL = [[NSFileManager.defaultManager URLsForDirectory:NSApplicationSupportDirectory inDomains:NSUserDomainMask].firstObject
+                       URLByAppendingPathComponent:@"BrowserContentRules" isDirectory:YES];
+    if (storeURL != nil && [storeClass respondsToSelector:storeWithURLSelector] &&
+        [NSFileManager.defaultManager createDirectoryAtURL:storeURL withIntermediateDirectories:YES attributes:nil error:nil]) {
+        store = ((id (*)(id, SEL, id))objc_msgSend)((id)storeClass, storeWithURLSelector, storeURL);
+    }
+    if (store == nil) {
+        store = ((id (*)(id, SEL))objc_msgSend)((id)storeClass, defaultStoreSelector);
+        [[BrowserDiagnosticsLog sharedLog] logEvent:@"adblock" detail:@"own store unavailable, using WebKit default"];
+    }
     SEL compileSelector = NSSelectorFromString(@"compileContentRuleListForIdentifier:encodedContentRuleList:completionHandler:");
     if (store == nil || ![store respondsToSelector:compileSelector]) {
         self.ruleListSupported = NO;
@@ -166,6 +180,7 @@ static NSString * const kBrowserRuleListIdentifier = @"BrowserAdBlockRules-v2";
             if (strongSelf != nil && ruleList != nil) {
                 strongSelf.compiledRuleListObject = ruleList;
                 strongSelf.compilationStatusString = @"Success (cached)";
+                [[BrowserDiagnosticsLog sharedLog] logEvent:@"adblock" detail:@"rule list loaded"];
             }
             lookedUp = YES;
         };
@@ -201,6 +216,9 @@ static NSString * const kBrowserRuleListIdentifier = @"BrowserAdBlockRules-v2";
                 if (strongSelf == nil) {
                     return;
                 }
+                [[BrowserDiagnosticsLog sharedLog] logEvent:@"adblock"
+                                                     detail:error != nil ? [NSString stringWithFormat:@"compile failed: %@", error.localizedDescription]
+                                                                         : (ruleList != nil ? @"compiled, active from next launch" : @"compile returned nothing")];
                 if (error != nil) {
                     strongSelf.compilationStatusString =
                         [NSString stringWithFormat:@"Failed Error: %@", error.localizedDescription];

@@ -2,6 +2,14 @@
 
 All notable changes to Orbrisa. The format follows [Keep a Changelog](https://keepachangelog.com), versions follow [Semantic Versioning](https://semver.org).
 
+## [1.3.8] – 2026-11-23
+
+### Fixed
+- **YouTube: every way into the player uses the extractor.** In 1.3.7 only *Full Screen* did; *Choose Video* and selecting the video handed the page's own stream over (log: `-1002` in the Apple TV player, VLC "missing avcC" with no picture). On a YouTube video page, *Full Screen*, *Choose Video*, selecting the video and *Play Active Video* now all ask YouTube for the video itself. The log names the path taken (`play-path`).
+- **VLC no longer sits on a black screen.** It reported "playing" while it decoded nothing, so the 20 s check never fired. The check now looks at whether a picture exists, then shows the error and logs `vlc no picture after 20s`.
+- **Ad blocking actually runs.** WebKit could not save the compiled list in `Library/WebKit` ("Moving file failed" on every launch). The list now lives in the app's own `Application Support/BrowserContentRules`; the log says `adblock compiled` / `rule list loaded`. The first launch compiles, blocking starts from the next launch.
+- **Site storage works.** LocalStorage, IndexedDB, MediaKeys and the other site folders could not be created in `Library/WebKit/WebsiteData` (`Code=513`). All tabs now share one website data store in `Application Support/BrowserWebsiteData`; the log shows `storage siteData=own(n)`. Cookies stay where they were, so sign-ins are kept. Site data saved before this version (if any) is not carried over.
+
 ## [1.3.7] – 2026-11-23
 
 ### Fixed
