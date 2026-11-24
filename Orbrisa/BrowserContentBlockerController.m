@@ -149,15 +149,20 @@ static NSString * const kBrowserRuleListIdentifier = @"BrowserAdBlockRules-v2";
     // (log: "Moving file failed" on every launch, so blocking never ran). Its own folder it can.
     id store = nil;
     SEL storeWithURLSelector = NSSelectorFromString(@"storeWithURL:");
-    NSURL *storeURL = [[NSFileManager.defaultManager URLsForDirectory:NSApplicationSupportDirectory inDomains:NSUserDomainMask].firstObject
+    // tvOS lets an app write only to Caches and tmp (log 1.3.8: Application Support could not be created either).
+    NSURL *storeURL = [[NSFileManager.defaultManager URLsForDirectory:NSCachesDirectory inDomains:NSUserDomainMask].firstObject
                        URLByAppendingPathComponent:@"BrowserContentRules" isDirectory:YES];
-    if (storeURL != nil && [storeClass respondsToSelector:storeWithURLSelector] &&
-        [NSFileManager.defaultManager createDirectoryAtURL:storeURL withIntermediateDirectories:YES attributes:nil error:nil]) {
+    NSError *folderError = nil;
+    BOOL folderReady = storeURL != nil && [NSFileManager.defaultManager createDirectoryAtURL:storeURL withIntermediateDirectories:YES attributes:nil error:&folderError];
+    if (folderReady && [storeClass respondsToSelector:storeWithURLSelector]) {
         store = ((id (*)(id, SEL, id))objc_msgSend)((id)storeClass, storeWithURLSelector, storeURL);
     }
     if (store == nil) {
         store = ((id (*)(id, SEL))objc_msgSend)((id)storeClass, defaultStoreSelector);
-        [[BrowserDiagnosticsLog sharedLog] logEvent:@"adblock" detail:@"own store unavailable, using WebKit default"];
+        [[BrowserDiagnosticsLog sharedLog] logEvent:@"adblock" detail:[NSString stringWithFormat:@"own store unavailable (folder=%@ %@), using WebKit default",
+                                                                        folderReady ? @"ok" : @"failed", folderError.localizedDescription ?: @""]];
+    } else {
+        [[BrowserDiagnosticsLog sharedLog] logEvent:@"adblock" detail:@"store in Caches/BrowserContentRules"];
     }
     SEL compileSelector = NSSelectorFromString(@"compileContentRuleListForIdentifier:encodedContentRuleList:completionHandler:");
     if (store == nil || ![store respondsToSelector:compileSelector]) {

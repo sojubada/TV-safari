@@ -408,7 +408,8 @@ static id BrowserOwnWebsiteDataStore(void) {
             gBrowserWebsiteDataStoreKind = @"default (no private configuration)";
             return;
         }
-        NSURL *base = [[NSFileManager.defaultManager URLsForDirectory:NSApplicationSupportDirectory inDomains:NSUserDomainMask].firstObject
+        // tvOS lets an app write only to Caches and tmp.
+        NSURL *base = [[NSFileManager.defaultManager URLsForDirectory:NSCachesDirectory inDomains:NSUserDomainMask].firstObject
                        URLByAppendingPathComponent:@"BrowserWebsiteData" isDirectory:YES];
         if (base == nil) {
             return;
@@ -426,20 +427,25 @@ static id BrowserOwnWebsiteDataStore(void) {
             @"setAlternativeServicesStorageDirectory:": @"AlternativeServices",
         };
         __block NSUInteger set = 0;
+        __block NSUInteger supported = 0;
+        __block NSString *folderFailure = nil;
         [folders enumerateKeysAndObjectsUsingBlock:^(NSString *selectorName, NSString *folder, __unused BOOL *stop) {
             SEL selector = NSSelectorFromString(selectorName);
             if (![configuration respondsToSelector:selector]) {
                 return;
             }
+            supported++;
             NSURL *URL = [base URLByAppendingPathComponent:folder isDirectory:YES];
-            if (![NSFileManager.defaultManager createDirectoryAtURL:URL withIntermediateDirectories:YES attributes:nil error:nil]) {
+            NSError *folderError = nil;
+            if (![NSFileManager.defaultManager createDirectoryAtURL:URL withIntermediateDirectories:YES attributes:nil error:&folderError]) {
+                folderFailure = folderError.localizedDescription ?: @"?";
                 return;
             }
             ((void (*)(id, SEL, id))objc_msgSend)(configuration, selector, URL);
             set++;
         }];
         if (set == 0) {
-            gBrowserWebsiteDataStoreKind = @"default (no folder set)";
+            gBrowserWebsiteDataStoreKind = [NSString stringWithFormat:@"default (setters=%lu folder=%@)", (unsigned long)supported, folderFailure ?: @"ok"];
             return;
         }
         store = ((id (*)(id, SEL, id))objc_msgSend)([storeClass alloc], initWithConfiguration, configuration);

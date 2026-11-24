@@ -140,6 +140,12 @@ static NSString * const kBrowserYouTubeTVEmbeddedClientVersion = @"2.0";
 - (NSDictionary *)pageConfigurationFromWebView:(BrowserWebView *)webView {
     NSString *script = @"(function(){"
                         "var cfg=(window.ytcfg&&window.ytcfg.data_)||{};"
+                        "var html=null;"
+                        "var get=function(k){try{if(window.ytcfg&&typeof window.ytcfg.get==='function'){var v=window.ytcfg.get(k);if(v!==undefined&&v!==null&&v!==''){return v;}}}catch(e){}"
+                            "if(cfg[k]!==undefined&&cfg[k]!==null&&cfg[k]!==''){return cfg[k];}"
+                            "try{if(html===null){html=document.documentElement.innerHTML;}var m=html.match(new RegExp('\\\"'+k+'\\\":\\\"([^\\\"]+)\\\"'));if(m){return m[1];}}catch(e){}"
+                            "return '';};"
+                        "cfg={INNERTUBE_API_KEY:get('INNERTUBE_API_KEY'),INNERTUBE_CLIENT_VERSION:get('INNERTUBE_CLIENT_VERSION'),VISITOR_DATA:get('VISITOR_DATA'),STS:get('STS'),HL:get('HL'),GL:get('GL'),PO_TOKEN:get('PO_TOKEN'),SERVICE_INTEGRITY_DIMENSIONS:cfg.SERVICE_INTEGRITY_DIMENSIONS,WEB_PLAYER_CONTEXT_CONFIGS:cfg.WEB_PLAYER_CONTEXT_CONFIGS};"
                         "var response=window.ytInitialPlayerResponse||null;"
                         "if (!response && window.ytplayer && window.ytplayer.config && window.ytplayer.config.args && window.ytplayer.config.args.player_response) {"
                             "try { response=JSON.parse(window.ytplayer.config.args.player_response); } catch (error) {}"
@@ -767,15 +773,14 @@ static NSString * const kBrowserYouTubeTVEmbeddedClientVersion = @"2.0";
 
 - (NSMutableURLRequest *)playerRequestForVideoID:(NSString *)videoID pageConfiguration:(NSDictionary *)pageConfiguration clientProfile:(NSDictionary *)clientProfile {
     NSString *apiKey = [pageConfiguration[@"apiKey"] isKindOfClass:[NSString class]] ? pageConfiguration[@"apiKey"] : @"";
-    if (apiKey.length == 0) {
-        return nil;
-    }
-
+    // Without a key the request used to be skipped for every client, so nothing was ever asked (log 1.3.8:
+    // "apiKey=no" and then silence). YouTube's player endpoint also answers without one.
     NSURLComponents *components = [NSURLComponents componentsWithString:@"https://www.youtube.com/youtubei/v1/player"];
-    components.queryItems = @[
-        [NSURLQueryItem queryItemWithName:@"key" value:apiKey],
-        [NSURLQueryItem queryItemWithName:@"prettyPrint" value:@"false"],
-    ];
+    NSMutableArray<NSURLQueryItem *> *queryItems = [NSMutableArray arrayWithObject:[NSURLQueryItem queryItemWithName:@"prettyPrint" value:@"false"]];
+    if (apiKey.length > 0) {
+        [queryItems insertObject:[NSURLQueryItem queryItemWithName:@"key" value:apiKey] atIndex:0];
+    }
+    components.queryItems = queryItems;
 
     NSURL *URL = components.URL;
     if (URL == nil) {
@@ -810,12 +815,12 @@ static NSString * const kBrowserYouTubeTVEmbeddedClientVersion = @"2.0";
     NSDictionary *requestBody = [self playerRequestBodyForVideoID:videoID pageConfiguration:pageConfiguration clientProfile:clientProfile];
     NSData *bodyData = [NSJSONSerialization dataWithJSONObject:requestBody options:0 error:nil];
     request.HTTPBody = bodyData;
-    [self log:@"issuing youtubei player request client=%@ videoID=%@ apiKey=%@ clientVersion=%@ body=%@",
+    [self log:@"issuing youtubei player request client=%@ videoID=%@ apiKey=%@ clientVersion=%@ poToken=%@",
      clientProfile[@"label"] ?: @"unknown",
      videoID,
      apiKey.length > 0 ? @"yes" : @"no",
      clientVersion,
-     requestBody];
+     requestBody[@"serviceIntegrityDimensions"] != nil ? @"yes" : @"no"];
     return request;
 }
 
@@ -827,6 +832,7 @@ static NSString * const kBrowserYouTubeTVEmbeddedClientVersion = @"2.0";
                            completion:(void (^)(BrowserYouTubeExtractionResult * _Nullable result, NSError * _Nullable error))completion {
     NSArray<NSDictionary *> *clientProfiles = [self clientProfilesForPageConfiguration:pageConfiguration];
     if (clientIndex >= clientProfiles.count) {
+        [self log:@"all %lu clients tried, none gave a playable stream", (unsigned long)clientProfiles.count];
         completion(nil, [self errorWithCode:BrowserYouTubeExtractorErrorCodeNoPlayableURL description:@"No YouTube client profile produced a native-playable stream URL."]);
         return;
     }

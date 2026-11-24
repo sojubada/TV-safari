@@ -2,6 +2,13 @@
 
 All notable changes to Orbrisa. The format follows [Keep a Changelog](https://keepachangelog.com), versions follow [Semantic Versioning](https://semver.org).
 
+## [1.3.9] – 2026-11-24
+
+### Fixed
+- **Ad blocking and site storage now use `Caches`.** tvOS lets an app write only to `Caches` and `tmp`; the 1.3.8 log showed `Application Support` refused as well (`siteData=default (no folder set)`, `adblock own store unavailable`, WebKit compile error 6). Both now live in `Caches/BrowserContentRules` and `Caches/BrowserWebsiteData`. The log gives the reason when a folder cannot be made.
+- **YouTube extractor actually asks YouTube.** It read the page settings from `ytcfg.data_`, which was empty (`apiKey=no clientVersion=`), and then skipped every player request because there was no key, without a word in the log. It now reads them through `ytcfg.get(…)` or the page source, and sends the request without a key when none is found.
+- The log now records each player request, its answer, and the final failure shown to the viewer (`yt-extract FAILED …`).
+
 ## [1.3.8] – 2026-11-23
 
 ### Fixed

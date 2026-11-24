@@ -571,6 +571,7 @@ static BOOL const kBrowserYouTubeNativeExtractionEnabled = YES;
 }
 
 - (void)presentYouTubeExtractionError:(NSError *)error fallbackVideoInfo:(NSDictionary *)videoInfo {
+    [[BrowserDiagnosticsLog sharedLog] logEvent:@"yt-extract" detail:[NSString stringWithFormat:@"FAILED (shown to viewer): %@", error.localizedDescription ?: @"?"]];
     NSString *message = error.localizedDescription ?: BrowserLocalized(@"Could not extract a better YouTube playback URL.");
     UIAlertController *alertController = [UIAlertController alertControllerWithTitle:BrowserLocalized(@"YouTube Extraction Failed")
                                                                              message:message
