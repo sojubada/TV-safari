@@ -23,6 +23,13 @@ static NSString * const kBrowserYouTubeAndroidVRUserAgent = @"com.google.android
 static NSString * const kBrowserYouTubeAndroidVRClientVersion = @"1.65.10";
 static NSString * const kBrowserYouTubeTVUserAgent = @"Mozilla/5.0 (ChromiumStylePlatform) Cobalt/25.lts.30.1034943-gold (unlike Gecko),Unknown_TV_Unknown_0/Unknown (Unknown, Unknown)";
 static NSString * const kBrowserYouTubeTVClientVersion = @"7.20260707.07.00";
+// visionOS: yt-dlp's first JS-less Apple client and SmartTubeIOS's first choice on tvOS. After an ordinary
+// YouTube page visit it returns HLS with H.264 up to 1080p and needs no PO token (milika/SmartTubeIOS,
+// InnerTubeClients.swift / PlaybackViewModel+Fallback.swift, Oct 2026).
+static NSString * const kBrowserYouTubeVisionOSUserAgent = @"Mozilla/5.0 (Macintosh; Intel Mac OS X 15_7_3) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/26.0 Safari/605.1.15";
+static NSString * const kBrowserYouTubeVisionOSClientVersion = @"1.02";
+// The embedded player has to say which third-party page embeds it, and that page must not be youtube.com.
+static NSString * const kBrowserYouTubeEmbedHostPage = @"https://www.reddit.com/";
 
 @interface BrowserYouTubeExtractionResult ()
 
@@ -54,6 +61,7 @@ static NSString * const kBrowserYouTubeTVClientVersion = @"7.20260707.07.00";
 @interface BrowserYouTubeExtractor ()
 
 @property (nonatomic, strong) NSURLSession *session;
+@property (nonatomic, copy, nullable) NSString *seededVideoID;
 
 @end
 
@@ -254,6 +262,23 @@ static NSString * const kBrowserYouTubeTVClientVersion = @"7.20260707.07.00";
     // Order: the clients that return HLS first.
     return @[
         @{
+            @"label": @"visionos",
+            @"clientName": @"VISIONOS",
+            @"clientVersion": kBrowserYouTubeVisionOSClientVersion,
+            @"clientHeaderName": @"101",
+            @"userAgent": kBrowserYouTubeVisionOSUserAgent,
+            @"hl": hl,
+            @"gl": gl,
+            @"osName": @"visionOS",
+            @"osVersion": @"26.5.23O471",
+            @"deviceMake": @"Apple",
+            @"deviceModel": @"RealityDevice17,1",
+            @"seedSession": @YES,
+            @"sendOrigin": @YES,
+            @"sendReferer": @NO,
+            @"sendCookies": @YES,
+        },
+        @{
             @"label": @"web_safari",
             @"clientName": @"WEB",
             @"clientVersion": kBrowserYouTubeWebClientVersion,
@@ -275,6 +300,20 @@ static NSString * const kBrowserYouTubeTVClientVersion = @"7.20260707.07.00";
             @"gl": gl,
             @"sendOrigin": @YES,
             @"sendReferer": @YES,
+            @"sendCookies": @YES,
+        },
+        @{
+            @"label": @"web_embedded",
+            @"clientName": @"WEB_EMBEDDED_PLAYER",
+            @"clientVersion": kBrowserYouTubeWebClientVersion,
+            @"clientHeaderName": @"56",
+            @"clientScreen": @"EMBED",
+            @"userAgent": kBrowserYouTubeSafariGFEUserAgent,
+            @"hl": hl,
+            @"gl": gl,
+            @"embedUrl": kBrowserYouTubeEmbedHostPage,
+            @"sendOrigin": @YES,
+            @"sendReferer": @NO,
             @"sendCookies": @YES,
         },
         @{
@@ -748,6 +787,12 @@ static NSString * const kBrowserYouTubeTVClientVersion = @"7.20260707.07.00";
     if (clientProfile[@"androidSdkVersion"] != nil) {
         client[@"androidSdkVersion"] = clientProfile[@"androidSdkVersion"];
     }
+    if ([clientProfile[@"clientScreen"] isKindOfClass:[NSString class]]) {
+        client[@"clientScreen"] = clientProfile[@"clientScreen"];
+    }
+    if ([pageConfiguration[@"visitorData"] isKindOfClass:[NSString class]] && [pageConfiguration[@"visitorData"] length] > 0) {
+        client[@"visitorData"] = pageConfiguration[@"visitorData"];
+    }
 
     NSMutableDictionary *body = nil;
     if ([capturedBody isKindOfClass:[NSDictionary class]] && [clientProfile[@"label"] isEqualToString:@"web"]) {
@@ -774,13 +819,19 @@ static NSString * const kBrowserYouTubeTVClientVersion = @"7.20260707.07.00";
         body[@"racyCheckOk"] = @YES;
     }
 
+    // html5Preference is what makes YouTube offer HLS; without it the answer is SABR only (log 1.3.9: web and
+    // web_safari "no playable hls or muxed format"). yt-dlp sends it for every client, SmartTubeIOS too.
+    NSMutableDictionary *contentPlaybackContext = [@{@"html5Preference": @"HTML5_PREF_WANTS"} mutableCopy];
     if (sts.integerValue > 0) {
-        body[@"playbackContext"] = @{
-            @"contentPlaybackContext": @{
-                @"signatureTimestamp": sts,
-            },
-        };
+        contentPlaybackContext[@"signatureTimestamp"] = sts;
     }
+    NSString *embedURL = [clientProfile[@"embedUrl"] isKindOfClass:[NSString class]] ? clientProfile[@"embedUrl"] : nil;
+    if (embedURL.length > 0) {
+        // Without the embedding page the embedded player is refused ("no longer supported").
+        body[@"thirdParty"] = @{@"embedUrl": embedURL};
+        contentPlaybackContext[@"referer"] = [NSString stringWithFormat:@"https://www.youtube.com/watch?v=%@", videoID];
+    }
+    body[@"playbackContext"] = @{@"contentPlaybackContext": contentPlaybackContext};
 
     if (poToken.length > 0) {
         body[@"serviceIntegrityDimensions"] = @{
@@ -866,6 +917,41 @@ static NSString * const kBrowserYouTubeTVClientVersion = @"7.20260707.07.00";
     return request;
 }
 
+/// The page visit SmartTubeIOS makes before asking as visionOS (InnerTubeAPI+Networking.swift, seedVisionOSSession):
+/// consent cookie SOCS=CAI, then the watch page with a Safari identity, so YouTube sets its session cookies.
+- (void)seedWebSessionForVideoID:(NSString *)videoID completion:(void (^)(void))completion {
+    NSHTTPCookie *consent = [NSHTTPCookie cookieWithProperties:@{
+        NSHTTPCookieDomain: @".youtube.com",
+        NSHTTPCookiePath: @"/",
+        NSHTTPCookieName: @"SOCS",
+        NSHTTPCookieValue: @"CAI",
+        NSHTTPCookieSecure: @"TRUE",
+        NSHTTPCookieExpires: [NSDate dateWithTimeIntervalSinceNow:365 * 24 * 60 * 60],
+    }];
+    NSHTTPCookieStorage *storage = self.session.configuration.HTTPCookieStorage ?: NSHTTPCookieStorage.sharedHTTPCookieStorage;
+    if (consent != nil) {
+        [storage setCookie:consent];
+    }
+    NSURLComponents *components = [NSURLComponents componentsWithString:@"https://www.youtube.com/watch"];
+    components.queryItems = @[
+        [NSURLQueryItem queryItemWithName:@"v" value:videoID],
+        [NSURLQueryItem queryItemWithName:@"bpctr" value:@"9999999999"],
+        [NSURLQueryItem queryItemWithName:@"has_verified" value:@"1"],
+    ];
+    NSMutableURLRequest *request = [NSMutableURLRequest requestWithURL:components.URL cachePolicy:NSURLRequestReloadIgnoringLocalCacheData timeoutInterval:15];
+    [request setValue:kBrowserYouTubeSafariGFEUserAgent forHTTPHeaderField:@"User-Agent"];
+    [request setValue:@"en-US,en;q=0.9" forHTTPHeaderField:@"Accept-Language"];
+    NSDate *started = [NSDate date];
+    NSURLSessionDataTask *task = [self.session dataTaskWithRequest:request completionHandler:^(NSData *data, NSURLResponse *response, NSError *error) {
+        NSInteger status = [response isKindOfClass:[NSHTTPURLResponse class]] ? ((NSHTTPURLResponse *)response).statusCode : 0;
+        NSUInteger cookies = [storage cookiesForURL:[NSURL URLWithString:@"https://www.youtube.com/"]].count;
+        [self log:@"session seed status=%ld bytes=%lu cookies=%lu %.1fs%@", (long)status, (unsigned long)data.length, (unsigned long)cookies,
+         -[started timeIntervalSinceNow], error != nil ? [NSString stringWithFormat:@" error=%@/%ld", error.domain, (long)error.code] : @""];
+        dispatch_async(dispatch_get_main_queue(), completion);
+    }];
+    [task resume];
+}
+
 - (void)attemptPlayerRequestForVideoID:(NSString *)videoID
                      pageConfiguration:(NSDictionary *)pageConfiguration
                                pageURL:(NSURL *)pageURL
@@ -880,6 +966,14 @@ static NSString * const kBrowserYouTubeTVClientVersion = @"7.20260707.07.00";
     }
 
     NSDictionary *clientProfile = clientProfiles[clientIndex];
+    if ([clientProfile[@"seedSession"] boolValue] && ![self.seededVideoID isEqualToString:videoID]) {
+        // visionOS answers with HLS only inside an ordinary web session: visit the watch page once first.
+        self.seededVideoID = videoID;
+        [self seedWebSessionForVideoID:videoID completion:^{
+            [self attemptPlayerRequestForVideoID:videoID pageConfiguration:pageConfiguration pageURL:pageURL pageTitle:pageTitle clientIndex:clientIndex completion:completion];
+        }];
+        return;
+    }
     NSMutableURLRequest *request = [self playerRequestForVideoID:videoID pageConfiguration:pageConfiguration clientProfile:clientProfile];
     if (request == nil) {
         [self attemptPlayerRequestForVideoID:videoID pageConfiguration:pageConfiguration pageURL:pageURL pageTitle:pageTitle clientIndex:clientIndex + 1 completion:completion];

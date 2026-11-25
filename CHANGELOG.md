@@ -2,6 +2,16 @@
 
 All notable changes to Orbrisa. The format follows [Keep a Changelog](https://keepachangelog.com), versions follow [Semantic Versioning](https://semver.org).
 
+## [1.4.1] – 2026-11-25
+
+### Fixed
+- **YouTube: ask the way SmartTubeIOS does on tvOS** (milika/SmartTubeIOS, the AVPlayer port of SmartTube):
+  - every player request now carries `html5Preference: HTML5_PREF_WANTS`; without it YouTube answers with SABR only, which is why `web` and `web_safari` had "no playable hls or muxed format" in the 1.3.9 log;
+  - new first client `visionos` (VISIONOS 1.02), asked after one ordinary watch-page visit (consent cookie, Safari identity): HLS, H.264 up to 1080p, no PO token;
+  - new `web_embedded` (WEB_EMBEDDED_PLAYER) with the embedding page (`thirdParty.embedUrl`) it needs;
+  - the page's visitor data is sent inside the client context too.
+- Order: visionos → web_safari → mweb → web_embedded → android_vr → ios → tv.
+
 ## [1.4.0] – 2026-11-25
 
 ### Diagnostics (DiagLog)
