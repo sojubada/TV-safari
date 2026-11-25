@@ -1,3 +1,4 @@
+#import "BrowserDiagnosticsLog.h"
 #import "BrowserWebView.h"
 #import "BrowserContentBlockerController.h"
 #import "BrowserLog.h"
