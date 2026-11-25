@@ -2,6 +2,32 @@
 
 NS_ASSUME_NONNULL_BEGIN
 
+#pragma mark - Structured diagnostics (DiagLog)
+
+/// One category per part of the app, as in the DiagLog guideline (Lifecycle, Network, Storage, UI),
+/// plus Media for everything to do with finding and playing video.
+typedef NS_ENUM(NSInteger, BrowserDiagCategory) {
+    BrowserDiagCategoryLifecycle,
+    BrowserDiagCategoryNetwork,
+    BrowserDiagCategoryStorage,
+    BrowserDiagCategoryUI,
+    BrowserDiagCategoryMedia,
+};
+
+/// Every line goes two ways:
+/// 1. the unified system log (os_log, subsystem = bundle id, category as above), readable from a Mac's Console;
+/// 2. orbrisa-diag.log, the file that can be read on the Apple TV itself and sent on.
+/// Line format: `LEVEL Category [traceId] action | detail`. Errors add `domain= code= msg=`.
+/// traceId nil or empty uses the current trace (see BrowserDiagBeginTrace), else "-".
+FOUNDATION_EXPORT void BrowserDiagInfo(BrowserDiagCategory category, NSString *action, NSString *_Nullable traceId, NSString *_Nullable detail);
+FOUNDATION_EXPORT void BrowserDiagWarn(BrowserDiagCategory category, NSString *action, NSString *_Nullable traceId, NSString *_Nullable detail);
+FOUNDATION_EXPORT void BrowserDiagError(BrowserDiagCategory category, NSString *action, NSString *_Nullable traceId, NSError *_Nullable error, NSString *_Nullable detail);
+
+/// Starts a new trace (e.g. one per "play this video") and makes it current, so every line that follows,
+/// from the page, the extractor and the player, can be read as one story. Returns the id, e.g. "play-3f9a".
+FOUNDATION_EXPORT NSString *BrowserDiagBeginTrace(NSString *prefix);
+FOUNDATION_EXPORT NSString *BrowserDiagCurrentTrace(void);
+
 /// A running account of what the browser did and where it broke, kept in a
 /// plain text file so a problem can be read afterwards instead of described
 /// from memory.

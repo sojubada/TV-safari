@@ -61,6 +61,7 @@ static NSString *BrowserNativePlayerPressPhaseString(UIPressPhase phase) {
     NSString *message = [[NSString alloc] initWithFormat:format arguments:arguments];
     va_end(arguments);
     BrowserLog(@"%@ %@", kBrowserNativeVideoPlayerLogPrefix, message);
+    BrowserDiagInfo(BrowserDiagCategoryMedia, @"avplayer", nil, message.length > 600 ? [message substringToIndex:600] : message);
 }
 
 - (instancetype)initWithURL:(NSURL *)URL title:(NSString *)title {
@@ -192,7 +193,7 @@ static NSString *BrowserNativePlayerPressPhaseString(UIPressPhase phase) {
         NSURL *streamURL = [self currentStreamURL];
         NSTimeInterval time = CMTimeGetSeconds(self.player.currentTime);
         [self log:@"handing over to VLC: %@ (%@)", streamURL.absoluteString ?: @"", error];
-        [[BrowserDiagnosticsLog sharedLog] logEvent:@"native-fail" detail:[self describeError:error]];
+        BrowserDiagWarn(BrowserDiagCategoryMedia, @"native-fail", nil, [self describeError:error]);
         [self.player pause];
         [self dismissViewControllerAnimated:NO completion:^{
             handler(streamURL, isfinite(time) ? MAX(time, self.startTimeSeconds) : self.startTimeSeconds);
@@ -272,8 +273,40 @@ static NSString *BrowserNativePlayerPressPhaseString(UIPressPhase phase) {
 - (void)viewWillDisappear:(BOOL)animated {
     [super viewWillDisappear:animated];
     BrowserLog(@"%@ viewWillDisappear", kBrowserNativePlayerInputLogPrefix);
-    [self log:@"viewWillDisappear pause"];
+    [self logPlaybackSummary];
     [self.player pause];
+}
+
+/// One line per playback when the player closes: how far it got, whether it stalled, at what bitrate, from where.
+/// Enough to tell "played fine", "played but kept stalling" and "never started" apart without new code.
+- (void)logPlaybackSummary {
+    AVPlayerItem *item = self.player.currentItem;
+    if (item == nil) {
+        BrowserDiagWarn(BrowserDiagCategoryMedia, @"avplayer closed", nil, @"no item");
+        return;
+    }
+    AVPlayerItemAccessLogEvent *access = item.accessLog.events.lastObject;
+    NSInteger stalls = 0;
+    for (AVPlayerItemAccessLogEvent *event in item.accessLog.events) {
+        stalls += MAX(event.numberOfStalls, 0);
+    }
+    double duration = CMTimeGetSeconds(item.duration);
+    NSString *detail = [NSString stringWithFormat:@"status=%ld position=%.0fs duration=%@ watched=%.0fs stalls=%ld indicatedKbps=%.0f observedKbps=%.0f type=%@ host=%@ errors=%lu",
+                        (long)item.status,
+                        CMTimeGetSeconds(self.player.currentTime),
+                        isfinite(duration) ? [NSString stringWithFormat:@"%.0fs", duration] : @"live",
+                        access.durationWatched,
+                        (long)stalls,
+                        access.indicatedBitrate / 1000.0,
+                        access.observedBitrate / 1000.0,
+                        access.playbackType ?: @"?",
+                        [NSURL URLWithString:access.URI ?: @""].host ?: @"?",
+                        (unsigned long)item.errorLog.events.count];
+    if (item.status == AVPlayerItemStatusFailed || access.durationWatched < 1.0) {
+        BrowserDiagError(BrowserDiagCategoryMedia, @"avplayer closed", nil, item.error, detail);
+    } else {
+        BrowserDiagInfo(BrowserDiagCategoryMedia, @"avplayer closed", nil, detail);
+    }
 }
 
 - (void)dealloc {
@@ -600,7 +633,7 @@ static NSString *BrowserNativePlayerPressPhaseString(UIPressPhase phase) {
     self.mediaPlayer.media = media;
     [self.mediaPlayer play];
     self.playbackStartedAt = CACurrentMediaTime();
-    [[BrowserDiagnosticsLog sharedLog] logEvent:@"vlc" detail:[NSString stringWithFormat:@"start host=%@ referer=%@ ua=%@", self.videoURL.host ?: @"", referer.length > 0 ? @"yes" : @"no", userAgent.length > 0 ? @"yes" : @"no"]];
+    BrowserDiagInfo(BrowserDiagCategoryMedia, @"vlc", nil, [NSString stringWithFormat:@"start host=%@ referer=%@ ua=%@", self.videoURL.host ?: @"", referer.length > 0 ? @"yes" : @"no", userAgent.length > 0 ? @"yes" : @"no"]);
     BrowserLog(@"[VLCPlayer] play %@", self.videoURL.absoluteString);
     __weak typeof(self) weakSelf = self;
     self.updateTimer = [NSTimer scheduledTimerWithTimeInterval:0.5 repeats:YES block:^(__unused NSTimer *timer) {
@@ -648,7 +681,7 @@ static NSString *BrowserNativePlayerPressPhaseString(UIPressPhase phase) {
     // VLC can report "playing" while it decodes nothing (log 1.3.7: "missing avcC", AAC errors, no picture),
     // so the test is whether a picture exists, not the player's state.
     if (!self.showedError && self.playbackStartedAt > 0 && CACurrentMediaTime() - self.playbackStartedAt > 20.0 && ![self vlcHasPicture]) {
-        [[BrowserDiagnosticsLog sharedLog] logEvent:@"vlc" detail:[NSString stringWithFormat:@"no picture after 20s state=%ld playing=%@ time=%dms host=%@", (long)state, self.mediaPlayer.isPlaying ? @"yes" : @"no", self.mediaPlayer.time.intValue, self.videoURL.host ?: @""]];
+        BrowserDiagInfo(BrowserDiagCategoryMedia, @"vlc", nil, [NSString stringWithFormat:@"no picture after 20s state=%ld playing=%@ time=%dms host=%@", (long)state, self.mediaPlayer.isPlaying ? @"yes" : @"no", self.mediaPlayer.time.intValue, self.videoURL.host ?: @""]);
         [self showError:BrowserLocalized(@"VLC couldn't play this video. The site probably only allows it in its own player.")];
         return;
     }
@@ -682,6 +715,7 @@ static NSString *BrowserNativePlayerPressPhaseString(UIPressPhase phase) {
     self.showedError = YES;
     [self.spinner stopAnimating];
     BrowserLog(@"[VLCPlayer] error %@", message);
+    BrowserDiagWarn(BrowserDiagCategoryMedia, @"vlc error", nil, message);
     UIAlertController *alert = [UIAlertController alertControllerWithTitle:BrowserLocalized(@"Video Can't Be Played")
                                                                    message:[NSString stringWithFormat:@"%@\n\n%@", message, self.videoURL.host ?: @""]
                                                             preferredStyle:UIAlertControllerStyleAlert];

@@ -7,6 +7,7 @@
 
 #import <objc/runtime.h>
 
+#import <os/log.h>
 #import <dlfcn.h>
 #import <execinfo.h>
 #import <fcntl.h>
@@ -14,6 +15,111 @@
 #import <string.h>
 #import <signal.h>
 #import <unistd.h>
+
+#pragma mark - DiagLog
+
+static NSString *BrowserDiagCategoryName(BrowserDiagCategory category) {
+    switch (category) {
+        case BrowserDiagCategoryLifecycle: return @"Lifecycle";
+        case BrowserDiagCategoryNetwork: return @"Network";
+        case BrowserDiagCategoryStorage: return @"Storage";
+        case BrowserDiagCategoryUI: return @"UI";
+        case BrowserDiagCategoryMedia: return @"Media";
+    }
+    return @"App";
+}
+
+static os_log_t BrowserDiagOSLog(BrowserDiagCategory category) {
+    static os_log_t logs[5];
+    static dispatch_once_t onceToken;
+    dispatch_once(&onceToken, ^{
+        const char *subsystem = (NSBundle.mainBundle.bundleIdentifier ?: @"com.app.diagnostic").UTF8String;
+        for (NSInteger i = 0; i < 5; i++) {
+            logs[i] = os_log_create(subsystem, BrowserDiagCategoryName((BrowserDiagCategory)i).UTF8String);
+        }
+    });
+    return (category >= 0 && category < 5) ? logs[category] : OS_LOG_DEFAULT;
+}
+
+static NSString *gBrowserDiagTrace = nil;
+static NSUInteger gBrowserDiagTraceCounter = 0;
+
+NSString *BrowserDiagBeginTrace(NSString *prefix) {
+    NSString *trace = nil;
+    @synchronized ([BrowserDiagnosticsLog class]) {
+        gBrowserDiagTraceCounter += 1;
+        trace = [NSString stringWithFormat:@"%@-%lu%03u", prefix.length > 0 ? prefix : @"t",
+                 (unsigned long)gBrowserDiagTraceCounter, arc4random_uniform(1000)];
+        gBrowserDiagTrace = trace;
+    }
+    return trace;
+}
+
+NSString *BrowserDiagCurrentTrace(void) {
+    @synchronized ([BrowserDiagnosticsLog class]) {
+        return gBrowserDiagTrace ?: @"-";
+    }
+}
+
+static void BrowserDiagWrite(BrowserDiagCategory category, os_log_type_t type, NSString *level, NSString *action, NSString *traceId, NSString *detail) {
+    NSString *trace = traceId.length > 0 ? traceId : BrowserDiagCurrentTrace();
+    NSString *body = [NSString stringWithFormat:@"[%@] %@ | %@", trace, action ?: @"?", detail ?: @""];
+    os_log_with_type(BrowserDiagOSLog(category), type, "%{public}@", body);
+    [[BrowserDiagnosticsLog sharedLog] logEvent:[NSString stringWithFormat:@"%@ %@", level, BrowserDiagCategoryName(category)] detail:body];
+}
+
+void BrowserDiagInfo(BrowserDiagCategory category, NSString *action, NSString *traceId, NSString *detail) {
+    BrowserDiagWrite(category, OS_LOG_TYPE_INFO, @"INFO", action, traceId, detail);
+}
+
+void BrowserDiagWarn(BrowserDiagCategory category, NSString *action, NSString *traceId, NSString *detail) {
+    // Logger.warning() in the guideline is the "error" level of the unified log.
+    BrowserDiagWrite(category, OS_LOG_TYPE_ERROR, @"WARN", action, traceId, detail);
+}
+
+void BrowserDiagError(BrowserDiagCategory category, NSString *action, NSString *traceId, NSError *error, NSString *detail) {
+    NSString *errorText = error != nil
+        ? [NSString stringWithFormat:@"domain=%@ code=%ld msg=%@", error.domain, (long)error.code, error.localizedDescription ?: @""]
+        : @"domain=- code=0 msg=-";
+    NSError *underlying = error.userInfo[NSUnderlyingErrorKey];
+    if ([underlying isKindOfClass:[NSError class]]) {
+        errorText = [errorText stringByAppendingFormat:@" underlying=%@/%ld", underlying.domain, (long)underlying.code];
+    }
+    BrowserDiagWrite(category, OS_LOG_TYPE_FAULT, @"ERR ", action, traceId,
+                     detail.length > 0 ? [NSString stringWithFormat:@"%@ | %@", errorText, detail] : errorText);
+}
+
+#pragma mark - Every alert the viewer sees is in the log
+
+// Whatever a viewer is shown as an error, the log has the same words, with no code change per message.
+@implementation UIViewController (BrowserDiagAlerts)
+
++ (void)load {
+    static dispatch_once_t onceToken;
+    dispatch_once(&onceToken, ^{
+        Method original = class_getInstanceMethod(self, @selector(presentViewController:animated:completion:));
+        Method replacement = class_getInstanceMethod(self, @selector(browserDiag_presentViewController:animated:completion:));
+        if (original != NULL && replacement != NULL) {
+            method_exchangeImplementations(original, replacement);
+        }
+    });
+}
+
+- (void)browserDiag_presentViewController:(UIViewController *)viewController animated:(BOOL)animated completion:(void (^)(void))completion {
+    if ([viewController isKindOfClass:[UIAlertController class]]) {
+        UIAlertController *alert = (UIAlertController *)viewController;
+        NSMutableArray<NSString *> *actions = [NSMutableArray array];
+        for (UIAlertAction *action in alert.actions) {
+            [actions addObject:action.title ?: @"?"];
+        }
+        NSString *message = [[alert.message ?: @"" componentsSeparatedByCharactersInSet:NSCharacterSet.newlineCharacterSet] componentsJoinedByString:@" / "];
+        BrowserDiagWarn(BrowserDiagCategoryUI, @"alert shown", nil,
+                        [NSString stringWithFormat:@"title=\"%@\" message=\"%@\" actions=[%@]", alert.title ?: @"", message, [actions componentsJoinedByString:@", "]]);
+    }
+    [self browserDiag_presentViewController:viewController animated:animated completion:completion];
+}
+
+@end
 
 static const unsigned long long kBrowserDiagnosticsMaxBytes = 512 * 1024;
 static NSString *const kBrowserDiagnosticsFileName = @"orbrisa-diag.log";
@@ -277,11 +383,32 @@ static void BrowserHandleFatalSignal(int signalNumber) {
         [fileManager moveItemAtPath:current toPath:previous error:NULL];
         NSString *text = [NSString stringWithContentsOfFile:previous encoding:NSUTF8StringEncoding error:NULL];
         NSMutableArray<NSString *> *kept = [NSMutableArray array];
+        // System chatter that says nothing about a fault: counted, not copied (one live stream wrote 3,300 of these).
+        NSArray<NSString *> *noise = @[@"Attachment range", @"CATransformLayer", @"Could not load the \"", @"for future sandbox extension"];
+        NSMutableDictionary<NSString *, NSNumber *> *noiseCounts = [NSMutableDictionary dictionary];
         for (NSString *line in [text componentsSeparatedByString:@"\n"]) {
             if (line.length == 0 || [line containsString:@"[InputTrace]"]) {
                 continue;
             }
+            NSString *noisy = nil;
+            for (NSString *marker in noise) {
+                if ([line containsString:marker]) {
+                    noisy = marker;
+                    break;
+                }
+            }
+            if (noisy != nil) {
+                noiseCounts[noisy] = @(noiseCounts[noisy].integerValue + 1);
+                continue;
+            }
             [kept addObject:line.length > 300 ? [line substringToIndex:300] : line];
+        }
+        if (noiseCounts.count > 0) {
+            NSMutableArray<NSString *> *parts = [NSMutableArray array];
+            [noiseCounts enumerateKeysAndObjectsUsingBlock:^(NSString *key, NSNumber *count, __unused BOOL *stop) {
+                [parts addObject:[NSString stringWithFormat:@"%@ x%@", key, count]];
+            }];
+            [self logEventSynchronously:@"prev-stderr" detail:[@"noise skipped: " stringByAppendingString:[parts componentsJoinedByString:@", "]]];
         }
         NSUInteger start = kept.count > 20 ? kept.count - 20 : 0;
         for (NSUInteger i = start; i < kept.count; i++) {

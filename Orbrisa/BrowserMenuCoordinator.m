@@ -1845,7 +1845,7 @@ static NSUInteger const kBrowserFontSizeMax = 200;
                                    value:^BOOL{ NSNumber *stored = [[NSUserDefaults standardUserDefaults] objectForKey:BrowserMediaPlaybackEnabledDefaultsKey]; return stored == nil ? YES : stored.boolValue; }
                                  changed:^(BOOL on) {
         [[NSUserDefaults standardUserDefaults] setBool:on forKey:BrowserMediaPlaybackEnabledDefaultsKey];
-        [[BrowserDiagnosticsLog sharedLog] logEvent:@"media-switch" detail:on ? @"on" : @"off"];
+        BrowserDiagInfo(BrowserDiagCategoryMedia, @"media-switch", nil, on ? @"on" : @"off");
         // The engine reads this when a web view is made.
         [weakSelf.host browserRecreateActiveWebViewPreservingCurrentURL];
     }];
@@ -1887,7 +1887,7 @@ static NSUInteger const kBrowserFontSizeMax = 200;
                                                         style:UIAlertActionStyleDestructive
                                                       handler:^(__unused UIAlertAction *action) {
                 [weakSelf.preferencesStore clearMobileFallbackHosts];
-                [[BrowserDiagnosticsLog sharedLog] logEvent:@"mobile-fallback" detail:@"list cleared"];
+                BrowserDiagInfo(BrowserDiagCategoryNetwork, @"mobile-fallback", nil, @"list cleared");
             }]];
         }
         [alert addAction:[weakSelf browserCancelAction]];

@@ -20,6 +20,7 @@ static BOOL const kBrowserYouTubeNativeExtractionEnabled = YES;
 @property (nonatomic) BOOL forceNativePlayback;
 @property (nonatomic) NSTimeInterval pendingStartTime;
 @property (nonatomic, copy) NSArray<NSDictionary<NSString *, NSString *> *> *pendingAlternatives;
+@property (nonatomic, copy, nullable) NSString *extractingVideoKey;
 
 @end
 
@@ -37,8 +38,9 @@ static BOOL const kBrowserYouTubeNativeExtractionEnabled = YES;
 }
 
 - (void)logPlaybackPath:(NSString *)path URL:(NSURL *)URL {
-    [[BrowserDiagnosticsLog sharedLog] logEvent:@"play-path"
-                                         detail:[NSString stringWithFormat:@"%@ host=%@", path, URL.host ?: @"-"]];
+    NSString *trace = [path hasPrefix:@"youtube"] || [path containsString:@"->"] ? nil : BrowserDiagBeginTrace(@"play");
+    BrowserDiagInfo(BrowserDiagCategoryMedia, @"play-path", trace,
+                    [NSString stringWithFormat:@"%@ url=%@ page=%@", path, URL.absoluteString ?: @"-", self.host.browserWebView.request.URL.absoluteString ?: @"-"]);
 }
 
 /// A YouTube page hands out streams (and adverts) that the Apple TV player and VLC cannot play
@@ -548,8 +550,31 @@ static BOOL const kBrowserYouTubeNativeExtractionEnabled = YES;
     });
 }
 
+/// When nothing playable was found: what the page really has (video elements and their state, frames, recent
+/// media-looking requests). This is what the next fix needs, without adding code for each site.
+- (void)logPageMediaInventory {
+    NSString *script = @"(function(){try{var o={};"
+        "o.videos=[].slice.call(document.querySelectorAll('video')).slice(0,6).map(function(v){var s=v.currentSrc||v.src||'';return {src:s.indexOf('blob:')===0?'blob':s.slice(0,160),rs:v.readyState,ns:v.networkState,err:v.error?v.error.code:0,dur:isFinite(v.duration)?Math.round(v.duration):-1,paused:v.paused,w:Math.round(v.getBoundingClientRect().width),src2:[].slice.call(v.querySelectorAll('source')).map(function(x){return (x.src||'').slice(0,120);})};});"
+        "o.frames=[].slice.call(document.querySelectorAll('iframe')).slice(0,8).map(function(f){return (f.src||'').slice(0,120);});"
+        "var re=/m3u8|mp4|mpd|m4s|\\.ts(\\?|$)|vod|video|play|media|stream|rmcnmv/i;"
+        "o.requests=performance.getEntriesByType('resource').filter(function(r){return re.test(r.name);}).slice(-25).map(function(r){return (r.initiatorType||'?')+' '+r.name.slice(0,160);});"
+        "o.players=[].slice.call(document.querySelectorAll('[class*=player i],[id*=player i],[data-video-id],[data-vid],[data-src*=video]')).slice(0,6).map(function(e){return e.tagName+'.'+String(e.className||'').slice(0,40)+' '+[].slice.call(e.attributes).filter(function(a){return /^data-/.test(a.name);}).map(function(a){return a.name+'='+String(a.value).slice(0,60);}).join(',');});"
+        "o.pageStreams=(window.__browserPageStreams||[]).slice(0,6);"
+        "return JSON.stringify(o);}catch(e){return 'inventory failed: '+e;}})()";
+    NSString *inventory = [self.host.browserWebView stringByEvaluatingJavaScriptFromString:script] ?: @"";
+    NSArray *captured = self.host.browserWebView.capturedMediaStreams;
+    BrowserDiagWarn(BrowserDiagCategoryMedia, @"no playable video: page inventory", nil,
+                    [NSString stringWithFormat:@"page=%@ captured=%lu %@", self.host.browserWebView.request.URL.absoluteString ?: @"-",
+                     (unsigned long)captured.count, inventory.length > 3000 ? [inventory substringToIndex:3000] : inventory]);
+    for (NSDictionary *stream in [captured.reverseObjectEnumerator.allObjects subarrayWithRange:NSMakeRange(0, MIN((NSUInteger)8, captured.count))]) {
+        BrowserDiagInfo(BrowserDiagCategoryMedia, @"captured stream", nil,
+                        [NSString stringWithFormat:@"type=%@ source=%@ url=%@", stream[@"type"] ?: @"?", stream[@"source"] ?: @"?", stream[@"url"] ?: @"?"]);
+    }
+}
+
 - (void)presentNoStreamFoundAlertForVideoInfo:(NSDictionary *)videoInfo {
     (void)videoInfo;
+    [self logPageMediaInventory];
     // What the page did load, so the reason is visible (e.g. only adverts, or only DASH).
     NSArray<NSDictionary<NSString *, NSString *> *> *all = self.host.browserWebView.capturedMediaStreams;
     NSMutableArray<NSString *> *lines = [NSMutableArray array];
@@ -571,7 +596,7 @@ static BOOL const kBrowserYouTubeNativeExtractionEnabled = YES;
 }
 
 - (void)presentYouTubeExtractionError:(NSError *)error fallbackVideoInfo:(NSDictionary *)videoInfo {
-    [[BrowserDiagnosticsLog sharedLog] logEvent:@"yt-extract" detail:[NSString stringWithFormat:@"FAILED (shown to viewer): %@", error.localizedDescription ?: @"?"]];
+    BrowserDiagInfo(BrowserDiagCategoryMedia, @"yt-extract", nil, [NSString stringWithFormat:@"FAILED (shown to viewer): %@", error.localizedDescription ?: @"?"]);
     NSString *message = error.localizedDescription ?: BrowserLocalized(@"Could not extract a better YouTube playback URL.");
     UIAlertController *alertController = [UIAlertController alertControllerWithTitle:BrowserLocalized(@"YouTube Extraction Failed")
                                                                              message:message
@@ -593,8 +618,25 @@ static BOOL const kBrowserYouTubeNativeExtractionEnabled = YES;
 }
 
 - (void)playYouTubeVideoAtPageURL:(NSURL *)pageURL fallbackVideoInfo:(NSDictionary *)videoInfo {
+    // One press used to start the extraction three or four times at once (log 1.3.9: four parallel runs, four
+    // identical error boxes). While one runs for this video, further requests are dropped.
+    NSString *videoKey = pageURL.absoluteString ?: @"";
+    if ([self.extractingVideoKey isEqualToString:videoKey]) {
+        BrowserDiagInfo(BrowserDiagCategoryMedia, @"yt-extract skipped", nil, @"already running for this video");
+        return;
+    }
+    self.extractingVideoKey = videoKey;
+    NSString *trace = BrowserDiagBeginTrace(@"yt");
+    BrowserDiagInfo(BrowserDiagCategoryMedia, @"yt-extract start", trace, pageURL.absoluteString);
     __weak typeof(self) weakSelf = self;
     [[self youTubeExtractor] extractPlaybackInfoFromPageURL:pageURL webView:self.host.browserWebView completion:^(BrowserYouTubeExtractionResult *result, NSError *error) {
+        weakSelf.extractingVideoKey = nil;
+        if (result.playbackURL != nil) {
+            BrowserDiagInfo(BrowserDiagCategoryMedia, @"yt-extract done", trace,
+                            [NSString stringWithFormat:@"source=%@ host=%@", result.sourceDescription ?: @"?", result.playbackURL.host ?: @"?"]);
+        } else {
+            BrowserDiagError(BrowserDiagCategoryMedia, @"yt-extract failed", trace, error, nil);
+        }
         if (result.playbackURL != nil) {
             NSString *title = result.title.length > 0 ? result.title : weakSelf.host.browserCurrentPageTitle;
             NSMutableDictionary<NSString *, NSString *> *headers = [NSMutableDictionary dictionaryWithDictionary:result.requestHeaders ?: @{}];

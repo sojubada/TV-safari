@@ -159,10 +159,10 @@ static NSString * const kBrowserRuleListIdentifier = @"BrowserAdBlockRules-v2";
     }
     if (store == nil) {
         store = ((id (*)(id, SEL))objc_msgSend)((id)storeClass, defaultStoreSelector);
-        [[BrowserDiagnosticsLog sharedLog] logEvent:@"adblock" detail:[NSString stringWithFormat:@"own store unavailable (folder=%@ %@), using WebKit default",
-                                                                        folderReady ? @"ok" : @"failed", folderError.localizedDescription ?: @""]];
+        BrowserDiagInfo(BrowserDiagCategoryStorage, @"adblock", nil, [NSString stringWithFormat:@"own store unavailable (folder=%@ %@), using WebKit default",
+                                                                        folderReady ? @"ok" : @"failed", folderError.localizedDescription ?: @""]);
     } else {
-        [[BrowserDiagnosticsLog sharedLog] logEvent:@"adblock" detail:@"store in Caches/BrowserContentRules"];
+        BrowserDiagInfo(BrowserDiagCategoryStorage, @"adblock", nil, @"store in Caches/BrowserContentRules");
     }
     SEL compileSelector = NSSelectorFromString(@"compileContentRuleListForIdentifier:encodedContentRuleList:completionHandler:");
     if (store == nil || ![store respondsToSelector:compileSelector]) {
@@ -185,7 +185,7 @@ static NSString * const kBrowserRuleListIdentifier = @"BrowserAdBlockRules-v2";
             if (strongSelf != nil && ruleList != nil) {
                 strongSelf.compiledRuleListObject = ruleList;
                 strongSelf.compilationStatusString = @"Success (cached)";
-                [[BrowserDiagnosticsLog sharedLog] logEvent:@"adblock" detail:@"rule list loaded"];
+                BrowserDiagInfo(BrowserDiagCategoryStorage, @"adblock", nil, @"rule list loaded");
             }
             lookedUp = YES;
         };
@@ -221,9 +221,8 @@ static NSString * const kBrowserRuleListIdentifier = @"BrowserAdBlockRules-v2";
                 if (strongSelf == nil) {
                     return;
                 }
-                [[BrowserDiagnosticsLog sharedLog] logEvent:@"adblock"
-                                                     detail:error != nil ? [NSString stringWithFormat:@"compile failed: %@", error.localizedDescription]
-                                                                         : (ruleList != nil ? @"compiled, active from next launch" : @"compile returned nothing")];
+                BrowserDiagInfo(BrowserDiagCategoryStorage, @"adblock", nil, error != nil ? [NSString stringWithFormat:@"compile failed: %@", error.localizedDescription]
+                                                                         : (ruleList != nil ? @"compiled, active from next launch" : @"compile returned nothing"));
                 if (error != nil) {
                     strongSelf.compilationStatusString =
                         [NSString stringWithFormat:@"Failed Error: %@", error.localizedDescription];

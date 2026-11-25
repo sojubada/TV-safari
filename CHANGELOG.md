@@ -2,6 +2,18 @@
 
 All notable changes to Orbrisa. The format follows [Keep a Changelog](https://keepachangelog.com), versions follow [Semantic Versioning](https://semver.org).
 
+## [1.4.0] – 2026-11-25
+
+### Diagnostics (DiagLog)
+- Structured log after the DiagLog guideline: categories Lifecycle / Network / Storage / UI / Media, levels INFO / WARN / ERR, a trace id per playback attempt, errors with `domain= code= msg=`. Each line goes to the unified system log (os_log, subsystem = bundle id) and to `orbrisa-diag.log`.
+- Recorded without per-bug code: every alert the viewer sees (title, message, buttons); the page's own video lines (video elements, events, requests, streams found); the Apple TV player's events and a closing summary (position, watched time, stalls, bitrate, live/VOD, host); what YouTube returned to each client (HLS / DASH / SABR / formats / ciphered); when no video is found, an inventory of the page (video elements and their state, frames, recent media requests, player elements).
+- System chatter in stderr (AVKit "Attachment range", CATransformLayer, nib images) is counted, not copied.
+
+### Fixed
+- **YouTube:** client identities brought up to date (yt-dlp, July 2026). `web_safari` and `mweb` come first because they return HLS, which needs no PO token at present and is what the Apple TV player plays; then `android_vr`, `ios` 21.26.4, `tv` 7.20260707. The dead `tv_embedded` is gone. App clients no longer get browser cookies; a stream is fetched with the identity of the client that asked for it.
+- **YouTube:** one press started three or four extractions at once (four identical error boxes). One at a time per video now.
+- **Naver news VOD (JTBC etc.):** the stream list arrives as JSON when the player starts and never appears in a `<video>`. JSON answers from player/VOD addresses are scanned for `.m3u8` / `.mp4`.
+
 ## [1.3.9] – 2026-11-24
 
 ### Fixed

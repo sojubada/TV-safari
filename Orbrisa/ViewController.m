@@ -623,8 +623,8 @@ static UIImage *BrowserGuideSymbol(NSArray<NSString *> *names, CGFloat pointSize
     self.scrollViewAllowBounces = YES;
 
     [[BrowserDiagnosticsLog sharedLog] logSessionStart];
-    [[BrowserDiagnosticsLog sharedLog] logEvent:@"media-safety" detail:BrowserMediaSafetySummary()];
-    [[BrowserDiagnosticsLog sharedLog] logEvent:@"storage" detail:BrowserStorageSummary()];
+    BrowserDiagInfo(BrowserDiagCategoryMedia, @"media-safety", nil, BrowserMediaSafetySummary());
+    BrowserDiagInfo(BrowserDiagCategoryStorage, @"storage", nil, BrowserStorageSummary());
     // Compiled in the background and kept by WebKit, so only the first launch pays.
     [[BrowserContentBlockerController sharedController] prepareRuleListIfNeeded];
     [self trimCachesIfDiskIsLow];
@@ -798,14 +798,14 @@ static UIImage *BrowserGuideSymbol(NSArray<NSString *> *names, CGFloat pointSize
 
 - (void)handleApplicationWillResignActive:(NSNotification *)notification {
     (void)notification;
-    [[BrowserDiagnosticsLog sharedLog] logEvent:@"app" detail:@"resign-active"];
+    BrowserDiagInfo(BrowserDiagCategoryLifecycle, @"app", nil, @"resign-active");
     [self.tabCoordinator persistSession];
     [self.tabCoordinator updateTopShelf];
 }
 
 - (void)handleApplicationDidEnterBackground:(NSNotification *)notification {
     (void)notification;
-    [[BrowserDiagnosticsLog sharedLog] logEvent:@"app" detail:@"background"];
+    BrowserDiagInfo(BrowserDiagCategoryLifecycle, @"app", nil, @"background");
     [self.tabCoordinator persistSession];
     [self.tabCoordinator updateTopShelf];
 }
@@ -2087,7 +2087,7 @@ static CGFloat const kShowTopBarButtonHitSlop = 24.0;
     // in whatever field now sits at the same spot.
     NSString *currentURLString = webView.request.URL.absoluteString ?: @"";
     if (self.typingPageURLString != nil && ![currentURLString isEqualToString:self.typingPageURLString]) {
-        [[BrowserDiagnosticsLog sharedLog] logEvent:@"typing-drop" detail:@"page changed under the field"];
+        BrowserDiagWarn(BrowserDiagCategoryUI, @"typing-drop", nil, @"page changed under the field");
         return;
     }
     NSString *escaped = [self.domInteractionService javaScriptEscapedString:text];
@@ -2315,7 +2315,7 @@ static CGFloat const kShowTopBarButtonHitSlop = 24.0;
 - (BOOL)handleBackWithNoHistory {
     NSUInteger tabCount = self.viewModel.tabs.count;
     if (tabCount > 1) {
-        [[BrowserDiagnosticsLog sharedLog] logEvent:@"back" detail:@"no history: closing this tab"];
+        BrowserDiagInfo(BrowserDiagCategoryUI, @"back", nil, @"no history: closing this tab");
         [self endHardwareTypingSession];
         [self cancelStuckLoadWatchdog];
         [self.tabCoordinator closeTabAtIndex:self.viewModel.activeTabIndex];
@@ -2329,7 +2329,7 @@ static CGFloat const kShowTopBarButtonHitSlop = 24.0;
     if (googleRequest == nil) {
         return NO;
     }
-    [[BrowserDiagnosticsLog sharedLog] logEvent:@"back" detail:@"no history in the last tab: fresh tab on Google"];
+    BrowserDiagInfo(BrowserDiagCategoryUI, @"back", nil, @"no history in the last tab: fresh tab on Google");
     [self endHardwareTypingSession];
     [self cancelStuckLoadWatchdog];
     [self.tabCoordinator replaceActiveTabWithFreshTabLoadingRequest:googleRequest];
@@ -2379,7 +2379,7 @@ static CGFloat const kShowTopBarButtonHitSlop = 24.0;
 
 - (void)confirmAndExitApp {
     // No question: the exit button quits at once. Cookies are saved in applicationWillTerminate.
-    [[BrowserDiagnosticsLog sharedLog] logEvent:@"app" detail:@"exit button"];
+    BrowserDiagInfo(BrowserDiagCategoryLifecycle, @"app", nil, @"exit button");
     [[UIApplication sharedApplication].delegate applicationWillTerminate:[UIApplication sharedApplication]];
     exit(EXIT_SUCCESS);
 }
@@ -2772,7 +2772,7 @@ static const NSTimeInterval kStuckLoadTimeout = 30.0;
     }
     NSURLRequest *httpFallback = [self.navigationService httpFallbackRequestForFailedURL:failingURL ?: currentRequest.URL];
     if (httpFallback != nil) {
-        [[BrowserDiagnosticsLog sharedLog] logEvent:@"https-first" detail:@"secure load failed, retrying over http once"];
+        BrowserDiagInfo(BrowserDiagCategoryNetwork, @"https-first", nil, @"secure load failed, retrying over http once");
         [webView loadRequest:httpFallback];
         return;
     }

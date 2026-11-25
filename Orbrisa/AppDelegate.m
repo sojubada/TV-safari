@@ -149,7 +149,7 @@ static void BrowserPruneCaches(void) {
         for (NSString *child in [fm contentsOfDirectoryAtPath:path error:NULL]) {
             [fm removeItemAtPath:[path stringByAppendingPathComponent:child] error:NULL];
         }
-        [[BrowserDiagnosticsLog sharedLog] logEvent:@"cleanup" detail:[NSString stringWithFormat:@"emptied %@", path.lastPathComponent]];
+        BrowserDiagInfo(BrowserDiagCategoryStorage, @"cleanup", nil, [NSString stringWithFormat:@"emptied %@", path.lastPathComponent]);
     }
 }
 

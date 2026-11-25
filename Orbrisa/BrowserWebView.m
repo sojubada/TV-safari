@@ -701,6 +701,11 @@ static NSString *BrowserMediaCaptureScript(void) {
         @"try { var xo = XMLHttpRequest.prototype.open; XMLHttpRequest.prototype.open = function(m, u){ report(u, 'network'); noteRequest(u); return xo.apply(this, arguments); }; } catch (e) {}\n"
         @"function noteRequest(u){ try { u = String(u || ''); if (/get_media|m3u8|master|\\/hls\\/|mediaDefinition/i.test(u) && !AD_SRC.test(u)) { dlog('Anfrage: ' + u.replace(/^https?:\\/\\//, '').slice(0, 70)); } } catch (e) {} }\n"
         @"try { var of = window.fetch; if (of) { window.__browserOrigFetch = of; window.fetch = function(i){ try { report(typeof i === 'string' ? i : (i && i.url), 'network'); noteRequest(typeof i === 'string' ? i : (i && i.url)); } catch (e) {} return of.apply(this, arguments); }; } } catch (e) {}\n"
+        @"// Players such as Naver's (JTBC and other news VOD) get their stream list as JSON once the player starts; the addresses sit in that JSON, never in a <video>. Scan such answers for .m3u8 / .mp4.\n"
+        @"var JSON_URL = /rmcnmv|\\/vod\\/|playinfo|play\\/v\\d|\\/video\\/|videoinfo|media\\/play|manifest|playback/i;\n"
+        @"function scanJSONText(t, u){ try { if (!t || t.length > 3000000) { return; } var re = /https?:(?:\\\\?\\/){2}[^\"'\\s<>]+?\\.(?:m3u8|mp4)(?:\\?[^\"'\\s<>]*)?/g; var m, n = 0, found = 0; while ((m = re.exec(t)) && n++ < 60) { addPageStream(m[0], true); found++; } dlog('JSON ' + String(u || '').replace(/^https?:\\/\\//, '').slice(0, 70) + ' -> ' + found + ' stream(s)'); } catch (e) {} }\n"
+        @"try { var of2 = window.fetch; if (of2) { window.fetch = function(i){ var p = of2.apply(this, arguments); try { var u = typeof i === 'string' ? i : (i && i.url); if (JSON_URL.test(String(u || '')) && p && p.then) { p.then(function(r){ try { r.clone().text().then(function(t){ scanJSONText(t, u); }); } catch (e) {} }); } } catch (e) {} return p; }; } } catch (e) {}\n"
+        @"try { var xs = XMLHttpRequest.prototype.send; XMLHttpRequest.prototype.send = function(){ var x = this; try { x.addEventListener('load', function(){ try { var u = x.responseURL || ''; if (JSON_URL.test(u) && (x.responseType === '' || x.responseType === 'text')) { scanJSONText(x.responseText, u); } } catch (e) {} }); } catch (e) {} return xs.apply(this, arguments); }; } catch (e) {}\n"
         @"try { var d = Object.getOwnPropertyDescriptor(HTMLMediaElement.prototype, 'src'); if (d && d.set) { Object.defineProperty(HTMLMediaElement.prototype, 'src', {get: d.get, set: function(v){ report(v, 'media'); return d.set.call(this, v); }, configurable: true}); } } catch (e) {}\n"
         @"try { var sa = Element.prototype.setAttribute; Element.prototype.setAttribute = function(n, v){ try { var t = (this.tagName || '').toLowerCase(); if ((t === 'video' || t === 'source' || t === 'audio') && String(n).toLowerCase() === 'src') { report(v, t === 'audio' ? 'network' : 'media'); } } catch (e) {} return sa.apply(this, arguments); }; } catch (e) {}\n"
         @"function scan(){\n"
@@ -1150,10 +1155,23 @@ static void BrowserInstallYouTubeCaptureUserScript(id configuration) {
 
 /// Lines from the page script about adverts and video elements; only in debug builds, in the Xcode console.
 - (void)appendAdDebugLine:(NSString *)line {
+    // What the page's video elements and requests did (VIDEOS, EVENT, requests, streams found), in every build.
+    // Repeats are dropped and a session keeps at most 400, so a looping page cannot flood the file.
+    static NSString *lastLine = nil;
+    static NSUInteger written = 0;
+    if (line.length == 0 || [line isEqualToString:lastLine]) {
+        return;
+    }
+    lastLine = [line copy];
+    if (written < 400) {
+        written += 1;
+        BrowserDiagInfo(BrowserDiagCategoryMedia, @"page", nil, line.length > 400 ? [line substringToIndex:400] : line);
+    } else if (written == 400) {
+        written += 1;
+        BrowserDiagWarn(BrowserDiagCategoryMedia, @"page", nil, @"400 page lines this session; further ones are not written");
+    }
 #if DEBUG
     BrowserLog(@"[AdDbg] %@", line);
-#else
-    (void)line;
 #endif
 }
 

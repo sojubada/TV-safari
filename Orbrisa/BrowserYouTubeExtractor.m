@@ -9,12 +9,20 @@ NSString * const BrowserYouTubeExtractorErrorDomain = @"BrowserYouTubeExtractorE
 static NSString * const kBrowserYouTubeSafariUserAgent = @"Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/15.5 Safari/605.1.15";
 static NSString * const kBrowserYouTubeFallbackClientVersion = @"2.20260114.08.00";
 static NSString * const kBrowserYouTubeExtractorLogPrefix = @"[YouTubeExtractor]";
-static NSString * const kBrowserYouTubeIOSUserAgent = @"com.google.ios.youtube/19.09.3 (iPhone16,2; U; CPU iOS 17_4_1 like Mac OS X;)";
-static NSString * const kBrowserYouTubeIOSClientVersion = @"19.09.3";
-static NSString * const kBrowserYouTubeMWEBClientVersion = @"2.20260303.00.00";
-static NSString * const kBrowserYouTubeTVUserAgent = @"Mozilla/5.0 (ChromiumStylePlatform) Cobalt/Version";
-static NSString * const kBrowserYouTubeTVClientVersion = @"7.20210204";
-static NSString * const kBrowserYouTubeTVEmbeddedClientVersion = @"2.0";
+// Client identities as yt-dlp uses them (yt_dlp/extractor/youtube/_base.py, July 2026). The 1.3.9 log showed what
+// the old ones got: ios 19.09.3 -> HTTP 400, TVHTML5 7.2021 -> "page needs to be reloaded", tv_embedded -> "no longer
+// supported", mweb muxed MP4 -> 403 (needs a PO token). web_safari and mweb are the ones that hand out HLS, and
+// YouTube's HLS does not need a PO token at present; HLS is also what the Apple TV player plays best.
+static NSString * const kBrowserYouTubeSafariGFEUserAgent = @"Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/15.5 Safari/605.1.15,gzip(gfe)";
+static NSString * const kBrowserYouTubeMWEBUserAgent = @"Mozilla/5.0 (iPad; CPU OS 16_7_10 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/16.6 Mobile/15E148 Safari/604.1,gzip(gfe)";
+static NSString * const kBrowserYouTubeMWEBClientVersion = @"2.20260708.05.00";
+static NSString * const kBrowserYouTubeWebClientVersion = @"2.20260708.00.00";
+static NSString * const kBrowserYouTubeIOSUserAgent = @"com.google.ios.youtube/21.26.4 (iPhone16,2; U; CPU iOS 18_3_2 like Mac OS X;)";
+static NSString * const kBrowserYouTubeIOSClientVersion = @"21.26.4";
+static NSString * const kBrowserYouTubeAndroidVRUserAgent = @"com.google.android.apps.youtube.vr.oculus/1.65.10 (Linux; U; Android 12L; eureka-user Build/SQ3A.220605.009.A1) gzip";
+static NSString * const kBrowserYouTubeAndroidVRClientVersion = @"1.65.10";
+static NSString * const kBrowserYouTubeTVUserAgent = @"Mozilla/5.0 (ChromiumStylePlatform) Cobalt/25.lts.30.1034943-gold (unlike Gecko),Unknown_TV_Unknown_0/Unknown (Unknown, Unknown)";
+static NSString * const kBrowserYouTubeTVClientVersion = @"7.20260707.07.00";
 
 @interface BrowserYouTubeExtractionResult ()
 
@@ -57,7 +65,7 @@ static NSString * const kBrowserYouTubeTVEmbeddedClientVersion = @"2.0";
     NSString *message = [[NSString alloc] initWithFormat:format arguments:arguments];
     va_end(arguments);
     BrowserLog(@"%@ %@", kBrowserYouTubeExtractorLogPrefix, message);
-    [[BrowserDiagnosticsLog sharedLog] logEvent:@"yt-extract" detail:message];
+    BrowserDiagInfo(BrowserDiagCategoryMedia, @"yt-extract", nil, message.length > 600 ? [message substringToIndex:600] : message);
 }
 
 - (instancetype)init {
@@ -242,39 +250,49 @@ static NSString * const kBrowserYouTubeTVEmbeddedClientVersion = @"2.0";
     NSString *hl = [pageConfiguration[@"hl"] isKindOfClass:[NSString class]] && [pageConfiguration[@"hl"] length] > 0 ? pageConfiguration[@"hl"] : @"en";
     NSString *gl = [pageConfiguration[@"gl"] isKindOfClass:[NSString class]] && [pageConfiguration[@"gl"] length] > 0 ? pageConfiguration[@"gl"] : @"US";
 
+    (void)webClientVersion;
+    // Order: the clients that return HLS first.
     return @[
         @{
-            @"label": @"web",
+            @"label": @"web_safari",
             @"clientName": @"WEB",
-            @"clientVersion": webClientVersion,
+            @"clientVersion": kBrowserYouTubeWebClientVersion,
             @"clientHeaderName": @"1",
-            @"userAgent": kBrowserYouTubeSafariUserAgent,
+            @"userAgent": kBrowserYouTubeSafariGFEUserAgent,
             @"hl": hl,
             @"gl": gl,
             @"sendOrigin": @YES,
             @"sendReferer": @YES,
+            @"sendCookies": @YES,
         },
         @{
             @"label": @"mweb",
             @"clientName": @"MWEB",
             @"clientVersion": kBrowserYouTubeMWEBClientVersion,
             @"clientHeaderName": @"2",
-            @"userAgent": kBrowserYouTubeSafariUserAgent,
+            @"userAgent": kBrowserYouTubeMWEBUserAgent,
             @"hl": hl,
             @"gl": gl,
             @"sendOrigin": @YES,
             @"sendReferer": @YES,
+            @"sendCookies": @YES,
         },
         @{
-            @"label": @"web_safari",
-            @"clientName": @"WEB",
-            @"clientVersion": webClientVersion,
-            @"clientHeaderName": @"1",
-            @"userAgent": kBrowserYouTubeSafariUserAgent,
+            @"label": @"android_vr",
+            @"clientName": @"ANDROID_VR",
+            @"clientVersion": kBrowserYouTubeAndroidVRClientVersion,
+            @"clientHeaderName": @"28",
+            @"userAgent": kBrowserYouTubeAndroidVRUserAgent,
             @"hl": hl,
             @"gl": gl,
-            @"sendOrigin": @YES,
-            @"sendReferer": @YES,
+            @"osName": @"Android",
+            @"osVersion": @"12L",
+            @"deviceMake": @"Oculus",
+            @"deviceModel": @"Quest 3",
+            @"androidSdkVersion": @32,
+            @"sendOrigin": @NO,
+            @"sendReferer": @NO,
+            @"sendCookies": @NO,
         },
         @{
             @"label": @"ios",
@@ -285,10 +303,12 @@ static NSString * const kBrowserYouTubeTVEmbeddedClientVersion = @"2.0";
             @"hl": hl,
             @"gl": gl,
             @"osName": @"iPhone",
-            @"osVersion": @"17.4.1.21E236",
+            @"osVersion": @"18.3.2.22D82",
+            @"deviceMake": @"Apple",
             @"deviceModel": @"iPhone16,2",
             @"sendOrigin": @NO,
             @"sendReferer": @NO,
+            @"sendCookies": @NO,
         },
         @{
             @"label": @"tv",
@@ -300,17 +320,7 @@ static NSString * const kBrowserYouTubeTVEmbeddedClientVersion = @"2.0";
             @"gl": gl,
             @"sendOrigin": @NO,
             @"sendReferer": @NO,
-        },
-        @{
-            @"label": @"tv_embedded",
-            @"clientName": @"TVHTML5_SIMPLY_EMBEDDED_PLAYER",
-            @"clientVersion": kBrowserYouTubeTVEmbeddedClientVersion,
-            @"clientHeaderName": @"85",
-            @"userAgent": kBrowserYouTubeTVUserAgent,
-            @"hl": hl,
-            @"gl": gl,
-            @"sendOrigin": @NO,
-            @"sendReferer": @NO,
+            @"sendCookies": @YES,
         },
     ];
 }
@@ -571,7 +581,7 @@ static NSString * const kBrowserYouTubeTVEmbeddedClientVersion = @"2.0";
     [task resume];
 }
 
-- (BrowserYouTubeExtractionResult *)resultFromFormats:(NSArray *)formats title:(NSString *)title source:(NSString *)sourcePrefix {
+- (BrowserYouTubeExtractionResult *)resultFromFormats:(NSArray *)formats title:(NSString *)title source:(NSString *)sourcePrefix requestHeaders:(NSDictionary<NSString *, NSString *> *)clientHeaders {
     if (![formats isKindOfClass:[NSArray class]]) {
         [self log:@"no candidate formats for source=%@", sourcePrefix];
         return nil;
@@ -631,7 +641,8 @@ static NSString * const kBrowserYouTubeTVEmbeddedClientVersion = @"2.0";
                                                                  title:title
                                                      sourceDescription:source
                                                         requestHeaders:@{
-                                                            @"User-Agent": kBrowserYouTubeSafariUserAgent,
+                                                            // The stream is tied to the client that asked for it, so it is fetched as that client.
+                                                            @"User-Agent": clientHeaders[@"User-Agent"] ?: kBrowserYouTubeSafariUserAgent,
                                                             @"Accept": @"*/*",
                                                             @"Accept-Language": @"en-US,en;q=0.9",
                                                         }];
@@ -662,6 +673,28 @@ static NSString * const kBrowserYouTubeTVEmbeddedClientVersion = @"2.0";
         return nil;
     }
 
+    // What YouTube offered this client, so the next failure explains itself.
+    NSArray *formats = [streamingData[@"formats"] isKindOfClass:[NSArray class]] ? streamingData[@"formats"] : @[];
+    NSArray *adaptive = [streamingData[@"adaptiveFormats"] isKindOfClass:[NSArray class]] ? streamingData[@"adaptiveFormats"] : @[];
+    NSUInteger directURLs = 0, ciphered = 0;
+    for (NSDictionary *format in [formats arrayByAddingObjectsFromArray:adaptive]) {
+        if (![format isKindOfClass:[NSDictionary class]]) {
+            continue;
+        }
+        if ([format[@"url"] isKindOfClass:[NSString class]]) {
+            directURLs++;
+        } else if (format[@"signatureCipher"] != nil || format[@"cipher"] != nil) {
+            ciphered++;
+        }
+    }
+    [self log:@"streamingData client=%@ hls=%@ dash=%@ sabr=%@ formats=%lu adaptive=%lu directURL=%lu ciphered=%lu expires=%@s",
+     sourceLabel ?: @"?",
+     streamingData[@"hlsManifestUrl"] != nil ? @"yes" : @"no",
+     streamingData[@"dashManifestUrl"] != nil ? @"yes" : @"no",
+     streamingData[@"serverAbrStreamingUrl"] != nil ? @"yes" : @"no",
+     (unsigned long)formats.count, (unsigned long)adaptive.count, (unsigned long)directURLs, (unsigned long)ciphered,
+     streamingData[@"expiresInSeconds"] ?: @"?"];
+
     NSURL *hlsManifestURL = [self URLFromPotentialString:streamingData[@"hlsManifestUrl"]];
     if (hlsManifestURL != nil) {
         [self log:@"selected hls manifest url=%@", hlsManifestURL.absoluteString ?: @""];
@@ -673,7 +706,8 @@ static NSString * const kBrowserYouTubeTVEmbeddedClientVersion = @"2.0";
 
     BrowserYouTubeExtractionResult *formatResult = [self resultFromFormats:streamingData[@"formats"]
                                                                      title:title
-                                                                    source:@"youtube muxed"];
+                                                                    source:[NSString stringWithFormat:@"youtube %@ muxed", sourceLabel ?: @"?"]
+                                                            requestHeaders:requestHeaders];
     if (formatResult != nil) {
         return formatResult;
     }
@@ -707,6 +741,12 @@ static NSString * const kBrowserYouTubeTVEmbeddedClientVersion = @"2.0";
     }
     if ([clientProfile[@"deviceModel"] isKindOfClass:[NSString class]]) {
         client[@"deviceModel"] = clientProfile[@"deviceModel"];
+    }
+    if ([clientProfile[@"deviceMake"] isKindOfClass:[NSString class]]) {
+        client[@"deviceMake"] = clientProfile[@"deviceMake"];
+    }
+    if (clientProfile[@"androidSdkVersion"] != nil) {
+        client[@"androidSdkVersion"] = clientProfile[@"androidSdkVersion"];
     }
 
     NSMutableDictionary *body = nil;
@@ -789,6 +829,8 @@ static NSString * const kBrowserYouTubeTVEmbeddedClientVersion = @"2.0";
 
     NSMutableURLRequest *request = [NSMutableURLRequest requestWithURL:URL];
     request.HTTPMethod = @"POST";
+    // The app clients (ios, android_vr) do not take browser cookies; sending them gets the request refused.
+    request.HTTPShouldHandleCookies = [clientProfile[@"sendCookies"] boolValue];
     [request setValue:@"application/json" forHTTPHeaderField:@"Content-Type"];
     NSString *clientVersion = [clientProfile[@"clientVersion"] isKindOfClass:[NSString class]] && [clientProfile[@"clientVersion"] length] > 0
         ? clientProfile[@"clientVersion"]
