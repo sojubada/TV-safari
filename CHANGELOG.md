@@ -12,6 +12,14 @@ All notable changes to Orbrisa. The format follows [Keep a Changelog](https://ke
   - the page's visitor data is sent inside the client context too.
 - Order: visionos → web_safari → mweb → web_embedded → android_vr → ios → tv.
 
+### Added
+- **Bluetooth mouse** through the ESP32-C3 relay (sojubada/rd4tvos, `firmware/x1bridge`), which re-sends a BLE mouse as a Citrix X1 mouse (service `2B080000-BDB5-F6EB-24AE-9D6AB282AB63`). The browser is the central and connects on its own; nothing is paired in tvOS Settings.
+  - movement drives the same pointer as the clickpad; the bar is reached by pointing at it, no snapping;
+  - left click = click at the pointer (bar buttons included), right = Back / close, middle = page menu, wheel = scroll (page or the box under the pointer);
+  - settings: `BrowserX1MouseEnabled` (default on; off means no Bluetooth use at all), `BrowserX1MouseSpeed` (default 1.0);
+  - diagnostics category `Input`: Bluetooth state, scan, found (name, RSSI), connect/disconnect with error, report references, first raw reports, button edges, 30 s counters (reports, clicks, travel).
+  - `NSBluetoothAlwaysUsageDescription` added (required before any CoreBluetooth use).
+
 ## [1.4.0] – 2026-11-25
 
 ### Diagnostics (DiagLog)

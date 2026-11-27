@@ -1235,6 +1235,104 @@ static NSString *BrowserPressPhaseString(UIPressPhase phase) {
     return YES;
 }
 
+#pragma mark - Mouse
+
+static const CGFloat kBrowserMouseWheelStep = 120.0;
+
+- (void)updateCursorImageForHover {
+    self.cursorView.image = BrowserDefaultCursor();
+    if ([self.host browserRemoteInputControllerTabOverviewVisible]) {
+        if ([self.host browserRemoteInputControllerTabOverviewContainsPoint:self.cursorView.frame.origin]) {
+            self.cursorView.image = BrowserPointerCursor();
+        }
+        return;
+    }
+    if (self.cursorModeEnabled && self.cursorView.frame.origin.y >= [self topBarBottomEdge]) {
+        NSString *containsLink = [self.host browserRemoteInputControllerHoverStateAtCursorPoint:self.cursorView.frame.origin];
+        if ([containsLink isEqualToString:@"true"]) {
+            self.cursorView.image = BrowserPointerCursor();
+        }
+    }
+}
+
+- (void)handleExternalPointerDelta:(CGPoint)delta {
+    if ([self.host browserRemoteInputControllerPresentedViewController] != nil) {
+        return;
+    }
+    [self noteCursorActivity];
+    // The remote may have left the bar in focus mode; the mouse takes over the pointer.
+    if ([self.host browserRemoteInputControllerTopBarFocusActive]) {
+        [self.host browserRemoteInputControllerDeactivateTopBarFocus];
+    }
+    if (self.linkNavigationActive) {
+        [self setLinkNavigationActive:NO];
+    }
+    if (!self.cursorModeEnabled && ![self.host browserRemoteInputControllerTabOverviewVisible]) {
+        [self setCursorModeEnabled:YES];
+    }
+    CGRect rect = self.cursorView.frame;
+    rect.origin.x = MIN(MAX(rect.origin.x + delta.x, 0.0), [self viewportWidth]);
+    rect.origin.y = MIN(MAX(rect.origin.y + delta.y, 0.0), [self viewportHeight]);
+    self.cursorView.frame = rect;
+
+    if ([self revealTopBarIfCursorAtScreenTop:(delta.y < 0.0)]) {
+        return;
+    }
+    // No edge auto-scroll in the bar, where the pointer is meant to stop on a button.
+    if (rect.origin.y >= [self topBarBottomEdge]) {
+        [self updateEdgeAutoScrollForCursorPosition];
+    } else {
+        [self stopEdgeAutoScroll];
+    }
+    [self updateCursorImageForHover];
+}
+
+- (void)handleExternalPrimaryClick {
+    [self noteCursorActivity];
+    if ([self.host browserRemoteInputControllerPresentedViewController] != nil) {
+        return;
+    }
+    CGPoint point = self.cursorView.frame.origin;
+    if ([self.host browserRemoteInputControllerTabOverviewVisible]) {
+        [self.host browserRemoteInputControllerHandleTabOverviewSelectionAtPoint:point];
+        return;
+    }
+    if (point.y < [self topBarBottomEdge] &&
+        [self.host respondsToSelector:@selector(browserRemoteInputControllerHandlePointerClickInTopBarAtPoint:)] &&
+        [self.host browserRemoteInputControllerHandlePointerClickInTopBarAtPoint:point]) {
+        return;
+    }
+    if (!self.cursorModeEnabled) {
+        [self setCursorModeEnabled:YES];
+    }
+    [self.host browserRemoteInputControllerHandlePrimaryAction];
+}
+
+- (void)handleExternalSecondaryClick {
+    [self noteCursorActivity];
+    if ([self.host browserRemoteInputControllerTabOverviewVisible]) {
+        [self.host browserRemoteInputControllerDismissTabOverview];
+        return;
+    }
+    [self.host browserRemoteInputControllerHandleMenuPress];
+}
+
+- (void)handleExternalMiddleClick {
+    [self noteCursorActivity];
+    [self.host browserRemoteInputControllerHandleAdvancedMenuPress];
+}
+
+- (void)handleExternalWheel:(NSInteger)notches {
+    [self noteCursorActivity];
+    if (notches == 0 || ![self canPerformCustomScroll]) {
+        return;
+    }
+    CGPoint delta = CGPointMake(0.0, -notches * kBrowserMouseWheelStep);
+    if (![self applyManualScrollDelta:delta]) {
+        [self.host browserRemoteInputControllerScrollActiveContainerByDelta:delta atCursorPoint:self.cursorView.frame.origin];
+    }
+}
+
 - (void)handleTouchesEnded {
     [self noteCursorActivity];
     self.lastTouchLocation = CGPointMake(-1, -1);

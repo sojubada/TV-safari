@@ -15,6 +15,7 @@
 #import "BrowserPageActionCoordinator.h"
 #import "BrowserPreferencesStore.h"
 #import "BrowserRemoteInputController.h"
+#import "BrowserX1MouseController.h"
 #import "BrowserSessionStore.h"
 #import "BrowserTabViewModel.h"
 #import "BrowserTabCoordinator.h"
@@ -535,7 +536,9 @@ static UIImage *BrowserGuideSymbol(NSArray<NSString *> *names, CGFloat pointSize
 
 @end
 
-@interface ViewController () <BrowserHardwareKeyboardControllerDelegate, BrowserMenuCoordinatorHost, BrowserPageActionCoordinatorHost, BrowserRemoteInputControllerHost, BrowserTabCoordinatorHost, BrowserTabOverviewControllerHost, BrowserTopBarViewDelegate, BrowserVideoPlaybackCoordinatorHost>
+@interface ViewController () <BrowserHardwareKeyboardControllerDelegate, BrowserMenuCoordinatorHost, BrowserPageActionCoordinatorHost, BrowserRemoteInputControllerHost, BrowserTabCoordinatorHost, BrowserTabOverviewControllerHost, BrowserTopBarViewDelegate, BrowserVideoPlaybackCoordinatorHost, BrowserX1MouseControllerDelegate>
+
+@property (nonatomic) BrowserX1MouseController *x1MouseController;
 
 @property (nonatomic) BrowserDOMInteractionService *domInteractionService;
 @property (nonatomic) BrowserMenuCoordinator *menuCoordinator;
@@ -674,6 +677,11 @@ static UIImage *BrowserGuideSymbol(NSArray<NSString *> *names, CGFloat pointSize
     self.topMenuView.loadingSpinner.hidesWhenStopped = YES;
     [self setUpShowTopBarButton];
     self.remoteInputController.cursorView.hidden = NO;
+
+    // Bluetooth mouse through the ESP32-C3 X1 relay (rd4tvos firmware/x1bridge). Off with BrowserX1MouseEnabled = NO.
+    self.x1MouseController = [BrowserX1MouseController new];
+    self.x1MouseController.delegate = self;
+    [self.x1MouseController start];
 
     [[NSNotificationCenter defaultCenter] addObserver:self
                                              selector:@selector(handleApplicationWillResignActive:)
@@ -2227,6 +2235,62 @@ static CGFloat const kShowTopBarButtonHitSlop = 24.0;
 
 - (void)browserRemoteInputControllerHandleTabOverviewAlternateAction {
     [self.tabOverviewController handleAlternateAction];
+}
+
+#pragma mark - Mouse (X1 relay)
+
+- (void)x1Mouse:(BrowserX1MouseController *)mouse didMoveByDelta:(CGPoint)delta {
+    [self.remoteInputController handleExternalPointerDelta:delta];
+}
+
+- (void)x1Mouse:(BrowserX1MouseController *)mouse button:(BrowserX1MouseButtons)button pressed:(BOOL)pressed {
+    // Acting on release, like a click; a held button does nothing until it comes up.
+    if (pressed) {
+        return;
+    }
+    switch (button) {
+        case BrowserX1MouseButtonLeft:
+            [self.remoteInputController handleExternalPrimaryClick];
+            break;
+        case BrowserX1MouseButtonRight:
+            [self.remoteInputController handleExternalSecondaryClick];
+            break;
+        case BrowserX1MouseButtonMiddle:
+            [self.remoteInputController handleExternalMiddleClick];
+            break;
+    }
+}
+
+- (void)x1Mouse:(BrowserX1MouseController *)mouse didScrollWheel:(NSInteger)notches {
+    [self.remoteInputController handleExternalWheel:notches];
+}
+
+- (void)x1Mouse:(BrowserX1MouseController *)mouse connectionDidChange:(BOOL)connected name:(NSString *)name {
+    if (connected) {
+        // Show where the pointer is the moment the mouse comes in.
+        [self.remoteInputController handleExternalPointerDelta:CGPointZero];
+    }
+}
+
+- (BOOL)browserRemoteInputControllerHandlePointerClickInTopBarAtPoint:(CGPoint)point {
+    if (self.topMenuView == nil || self.topMenuView.hidden) {
+        return NO;
+    }
+    CGPoint local = [self.topMenuView convertPoint:point fromView:self.view];
+    UIView *hit = [self.topMenuView hitTest:local withEvent:nil];
+    while (hit != nil && hit != self.topMenuView && ![hit isKindOfClass:[UIControl class]]) {
+        hit = hit.superview;
+    }
+    if (![hit isKindOfClass:[UIControl class]] || !((UIControl *)hit).enabled) {
+        BrowserDiagInfo(BrowserDiagCategoryInput, @"mouse bar click", nil, [NSString stringWithFormat:@"no button at (%.0f,%.0f)", point.x, point.y]);
+        return NO;
+    }
+    UIControl *control = (UIControl *)hit;
+    BrowserDiagInfo(BrowserDiagCategoryInput, @"mouse bar click", nil,
+                    [NSString stringWithFormat:@"%@ label=%@", NSStringFromClass(control.class), control.accessibilityLabel ?: @"-"]);
+    // The bar's buttons listen to PrimaryActionTriggered (BrowserTopBarView), the same event a clickpad press sends.
+    [control sendActionsForControlEvents:UIControlEventPrimaryActionTriggered];
+    return YES;
 }
 
 - (void)browserRemoteInputControllerHandlePrimaryAction {

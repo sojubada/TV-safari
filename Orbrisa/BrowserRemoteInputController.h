@@ -50,6 +50,8 @@ NS_ASSUME_NONNULL_BEGIN
 - (void)browserRemoteInputControllerGoForward;
 
 @optional
+/// A mouse click landed on the top bar: press the button under the point. YES when one was pressed.
+- (BOOL)browserRemoteInputControllerHandlePointerClickInTopBarAtPoint:(CGPoint)point;
 /// YES while a Bluetooth keyboard is typing into a field.
 - (BOOL)browserRemoteInputControllerHardwareTypingActive;
 /// A key from a Bluetooth keyboard, offered to the typing session first.
@@ -86,6 +88,19 @@ NS_ASSUME_NONNULL_BEGIN
 - (void)setCursorModeEnabled:(BOOL)cursorModeEnabled;
 - (void)setLinkNavigationActive:(BOOL)linkNavigationActive;
 - (void)refreshInteractionState;
+
+#pragma mark - Mouse (BrowserX1MouseController)
+/// Relative pointer movement in points. Moves the same cursor the clickpad moves, without its
+/// swipe-to-bar snapping: a mouse reaches the bar buttons by pointing at them.
+- (void)handleExternalPointerDelta:(CGPoint)delta;
+/// Left click: the same as a single click of the clickpad, at the cursor, without waiting for a double click.
+- (void)handleExternalPrimaryClick;
+/// Right click: Back / close, as the Menu button.
+- (void)handleExternalSecondaryClick;
+/// Middle click: the page menu, as a long press of Menu.
+- (void)handleExternalMiddleClick;
+/// Wheel notches, positive = up.
+- (void)handleExternalWheel:(NSInteger)notches;
 
 @end
 

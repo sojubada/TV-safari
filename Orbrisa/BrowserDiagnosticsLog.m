@@ -25,20 +25,21 @@ static NSString *BrowserDiagCategoryName(BrowserDiagCategory category) {
         case BrowserDiagCategoryStorage: return @"Storage";
         case BrowserDiagCategoryUI: return @"UI";
         case BrowserDiagCategoryMedia: return @"Media";
+        case BrowserDiagCategoryInput: return @"Input";
     }
     return @"App";
 }
 
 static os_log_t BrowserDiagOSLog(BrowserDiagCategory category) {
-    static os_log_t logs[5];
+    static os_log_t logs[6];
     static dispatch_once_t onceToken;
     dispatch_once(&onceToken, ^{
         const char *subsystem = (NSBundle.mainBundle.bundleIdentifier ?: @"com.app.diagnostic").UTF8String;
-        for (NSInteger i = 0; i < 5; i++) {
+        for (NSInteger i = 0; i < 6; i++) {
             logs[i] = os_log_create(subsystem, BrowserDiagCategoryName((BrowserDiagCategory)i).UTF8String);
         }
     });
-    return (category >= 0 && category < 5) ? logs[category] : OS_LOG_DEFAULT;
+    return (category >= 0 && category < 6) ? logs[category] : OS_LOG_DEFAULT;
 }
 
 static NSString *gBrowserDiagTrace = nil;

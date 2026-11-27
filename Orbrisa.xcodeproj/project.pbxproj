@@ -30,6 +30,7 @@
 		A1B49A8F2D700020001D58A1 /* BrowserTabOverviewController.m in Sources */ = {isa = PBXBuildFile; fileRef = A1B49A8E2D700020001D58A1 /* BrowserTabOverviewController.m */; };
 		A1B49A922D700030001D58A1 /* BrowserPageActionCoordinator.m in Sources */ = {isa = PBXBuildFile; fileRef = A1B49A912D700030001D58A1 /* BrowserPageActionCoordinator.m */; };
 		A1B49A952D700040001D58A1 /* BrowserRemoteInputController.m in Sources */ = {isa = PBXBuildFile; fileRef = A1B49A942D700040001D58A1 /* BrowserRemoteInputController.m */; };
+		B1C0A0032E90000100A1B2C3 /* BrowserX1MouseController.m in Sources */ = {isa = PBXBuildFile; fileRef = B1C0A0022E90000100A1B2C3 /* BrowserX1MouseController.m */; };
 		ABE100000000000000000007 /* ContentProvider.m in Sources */ = {isa = PBXBuildFile; fileRef = ABE100000000000000000002 /* ContentProvider.m */; };
 		ABE100000000000000000008 /* OrbrisaTopShelf.appex in Embed Foundation Extensions */ = {isa = PBXBuildFile; fileRef = ABE100000000000000000006 /* OrbrisaTopShelf.appex */; settings = {ATTRIBUTES = (RemoveHeadersOnCopy, ); }; };
 		B002B8671BAE420500C744AF /* main.m in Sources */ = {isa = PBXBuildFile; fileRef = B002B8661BAE420500C744AF /* main.m */; };
@@ -117,6 +118,8 @@
 		A1B49A912D700030001D58A1 /* BrowserPageActionCoordinator.m */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.objc; path = BrowserPageActionCoordinator.m; sourceTree = "<group>"; };
 		A1B49A932D700040001D58A1 /* BrowserRemoteInputController.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = BrowserRemoteInputController.h; sourceTree = "<group>"; };
 		A1B49A942D700040001D58A1 /* BrowserRemoteInputController.m */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.objc; path = BrowserRemoteInputController.m; sourceTree = "<group>"; };
+		B1C0A0012E90000100A1B2C3 /* BrowserX1MouseController.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = BrowserX1MouseController.h; sourceTree = "<group>"; };
+		B1C0A0022E90000100A1B2C3 /* BrowserX1MouseController.m */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.objc; path = BrowserX1MouseController.m; sourceTree = "<group>"; };
 		ABE100000000000000000001 /* ContentProvider.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = ContentProvider.h; sourceTree = "<group>"; };
 		ABE100000000000000000002 /* ContentProvider.m */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.objc; path = ContentProvider.m; sourceTree = "<group>"; };
 		ABE100000000000000000003 /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist.xml; path = Info.plist; sourceTree = "<group>"; };
@@ -219,6 +222,8 @@
 				A1B49A912D700030001D58A1 /* BrowserPageActionCoordinator.m */,
 				A1B49A932D700040001D58A1 /* BrowserRemoteInputController.h */,
 				A1B49A942D700040001D58A1 /* BrowserRemoteInputController.m */,
+				B1C0A0012E90000100A1B2C3 /* BrowserX1MouseController.h */,
+				B1C0A0022E90000100A1B2C3 /* BrowserX1MouseController.m */,
 				A1B49A8A2D700010001D58A1 /* BrowserTabCoordinator.h */,
 				A1B49A8B2D700010001D58A1 /* BrowserTabCoordinator.m */,
 				A1B49A8D2D700020001D58A1 /* BrowserTabOverviewController.h */,
@@ -523,6 +528,7 @@
 				A1B49A552D68143D001D58A1 /* BrowserMenuCoordinator.m in Sources */,
 				A1B49A922D700030001D58A1 /* BrowserPageActionCoordinator.m in Sources */,
 				A1B49A952D700040001D58A1 /* BrowserRemoteInputController.m in Sources */,
+				B1C0A0032E90000100A1B2C3 /* BrowserX1MouseController.m in Sources */,
 				A1B49A8C2D700010001D58A1 /* BrowserTabCoordinator.m in Sources */,
 				A1B49A8F2D700020001D58A1 /* BrowserTabOverviewController.m in Sources */,
 				A1B49A872D6D2000001D58A1 /* BrowserVideoPlaybackCoordinator.m in Sources */,

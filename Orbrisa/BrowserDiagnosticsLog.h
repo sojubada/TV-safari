@@ -12,6 +12,7 @@ typedef NS_ENUM(NSInteger, BrowserDiagCategory) {
     BrowserDiagCategoryStorage,
     BrowserDiagCategoryUI,
     BrowserDiagCategoryMedia,
+    BrowserDiagCategoryInput,
 };
 
 /// Every line goes two ways:
