@@ -42,6 +42,12 @@ FOUNDATION_EXPORT NSString * const BrowserForceDarkPagesDidChangeNotification;
 @property (nonatomic, readonly, getter=isLoading) BOOL loading;
 @property (nonatomic) BOOL scalesPageToFit;
 
+/// Whole-page magnification for every tab, like Ctrl + on a PC: text, images and layout grow together and the
+/// page lays out for a narrower window (150 % = 1280 wide, 200 % = 960). From 3 m on a 55-inch set, a 1920-wide
+/// desktop page reads at about half the size it has on a PC monitor. NSUserDefaults "PageZoomPercent", 100-200, default 150.
++ (NSUInteger)pageZoomPercent;
++ (void)setPageZoomPercent:(NSUInteger)percent;
+
 - (instancetype)initWithCoder:(NSCoder *)coder NS_DESIGNATED_INITIALIZER;
 - (instancetype)initWithUserAgent:(NSString * _Nullable)userAgent
       allowsInlineMediaPlayback:(BOOL)allowsInlineMediaPlayback NS_DESIGNATED_INITIALIZER;

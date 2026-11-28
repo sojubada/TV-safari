@@ -13,6 +13,7 @@ All notable changes to Orbrisa. The format follows [Keep a Changelog](https://ke
 - Order: visionos → web_safari → mweb → web_embedded → android_vr → ios → tv.
 
 ### Added
+- **Page Zoom** (Settings, Display section; 100-200 %, default **150 %**): magnifies the whole page like Ctrl + on a PC, text, images and layout together, in every tab at once. A 1920-wide desktop page seen from 3 m on a 55-inch set reads at about half the size it has on a PC monitor; at 150 % the page lays out 1280 wide, at 200 % 960. "Scale Pages to Fit" replaces it while that switch is on. Logged as `UI page zoom`.
 - **Bluetooth mouse** through the ESP32-C3 relay (sojubada/rd4tvos, `firmware/x1bridge`), which re-sends a BLE mouse as a Citrix X1 mouse (service `2B080000-BDB5-F6EB-24AE-9D6AB282AB63`). The browser is the central and connects on its own; nothing is paired in tvOS Settings.
   - movement drives the same pointer as the clickpad; the bar is reached by pointing at it, no snapping;
   - left click = click at the pointer (bar buttons included), right = Back / close, middle = page menu, wheel = scroll (page or the box under the pointer);

@@ -1809,6 +1809,41 @@ static NSUInteger const kBrowserFontSizeMax = 200;
     return item;
 }
 
+/// Whole-page magnification (text, images, layout), for every tab, applied at once.
+- (BrowserAdvancedMenuItem *)pageZoomMenuItem {
+    BrowserAdvancedMenuItem *item = [self advancedMenuItemWithTitle:BrowserLocalized(@"Page Zoom")
+                                                              style:UIAlertActionStyleDefault
+                                                            handler:^{
+        BrowserGlassSliderViewController *slider = [BrowserGlassSliderViewController new];
+        const CGFloat low = 100.0, range = 100.0;
+        slider.sliderTitle = BrowserLocalized(@"Page Zoom");
+        slider.lowText = @"100 %";
+        slider.highText = @"200 %";
+        slider.lowSymbol = @"minus.magnifyingglass";
+        slider.highSymbol = @"plus.magnifyingglass";
+        slider.steps = range / 10.0;       // 10 % steps
+        slider.pressStep = 10.0 / range;   // one press = 10 %
+        slider.getValue = ^CGFloat{
+            return ([BrowserWebView pageZoomPercent] - low) / range;
+        };
+        slider.setValue = ^(CGFloat value) {
+            NSUInteger percent = (NSUInteger)(low + lround(value * range / 10.0) * 10);
+            if (percent != [BrowserWebView pageZoomPercent]) {
+                [BrowserWebView setPageZoomPercent:percent];
+            }
+        };
+        slider.valueText = ^NSString *(CGFloat value) {
+            NSUInteger percent = (NSUInteger)(low + lround(value * range / 10.0) * 10);
+            return percent == 150 ? BrowserLocalized(@"150 % (Default)") : [NSString stringWithFormat:@"%lu %%", (unsigned long)percent];
+        };
+        [self.host browserPresentViewController:slider];
+    }];
+    item.detailValue = ^NSString *{
+        return [NSString stringWithFormat:@"%lu %%", (unsigned long)[BrowserWebView pageZoomPercent]];
+    };
+    return item;
+}
+
 - (BrowserAdvancedMenuItem *)liquidGlassIntensityMenuItem {
     BrowserAdvancedMenuItem *item = [self advancedMenuItemWithTitle:BrowserLocalized(@"Liquid Glass Intensity")
                                                               style:UIAlertActionStyleDefault
@@ -1980,6 +2015,7 @@ static NSUInteger const kBrowserFontSizeMax = 200;
             [self tabSiteColorsMenuItem],
             [self topNavigationVisibilityMenuItem],
             [self pageScalingMenuItem],
+            [self pageZoomMenuItem],
             [self fontSizeMenuItem],
         ]],
         [BrowserAdvancedMenuSection sectionWithTitle:BrowserLocalized(@"Remote Control")

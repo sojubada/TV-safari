@@ -1010,6 +1010,28 @@ static void BrowserInstallYouTubeCaptureUserScript(id configuration) {
 
 @implementation BrowserWebView
 
+static NSString * const kBrowserPageZoomPercentKey = @"PageZoomPercent";
+static NSString * const kBrowserPageZoomDidChangeNotification = @"BrowserPageZoomDidChange";
+static const NSUInteger kBrowserPageZoomDefault = 150;
+
++ (NSUInteger)pageZoomPercent {
+    NSNumber *value = [NSUserDefaults.standardUserDefaults objectForKey:kBrowserPageZoomPercentKey];
+    NSUInteger percent = value != nil ? value.unsignedIntegerValue : kBrowserPageZoomDefault;
+    return MIN(MAX(percent, (NSUInteger)100), (NSUInteger)200);
+}
+
++ (void)setPageZoomPercent:(NSUInteger)percent {
+    percent = MIN(MAX(percent, (NSUInteger)100), (NSUInteger)200);
+    [NSUserDefaults.standardUserDefaults setObject:@(percent) forKey:kBrowserPageZoomPercentKey];
+    BrowserDiagInfo(BrowserDiagCategoryUI, @"page zoom", nil, [NSString stringWithFormat:@"%lu%%", (unsigned long)percent]);
+    [NSNotificationCenter.defaultCenter postNotificationName:kBrowserPageZoomDidChangeNotification object:nil];
+}
+
+- (void)handlePageZoomDidChange:(NSNotification *)notification {
+    (void)notification;
+    [self applyPageScalingIfNeeded];
+}
+
 - (instancetype)initWithFrame:(CGRect)frame {
     self = [self initWithUserAgent:nil allowsInlineMediaPlayback:YES];
     if (self) {
@@ -1022,6 +1044,7 @@ static void BrowserInstallYouTubeCaptureUserScript(id configuration) {
     self = [super initWithCoder:coder];
     if (self) {
         [self commonInitWithUserAgent:nil allowsInlineMediaPlayback:YES];
+        [NSNotificationCenter.defaultCenter addObserver:self selector:@selector(handlePageZoomDidChange:) name:kBrowserPageZoomDidChangeNotification object:nil];
     }
     return self;
 }
@@ -1030,6 +1053,7 @@ static void BrowserInstallYouTubeCaptureUserScript(id configuration) {
     self = [super initWithFrame:CGRectZero];
     if (self) {
         [self commonInitWithUserAgent:userAgent allowsInlineMediaPlayback:allowsInlineMediaPlayback];
+        [NSNotificationCenter.defaultCenter addObserver:self selector:@selector(handlePageZoomDidChange:) name:kBrowserPageZoomDidChangeNotification object:nil];
     }
     return self;
 }
@@ -1096,6 +1120,7 @@ static void BrowserInstallYouTubeCaptureUserScript(id configuration) {
 }
 
 - (void)dealloc {
+    [NSNotificationCenter.defaultCenter removeObserver:self name:kBrowserPageZoomDidChangeNotification object:nil];
     SEL removeSelector = NSSelectorFromString(@"removeScriptMessageHandlerForName:");
     id controller = self.mediaUserContentController;
     if ([controller respondsToSelector:removeSelector]) {
@@ -1785,8 +1810,10 @@ static NSInteger BrowserMediaQualityInURL(NSString *URLString) {
         return;
     }
 
-    CGFloat zoomValue = 1.0;
+    // The viewer's page zoom; "Scale Pages to Fit" (shrink wide pages) replaces it while it is on.
+    CGFloat zoomValue = [BrowserWebView pageZoomPercent] / 100.0;
     if (self.scalesPageToFit) {
+        zoomValue = 1.0;
         CGFloat contentWidth = scrollView.contentSize.width;
         CGFloat boundsWidth = CGRectGetWidth(scrollView.bounds);
         if (contentWidth > 1.0 && boundsWidth > 1.0) {
